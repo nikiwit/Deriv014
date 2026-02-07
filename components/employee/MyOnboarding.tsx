@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { DEFAULT_ONBOARDING_TASKS } from '../../constants';
 import { OnboardingTask, TaskStatus, TaskCategory } from '../../types';
@@ -15,7 +15,9 @@ import {
   Shield,
   Monitor,
   GraduationCap,
-  Heart
+  Heart,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 const categoryConfig: Record<TaskCategory, { label: string; icon: React.ReactNode; color: string }> = {
@@ -40,6 +42,53 @@ export const MyOnboarding: React.FC = () => {
   );
 
   const [selectedTask, setSelectedTask] = useState<OnboardingTask | null>(null);
+  const [templateContent, setTemplateContent] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+
+  // Determine jurisdiction from user nationality (default MY)
+  const jurisdiction = user?.department?.toLowerCase().includes('singapore') ? 'sg' : 'my';
+
+  // Fetch template when a task with templateId is selected
+  useEffect(() => {
+    if (!selectedTask?.templateId) {
+      setTemplateContent(null);
+      setTemplateError(null);
+      return;
+    }
+
+    const templateName = `${selectedTask.templateId}_${jurisdiction}`;
+    const params = new URLSearchParams({
+      name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+      email: user?.email || '',
+      department: user?.department || '',
+      start_date: user?.startDate || new Date().toISOString().split('T')[0],
+      job_title: 'Software Engineer',
+      company_name: jurisdiction === 'sg' ? 'Deriv Solutions Pte Ltd' : 'Deriv Solutions Sdn Bhd',
+      employment_type: 'Permanent',
+      probation_period: '3 months',
+      currency: jurisdiction === 'sg' ? 'SGD' : 'MYR',
+      acceptance_date: new Date().toISOString().split('T')[0],
+      offer_date: new Date().toISOString().split('T')[0],
+    });
+
+    setTemplateLoading(true);
+    setTemplateError(null);
+
+    fetch(`/api/onboarding/templates/${templateName}?${params}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to load template (${res.status})`);
+        return res.json();
+      })
+      .then(data => {
+        setTemplateContent(data.content);
+      })
+      .catch(err => {
+        console.warn('Template fetch failed:', err);
+        setTemplateError(err.message);
+      })
+      .finally(() => setTemplateLoading(false));
+  }, [selectedTask?.templateId, selectedTask?.id]);
 
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const progress = Math.round((completedCount / tasks.length) * 100);
@@ -167,8 +216,8 @@ export const MyOnboarding: React.FC = () => {
 
         {/* Task List */}
         <div className="lg:col-span-2 space-y-6">
-          {Object.entries(groupedTasks).map(([category, categoryTasks]) => {
-            const config = categoryConfig[category as TaskCategory];
+          {(Object.entries(groupedTasks) as [TaskCategory, OnboardingTask[]][]).map(([category, categoryTasks]) => {
+            const config = categoryConfig[category];
             const categoryComplete = categoryTasks.every(t => t.status === 'completed');
 
             return (
@@ -257,10 +306,10 @@ export const MyOnboarding: React.FC = () => {
       {/* Task Detail Modal */}
       {selectedTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in">
-            <div className="h-1.5 bg-gradient-to-r from-jade-500 to-jade-400"></div>
-            <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
+          <div className={`bg-white rounded-2xl shadow-2xl w-full overflow-hidden animate-fade-in ${selectedTask.templateId ? 'max-w-3xl max-h-[90vh] flex flex-col' : 'max-w-lg'}`}>
+            <div className="h-1.5 bg-gradient-to-r from-jade-500 to-jade-400 flex-shrink-0"></div>
+            <div className={`p-6 ${selectedTask.templateId ? 'flex flex-col overflow-hidden flex-1' : ''}`}>
+              <div className="flex items-center space-x-3 mb-4 flex-shrink-0">
                 <div className={`p-2 ${categoryConfig[selectedTask.category].color} rounded-xl text-white`}>
                   {categoryConfig[selectedTask.category].icon}
                 </div>
@@ -272,36 +321,91 @@ export const MyOnboarding: React.FC = () => {
                 </div>
               </div>
 
-              <p className="text-slate-600 mb-6">{selectedTask.description}</p>
+              {/* Template document view */}
+              {selectedTask.templateId ? (
+                <>
+                  {templateLoading && (
+                    <div className="flex items-center justify-center py-16">
+                      <Loader2 className="animate-spin text-jade-500 mr-3" size={24} />
+                      <span className="text-slate-500 font-medium">Loading document...</span>
+                    </div>
+                  )}
+                  {templateError && (
+                    <div className="flex items-center space-x-3 p-4 bg-red-50 rounded-xl mb-4">
+                      <AlertCircle className="text-red-500 flex-shrink-0" size={20} />
+                      <div>
+                        <p className="text-sm font-bold text-red-700">Failed to load document</p>
+                        <p className="text-xs text-red-500">{templateError}</p>
+                      </div>
+                    </div>
+                  )}
+                  {templateContent && (
+                    <div className="overflow-y-auto flex-1 mb-4 border border-slate-200 rounded-xl">
+                      <div className="p-6 prose prose-sm prose-slate max-w-none">
+                        {templateContent.split('\n').map((line, i) => {
+                          if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-black text-slate-900 mb-2">{line.slice(2)}</h1>;
+                          if (line.startsWith('## ')) return <h2 key={i} className="text-lg font-bold text-slate-800 mt-4 mb-2 border-b border-slate-100 pb-1">{line.slice(3)}</h2>;
+                          if (line.startsWith('**') && line.endsWith('**')) return <p key={i} className="font-bold text-slate-700 my-1">{line.slice(2, -2)}</p>;
+                          if (line.startsWith('- ')) return <li key={i} className="text-slate-600 ml-4 my-0.5">{line.slice(2)}</li>;
+                          if (line.startsWith('---')) return <hr key={i} className="my-3 border-slate-200" />;
+                          if (line.match(/^\*\*.*\*\*:/)) {
+                            const parts = line.match(/^\*\*(.*?)\*\*:\s*(.*)/);
+                            if (parts) return <p key={i} className="my-1"><span className="font-bold text-slate-700">{parts[1]}:</span> <span className="text-slate-600">{parts[2]}</span></p>;
+                          }
+                          if (line.startsWith('I,') || line.startsWith('I ')) return <p key={i} className="text-slate-600 my-2 italic">{line}</p>;
+                          if (line.includes('_______')) return <p key={i} className="my-2 text-slate-400 border-b-2 border-dashed border-slate-300 pb-2 inline-block">{line.replace(/_+/g, '                    ')}</p>;
+                          if (line.trim() === '') return <div key={i} className="h-2" />;
+                          return <p key={i} className="text-slate-600 my-1">{line}</p>;
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="flex items-center space-x-2 text-sm text-slate-500">
-                  <Clock size={16} />
-                  <span>~{selectedTask.estimatedMinutes} minutes</span>
-                </div>
-                {selectedTask.priority === 'required' && (
-                  <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">Required</span>
-                )}
-              </div>
+                  {/* Signature area for template tasks */}
+                  {selectedTask.requiresSignature && templateContent && (
+                    <div className="bg-slate-50 rounded-xl p-4 mb-4 flex-shrink-0">
+                      <p className="text-sm font-bold text-slate-600 mb-2">Digital Signature</p>
+                      <div className="border-2 border-slate-200 bg-white rounded-xl h-24 flex items-center justify-center cursor-pointer hover:border-jade-400 transition-colors">
+                        <p className="text-slate-400 italic">Click to sign here</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Standard task view */}
+                  <p className="text-slate-600 mb-6">{selectedTask.description}</p>
 
-              {selectedTask.requiresUpload && (
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center mb-6 hover:border-jade-500 transition-colors cursor-pointer">
-                  <Upload className="mx-auto text-slate-400 mb-2" size={32} />
-                  <p className="font-bold text-slate-600">Click to upload or drag and drop</p>
-                  <p className="text-sm text-slate-400">PDF, PNG, JPG up to 10MB</p>
-                </div>
-              )}
-
-              {selectedTask.requiresSignature && (
-                <div className="bg-slate-50 rounded-xl p-6 mb-6">
-                  <p className="text-sm font-bold text-slate-600 mb-3">Digital Signature Required</p>
-                  <div className="border-2 border-slate-200 bg-white rounded-xl h-32 flex items-center justify-center">
-                    <p className="text-slate-400 italic">Click to sign here</p>
+                  <div className="flex items-center space-x-4 mb-6">
+                    <div className="flex items-center space-x-2 text-sm text-slate-500">
+                      <Clock size={16} />
+                      <span>~{selectedTask.estimatedMinutes} minutes</span>
+                    </div>
+                    {selectedTask.priority === 'required' && (
+                      <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">Required</span>
+                    )}
                   </div>
-                </div>
+
+                  {selectedTask.requiresUpload && (
+                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center mb-6 hover:border-jade-500 transition-colors cursor-pointer">
+                      <Upload className="mx-auto text-slate-400 mb-2" size={32} />
+                      <p className="font-bold text-slate-600">Click to upload or drag and drop</p>
+                      <p className="text-sm text-slate-400">PDF, PNG, JPG up to 10MB</p>
+                    </div>
+                  )}
+
+                  {selectedTask.requiresSignature && (
+                    <div className="bg-slate-50 rounded-xl p-6 mb-6">
+                      <p className="text-sm font-bold text-slate-600 mb-3">Digital Signature Required</p>
+                      <div className="border-2 border-slate-200 bg-white rounded-xl h-32 flex items-center justify-center">
+                        <p className="text-slate-400 italic">Click to sign here</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
-              <div className="flex space-x-3">
+              <div className="flex space-x-3 flex-shrink-0">
                 <button
                   onClick={() => setSelectedTask(null)}
                   className="flex-1 py-3 px-4 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
@@ -310,9 +414,11 @@ export const MyOnboarding: React.FC = () => {
                 </button>
                 <button
                   onClick={() => handleCompleteTask(selectedTask.id)}
-                  className="flex-1 py-3 px-4 bg-jade-500 text-white rounded-xl font-bold hover:bg-jade-600 transition-all shadow-lg shadow-jade-500/20"
+                  disabled={selectedTask.templateId ? templateLoading || !!templateError : false}
+                  className="flex-1 py-3 px-4 bg-jade-500 text-white rounded-xl font-bold hover:bg-jade-600 transition-all shadow-lg shadow-jade-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {selectedTask.status === 'completed' ? 'Already Complete' : 'Mark Complete'}
+                  {selectedTask.status === 'completed' ? 'Already Complete' :
+                   selectedTask.templateId ? 'Sign & Submit' : 'Mark Complete'}
                 </button>
               </div>
             </div>

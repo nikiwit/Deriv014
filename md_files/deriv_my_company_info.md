@@ -28,3 +28,7 @@ To be Southeast Asia's trusted cloud transformation partner by 2027.
 - **HR Email:** hr@Deriv.com.my
 - **Phone:** +60 3-7956 3000
 - **Website:** www.Deriv.com.my
+
+
+
+

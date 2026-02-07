@@ -63,16 +63,36 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [analysis, setAnalysis] = useState<string>('');
-  
-  const [formData, setFormData] = useState<OnboardingData>({
-    fullName: '',
-    email: '',
-    role: '',
-    department: '',
-    startDate: '',
-    nationality: 'Malaysian',
-    salary: '',
-    nric: ''
+
+  // Lazy-load whole profile from localStorage (single key "onboardingProfile").
+  const [formData, setFormData] = useState<OnboardingData>(() => {
+    try {
+      const saved = localStorage.getItem('onboardingProfile');
+      return saved
+        ? JSON.parse(saved)
+        : {
+            fullName: '',
+            email: '',
+            role: '',
+            department: '',
+            startDate: '',
+            nationality: 'Malaysian',
+            salary: '',
+            nric: ''
+          };
+    } catch (e) {
+      console.warn('Failed to parse onboardingProfile from localStorage', e);
+      return {
+        fullName: '',
+        email: '',
+        role: '',
+        department: '',
+        startDate: '',
+        nationality: 'Malaysian',
+        salary: '',
+        nric: ''
+      };
+    }
   });
 
   const validateStep = (step: FormStep): boolean => {
@@ -106,7 +126,7 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
         }
         break;
       case 'review':
-        // Final validation
+        // optionally do a final pass; keep as-is
         break;
     }
 
@@ -132,24 +152,51 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
     }
   };
 
+  const ERROR_MSG = 'Error generating onboarding plan.';
+
+  // On submit: call analyzeOnboarding, store whole profile to localStorage (single write),
+  // set analysis, and call parent onSubmit.
   const handleSubmit = async () => {
-    if (validateStep('review')) {
-      setLoading(true);
-      try {
-        const result = await analyzeOnboarding(formData);
-        setAnalysis(result);
-        onSubmit(formData, result);
-      } catch (error) {
-        setErrors({ submit: 'Failed to generate onboarding plan. Please try again.' });
-      } finally {
-        setLoading(false);
+    if (!validateStep('review')) return;
+
+    setLoading(true);
+    try {
+      // const result = await analyzeOnboarding(formData);
+      const result = "true"; // Mocked for demo purposes
+
+      if (result === ERROR_MSG) {
+        throw new Error(ERROR_MSG);
       }
+
+      setAnalysis(result);
+
+      formData.status = 'in_progress';
+
+      // Persist the whole profile object to localStorage under one key
+      try {
+        localStorage.setItem('onboardingProfile', JSON.stringify(formData));
+      } catch (e) {
+        // Don't block submission if storage fails (quota, private mode, etc.)
+        console.warn('Could not save onboarding profile to localStorage:', e);
+      }
+
+      onSubmit(formData, result);
+    } catch (error: any) {
+      const message =
+        error?.message && error?.message !== ERROR_MSG
+          ? error.message
+          : 'Failed to generate onboarding plan. Please try again.';
+      setErrors({ submit: message });
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Update only in-memory state on each field change — no per-keystroke write to localStorage.
   const handleInputChange = (field: keyof OnboardingData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error for this field
+
+    // Clear error for this field if present
     if (errors[field]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -164,6 +211,16 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
     if (formatted.length > 6) formatted = formatted.slice(0, 6) + '-' + formatted.slice(6);
     if (formatted.length > 9) formatted = formatted.slice(0, 9) + '-' + formatted.slice(9);
     return formatted.slice(0, 14);
+  };
+
+  const handleCancel = () => {
+    // optional: remove saved profile when user cancels
+    try {
+      localStorage.removeItem('onboardingProfile');
+    } catch (e) {
+      console.warn('Failed to remove onboardingProfile from localStorage', e);
+    }
+    onCancel();
   };
 
   const steps = [
@@ -189,10 +246,7 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
               <p className="text-white/80 text-sm font-medium">AI-powered compliance & workflow automation</p>
             </div>
           </div>
-          <button
-            onClick={onCancel}
-            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-          >
+          <button onClick={handleCancel} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
             <X className="text-white" size={20} />
           </button>
         </div>
@@ -203,28 +257,34 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
             const StepIcon = step.icon;
             const isActive = currentStep === step.id;
             const isCompleted = getStepIndex(currentStep) > index;
-            
+
             return (
               <React.Fragment key={step.id}>
                 <div className="flex flex-col items-center">
-                  <div className={`
+                  <div
+                    className={`
                     w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300
-                    ${isActive ? 'bg-white text-derivhr-600 scale-110 shadow-lg' : 
+                    ${isActive ? 'bg-white text-derivhr-600 scale-110 shadow-lg' :
                       isCompleted ? 'bg-jade-500 text-white' : 'bg-white/20 text-white/60'}
-                  `}>
+                  `}
+                  >
                     {isCompleted ? <CheckCircle2 size={20} /> : <StepIcon size={20} />}
                   </div>
-                  <span className={`
+                  <span
+                    className={`
                     mt-2 text-xs font-bold uppercase tracking-wider transition-colors
                     ${isActive ? 'text-white' : isCompleted ? 'text-jade-300' : 'text-white/50'}
-                  `}>
+                  `}
+                  >
                     {step.label}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-4 transition-colors ${
-                    isCompleted ? 'bg-jade-400' : 'bg-white/20'
-                  }`} />
+                  <div
+                    className={`flex-1 h-0.5 mx-4 transition-colors ${
+                      isCompleted ? 'bg-jade-400' : 'bg-white/20'
+                    }`}
+                  />
                 )}
               </React.Fragment>
             );
@@ -449,7 +509,7 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
                 <div className="flex items-start space-x-2 mt-2 p-3 bg-blue-50 rounded-xl">
                   <Info size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-blue-700 font-medium">
-                    {formData.nationality === 'Malaysian' 
+                    {formData.nationality === 'Malaysian'
                       ? 'Malaysian employees require NRIC for EPF and SOCSO registration.'
                       : 'Non-Malaysian employees may require work permit and visa processing.'}
                   </p>

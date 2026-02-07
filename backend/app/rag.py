@@ -12,6 +12,10 @@ from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
+import logging 
+logger = logging.getLogger(__name__)
+
+
 _index = None
 _engines = {}  # session_id -> chat_engine
 
@@ -54,8 +58,14 @@ def init_app(app):
         ).load_data()
 
         for doc in documents:
-            fname = os.path.basename(doc.metadata.get("file_name", ""))
-            doc.metadata["jurisdiction"] = "SG" if "_sg_" in fname.lower() else "MY"
+            fname = os.path.basename(doc.metadata.get("file_name", "")).lower()
+            logger.info(f"Processing document: {fname}")
+            if "_sg_" in fname:
+                doc.metadata["jurisdiction"] = "SG"
+            elif "_my_" in fname:
+                doc.metadata["jurisdiction"] = "MY"
+            else:
+                doc.metadata["jurisdiction"] = "ALL"  # e.g. profiles.md applies to all
 
         _index = VectorStoreIndex.from_documents(documents)
         os.makedirs(persist_dir, exist_ok=True)

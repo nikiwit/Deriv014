@@ -1,0 +1,16 @@
+id,firstName,lastName,email,phone,nationality,nric,bankName,bankAccount,taxId,epfNo,emergencyContact,emergencyContactPhone,emergencyContactRelationship,complianceStatus
+1,Sarah,Chen,admin@derivhr.com,+6012-345-6789,Malaysian,901215-14-5678,Maybank,12345678901234,123456789012,00012345678900,Ahmad bin Ali,+6019-876-5432,Spouse,Complete
+2,John,Doe,john@derivhr.com,+6013-456-7890,Malaysian,950620-08-1234,CIMB,98765432109876,987654321098,00098765432100,Mary Doe,+6018-765-4321,Wife,Complete
+3,Jane,Smith,jane@derivhr.com,+6014-567-8901,Malaysian,920810-12-3456,Public Bank,45678901234567,456789012345,00045678901234,Robert Smith,+6017-654-3210,Husband,Complete
+4,Raj,Muthu,raj@derivhr.com,+6011-234-5678,Malaysian,881105-06-7890,RHB Bank,23456789012345,234567890123,00023456789012,Kamala Muthu,+6010-987-6543,Sister,Complete
+5,Ali,Ahmad,ali@derivhr.com,+6016-789-0123,Malaysian,850322-05-6789,HSBC,34567890123456,345678901234,00034567890123,Fatimah Ahmad,+6015-876-5432,Wife,Complete
+6,Lim,Wei Chen,lim@derivhr.com,+6019-890-1234,Malaysian,930718-13-4567,Maybank,56789012345678,567890123456,00056789012345,Tan Mei Ling,+6014-765-4321,Mother,Complete
+7,Michael,Wong,michael@derivhr.com,+6018-901-2345,Malaysian,910425-16-7890,CIMB,67890123456789,678901234567,00067890123456,Sarah Wong,+6013-654-3210,Sister,Complete
+8,Anita,Sharma,anita@derivhr.com,+6017-012-3456,Indian,NA,Standard Chartered,78901234567890,789012345678,00078901234567,Rajesh Sharma,+91-98765-43210,Father,Foreign_National
+9,David,Tan,david@derivhr.com,+6012-123-4567,Singaporean,NA,OCBC,89012345678901,890123456789,00089012345678,Linda Tan,+65-9876-5432,Wife,Foreign_National
+10,Siti,Norhaliza,siti@derivhr.com,+6010-234-5678,Malaysian,940930-02-3456,Maybank,90123456789012,901234567890,00090123456789,Ahmad Fauzi,+6011-123-4567,Brother,Complete
+11,Tan,Ah Beng,tan@derivhr.com,+6015-345-6789,Malaysian,871201-03-4567,Public Bank,01234567890123,012345678901,00001234567890,Tan Ah Lian,+6016-234-5678,Father,Complete
+12,James,Lim,james@derivhr.com,+6014-456-7890,Malaysian,960214-15-6789,RHB Bank,12345098765432,123450987654,00012345098765,Lim Mei Mei,+6017-345-6789,Sister,Complete
+13,Mei,Ling,mei@derivhr.com,+6013-567-8901,Malaysian,900520-10-7890,Maybank,23456109876543,234561098765,00023456109876,Tan Wei Loon,+6018-456-7890,Boyfriend,Complete
+14,Kumar,a/l Rajan,kumar@derivhr.com,+6012-678-9012,Malaysian,890808-07-8901,CIMB,34567210987654,345672109876,00034567210987,Priya d/o Kumar,+6019-567-8901,Wife,Complete
+15,Lisa,Johnson,lisa@derivhr.com,+1-555-123-4567,American,NA,Citibank,45678321098765,456783210987,00045678321098,Mark Johnson,+1-555-987-6543,Husband,Foreign_National

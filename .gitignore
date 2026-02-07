@@ -110,3 +110,7 @@ cython_debug/
 .abstra/
 .cursorignore
 .cursorindexingignore
+
+.txt
+temp_data/
+md_files/future_use/

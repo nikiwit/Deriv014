@@ -1,257 +1,553 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useEffect, useState } from 'react';
 import {
-  FileText,
-  Upload,
-  Download,
   CheckCircle2,
-  Clock,
+  FileText,
+  Download,
   XCircle,
-  Eye,
-  Trash2,
-  Plus,
-  File,
-  FileSignature,
-  X
+  Clock,
+  Lock,
+  Edit3
 } from 'lucide-react';
+import { OfferAcceptanceForm } from './OfferAcceptanceForm';
+import { ContractForm } from './ContractForm';
 
-interface Document {
-  id: string;
-  name: string;
-  type: 'contract' | 'id' | 'certificate' | 'tax' | 'other';
-  size: string;
-  uploadedAt: string;
-  status: 'verified' | 'pending' | 'rejected';
-  signedAt?: string;
+const API_BASE = 'http://localhost:5001';
+const OFFER_STORAGE_KEY = 'offerAcceptanceData';
+const CONTRACT_STORAGE_KEY = 'contractData';
+
+// helper to ensure id exists
+function ensureProfileHasId(p: any) {
+  if (!p) return null;
+  if (!p.id) {
+    const id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+      ? (crypto as any).randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    p.id = id;
+    p.createdAt = p.createdAt || new Date().toISOString();
+  }
+  return p;
 }
 
-const docTypeConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-  contract: { label: 'Contract', color: 'text-blue-500', bgColor: 'bg-blue-50' },
-  id: { label: 'ID Document', color: 'text-purple-500', bgColor: 'bg-purple-50' },
-  certificate: { label: 'Certificate', color: 'text-amber-500', bgColor: 'bg-amber-50' },
-  tax: { label: 'Tax Form', color: 'text-jade-500', bgColor: 'bg-jade-50' },
-  other: { label: 'Other', color: 'text-slate-500', bgColor: 'bg-slate-50' },
+type StoredOnboardingProfile = {
+  fullName?: string;
+  email?: string;
+  role?: string;
+  department?: string;
+  startDate?: string;
+  nationality?: 'Malaysian' | 'Non-Malaysian';
+  salary?: string;
+  nric?: string;
+  status?: string;
+  createdAt?: string;
+  aiPlan?: string;
+  [k: string]: any;
 };
 
+type TaskKey = 'application' | 'offer' | 'contract';
+
+const TASKS: { key: TaskKey; title: string; description: string }[] = [
+  {
+    key: 'application',
+    title: 'Onboarding Application',
+    description: 'Application document built from your onboarding profile.'
+  },
+  {
+    key: 'offer',
+    title: 'Offer Acceptance',
+    description: 'Sign / accept your offer letter to confirm employment.'
+  },
+  {
+    key: 'contract',
+    title: 'Contract Document',
+    description: 'Complete your employment contract with personal and statutory details.'
+  }
+];
+
+// ── Default form data builders ───────────────────────────────────────────────
+
+function getDefaultOfferData(profile: StoredOnboardingProfile | null) {
+  return {
+    fullName: profile?.fullName || '',
+    nricPassport: profile?.nric || '',
+    email: profile?.email || '',
+    mobile: '',
+    company: 'Deriv Solutions Sdn Bhd',
+    position: profile?.role || '',
+    department: profile?.department || '',
+    reportingTo: '',
+    startDate: profile?.startDate || '',
+    employmentType: 'Permanent',
+    probationPeriod: '3 months',
+    monthlySalary: profile?.salary || '',
+    benefits: '',
+    acceptanceDate: new Date().toISOString().split('T')[0],
+    emergencyName: '',
+    emergencyRelationship: '',
+    emergencyMobile: '',
+    emergencyAltNumber: '',
+    noConflicts: true,
+    conflictDetails: '',
+    accepted: false,
+    completedAt: '',
+  };
+}
+
+function getDefaultContractData(profile: StoredOnboardingProfile | null) {
+  return {
+    fullName: profile?.fullName || '',
+    nric: profile?.nric || '',
+    passportNo: '',
+    nationality: profile?.nationality || 'Malaysian',
+    dateOfBirth: '',
+    gender: '',
+    maritalStatus: '',
+    race: '',
+    religion: '',
+    address1: '',
+    address2: '',
+    postcode: '',
+    city: '',
+    state: '',
+    country: 'Malaysia',
+    personalEmail: '',
+    workEmail: profile?.email || '',
+    mobile: '',
+    altNumber: '',
+    emergencyName: '',
+    emergencyRelationship: '',
+    emergencyMobile: '',
+    emergencyAltNumber: '',
+    jobTitle: profile?.role || '',
+    department: profile?.department || '',
+    reportingTo: '',
+    startDate: profile?.startDate || '',
+    employmentType: 'Full-Time Permanent',
+    workLocation: '',
+    workModel: 'Hybrid',
+    probationPeriod: '3 months',
+    bankName: '',
+    accountHolder: profile?.fullName || '',
+    accountNumber: '',
+    bankBranch: '',
+    epfNumber: '',
+    socsoNumber: '',
+    eisNumber: '',
+    taxNumber: '',
+    taxResident: true,
+    acknowledgeHandbook: false,
+    acknowledgeIT: false,
+    acknowledgePrivacy: false,
+    acknowledgeConfidentiality: false,
+    finalDeclaration: false,
+    signatureDate: new Date().toISOString().split('T')[0],
+    completedAt: '',
+  };
+}
+
+// ── Helper: load JSON from localStorage ──────────────────────────────────────
+
+function loadJson(key: string): Record<string, any> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Component
+// ══════════════════════════════════════════════════════════════════════════════
+
 export const MyDocuments: React.FC = () => {
-  const { user } = useAuth();
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
+  const [profile, setProfile] = useState<StoredOnboardingProfile | null>(null);
+  const [offerData, setOfferData] = useState<Record<string, any> | null>(null);
+  const [contractData, setContractData] = useState<Record<string, any> | null>(null);
 
-  const [documents, setDocuments] = useState<Document[]>([
-    { id: '1', name: 'Employment_Contract_2024.pdf', type: 'contract', size: '245 KB', uploadedAt: '2024-01-15', status: 'verified', signedAt: '2024-01-15' },
-    { id: '2', name: 'NRIC_Front.jpg', type: 'id', size: '1.2 MB', uploadedAt: '2024-01-14', status: 'verified' },
-    { id: '3', name: 'NRIC_Back.jpg', type: 'id', size: '1.1 MB', uploadedAt: '2024-01-14', status: 'verified' },
-    { id: '4', name: 'Tax_Declaration_EA.pdf', type: 'tax', size: '89 KB', uploadedAt: '2024-02-01', status: 'pending' },
-    { id: '5', name: 'Degree_Certificate.pdf', type: 'certificate', size: '2.4 MB', uploadedAt: '2024-01-16', status: 'verified' },
-  ]);
+  // Form visibility
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [showContractForm, setShowContractForm] = useState(false);
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  // PDF loading state: null | 'application' | 'offer' | 'contract'
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null);
+
+  // ── Load data from localStorage on mount ─────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('onboardingProfile');
+      if (!raw) { setProfile(null); return; }
+      const parsed = JSON.parse(raw) as StoredOnboardingProfile;
+      const withId = ensureProfileHasId(parsed);
+      if (withId) localStorage.setItem('onboardingProfile', JSON.stringify(withId));
+      setProfile(withId);
+    } catch (e) {
+      console.warn('Failed to parse onboardingProfile from localStorage', e);
+      setProfile(null);
+    }
+
+    setOfferData(loadJson(OFFER_STORAGE_KEY));
+    setContractData(loadJson(CONTRACT_STORAGE_KEY));
+  }, []);
+
+  // ── Status helpers ───────────────────────────────────────────────────────
+  const isApplicationDone = profile?.status === 'in_progress';
+  console.log("Profile is:", profile);
+  const isOfferDone = !!(offerData && offerData.completedAt);
+  const isContractDone = !!(contractData && contractData.completedAt);
+
+  const isOfferActive = isApplicationDone; // can fill offer only after application
+  const isContractActive = isOfferDone;    // can fill contract only after offer
+
+  const getTaskStatus = (key: TaskKey): 'done' | 'active' | 'locked' => {
+    if (key === 'application') return isApplicationDone ? 'done' : 'active';
+    if (key === 'offer') return isOfferDone ? 'done' : isOfferActive ? 'active' : 'locked';
+    return isContractDone ? 'done' : isContractActive ? 'active' : 'locked';
+  };
+
+  // ── Application PDF download (existing) ──────────────────────────────────
+  const downloadApplicationPdf = async () => {
+    if (!profile) { alert('No onboarding profile found.'); return; }
+    const prof = ensureProfileHasId({ ...profile });
+    localStorage.setItem('onboardingProfile', JSON.stringify(prof));
+    setProfile(prof);
+    try {
+      setPdfLoading('application');
+      const saveRes = await fetch(`${API_BASE}/api/save-application`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prof),
+      });
+      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
+      window.open(`${API_BASE}/api/generate-pdf/${encodeURIComponent(prof.id)}`, '_blank');
+    } catch (err: any) {
+      console.error('Failed to generate PDF', err);
+      alert('Failed to generate PDF: ' + (err?.message || err));
+    } finally {
+      setPdfLoading(null);
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(e.dataTransfer.files);
+  // ── Offer Acceptance PDF download ────────────────────────────────────────
+  const downloadOfferPdf = async () => {
+    if (!offerData || !profile) return;
+    try {
+      setPdfLoading('offer');
+      const payload = { ...offerData, id: profile.id };
+      const saveRes = await fetch(`${API_BASE}/api/save-offer-acceptance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
+      window.open(`${API_BASE}/api/generate-offer-pdf/${encodeURIComponent(profile.id!)}`, '_blank');
+    } catch (err: any) {
+      console.error('Failed to generate offer PDF', err);
+      alert('Failed to generate PDF: ' + (err?.message || err));
+    } finally {
+      setPdfLoading(null);
     }
   };
 
-  const handleFiles = (files: FileList) => {
-    Array.from(files).forEach(file => {
-      const newDoc: Document = {
-        id: Date.now().toString(),
-        name: file.name,
-        type: 'other',
-        size: `${(file.size / 1024).toFixed(0)} KB`,
-        uploadedAt: new Date().toISOString().split('T')[0],
-        status: 'pending',
-      };
-      setDocuments(prev => [newDoc, ...prev]);
-    });
-    setShowUploadModal(false);
+  // ── Contract PDF download ────────────────────────────────────────────────
+  const downloadContractPdf = async () => {
+    if (!contractData || !profile) return;
+    try {
+      setPdfLoading('contract');
+      const payload = { ...contractData, id: profile.id };
+      const saveRes = await fetch(`${API_BASE}/api/save-contract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
+      window.open(`${API_BASE}/api/generate-contract-pdf/${encodeURIComponent(profile.id!)}`, '_blank');
+    } catch (err: any) {
+      console.error('Failed to generate contract PDF', err);
+      alert('Failed to generate PDF: ' + (err?.message || err));
+    } finally {
+      setPdfLoading(null);
+    }
   };
 
-  const verifiedCount = documents.filter(d => d.status === 'verified').length;
-  const pendingCount = documents.filter(d => d.status === 'pending').length;
+  // ── Form submission handlers ─────────────────────────────────────────────
+  const handleOfferSubmit = (data: Record<string, any>) => {
+    localStorage.setItem(OFFER_STORAGE_KEY, JSON.stringify(data));
+    setOfferData(data);
+    setShowOfferForm(false);
+  };
+
+  const handleContractSubmit = (data: Record<string, any>) => {
+    localStorage.setItem(CONTRACT_STORAGE_KEY, JSON.stringify(data));
+    setContractData(data);
+    setShowContractForm(false);
+  };
+
+
+  // ── Status badge component ───────────────────────────────────────────────
+  const StatusBadge: React.FC<{ status: 'done' | 'active' | 'locked' }> = ({ status }) => {
+    if (status === 'done') {
+      return (
+        <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full bg-jade-100 text-jade-700 font-semibold text-xs">
+          <CheckCircle2 size={14} /> <span>Done</span>
+        </span>
+      );
+    }
+    if (status === 'locked') {
+      return (
+        <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full bg-slate-100 text-slate-400 font-medium text-xs">
+          <Lock size={14} /> <span>Locked</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full bg-amber-50 text-amber-600 font-medium text-xs">
+        <Clock size={14} /> <span>Pending</span>
+      </span>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Render
+  // ══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-6">
+      <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">My Documents</h1>
-          <p className="text-slate-500 font-medium">Upload and manage your employment documents</p>
+          <h1 className="text-2xl font-extrabold text-slate-900">My Documents & Tasks</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Complete each step in order. The next task unlocks once the previous one is finished.
+          </p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center space-x-2 px-6 py-3 bg-jade-500 text-white rounded-xl font-bold hover:bg-jade-600 transition-all shadow-lg shadow-jade-500/20"
-        >
-          <Upload size={18} />
-          <span>Upload Document</span>
-        </button>
+        <div className="text-right">
+          <div className="text-xs text-slate-400">Profile loaded from</div>
+          <div className="mt-1 font-medium text-sm">
+            {profile ? 'localStorage (onboardingProfile)' : 'No onboardingProfile found'}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Progress indicator ───────────────────────────────────────────── */}
+      <div className="flex items-center space-x-2">
+        {TASKS.map((task, i) => {
+          const status = getTaskStatus(task.key);
+          return (
+            <React.Fragment key={task.key}>
+              <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                ${status === 'done' ? 'bg-jade-100 text-jade-700' : status === 'active' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
+                <span>{i + 1}.</span>
+                <span>{task.title}</span>
+                {status === 'done' && <CheckCircle2 size={12} />}
+              </div>
+              {i < TASKS.length - 1 && (
+                <div className={`w-8 h-0.5 ${status === 'done' ? 'bg-jade-300' : 'bg-slate-200'}`} />
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="p-2 bg-slate-100 rounded-xl">
-              <FileText className="text-slate-500" size={20} />
-            </div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
-          </div>
-          <span className="text-3xl font-black text-slate-900">{documents.length}</span>
-        </div>
+      {/* ── Task cards ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {TASKS.map(task => {
+          const status = getTaskStatus(task.key);
+          const done = status === 'done';
+          const locked = status === 'locked';
 
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="p-2 bg-jade-50 rounded-xl">
-              <CheckCircle2 className="text-jade-500" size={20} />
-            </div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified</span>
-          </div>
-          <span className="text-3xl font-black text-jade-600">{verifiedCount}</span>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-6">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="p-2 bg-amber-50 rounded-xl">
-              <Clock className="text-amber-500" size={20} />
-            </div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending</span>
-          </div>
-          <span className="text-3xl font-black text-amber-600">{pendingCount}</span>
-        </div>
-      </div>
-
-      {/* Documents List */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">All Documents</h2>
-          <div className="flex items-center space-x-2 text-xs text-slate-500">
-            <span className="font-medium">Sort by:</span>
-            <select className="bg-white border border-slate-200 rounded-lg px-2 py-1 font-medium">
-              <option>Upload Date</option>
-              <option>Name</option>
-              <option>Status</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {documents.map((doc) => {
-            const config = docTypeConfig[doc.type];
-
-            return (
-              <div key={doc.id} className="p-4 hover:bg-slate-50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className={`p-3 ${config.bgColor} rounded-xl ${config.color}`}>
-                    <File size={20} />
+          return (
+            <div
+              key={task.key}
+              className={`rounded-2xl border p-5 flex flex-col justify-between transition-all
+                ${done ? 'bg-white border-jade-200 shadow-md' : locked ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200 shadow-sm'}`}
+            >
+              <div className="flex items-start space-x-3">
+                <div className={`p-3 rounded-lg ${done ? 'bg-jade-50' : locked ? 'bg-slate-50' : 'bg-amber-50'}`}>
+                  {done
+                    ? <CheckCircle2 className="text-jade-600" size={20} />
+                    : locked
+                      ? <Lock className="text-slate-400" size={20} />
+                      : <FileText className="text-amber-600" size={20} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className={`font-bold text-sm ${done ? 'text-slate-900' : 'text-slate-700'}`}>{task.title}</h3>
+                    <StatusBadge status={status} />
                   </div>
+                  <p className="text-xs text-slate-500 mt-2">{task.description}</p>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-bold text-slate-800 truncate">{doc.name}</span>
-                      {doc.signedAt && (
-                        <span className="flex items-center space-x-1 text-[10px] font-bold text-purple-500">
-                          <FileSignature size={12} />
-                          <span>Signed</span>
-                        </span>
+                  {/* ── APPLICATION card content ─────────────────────────── */}
+                  {task.key === 'application' && profile && (
+                    <div className="mt-4 bg-slate-50 rounded-lg border p-3">
+                      <div className="text-xs text-slate-400 uppercase font-bold mb-2">Applicant snapshot</div>
+                      <div className="text-sm font-semibold text-slate-900 truncate">{profile.fullName || '—'}</div>
+                      <div className="text-xs text-slate-500">{profile.email || '—'}</div>
+                      <div className="text-xs text-slate-500 mt-2">
+                        <strong className="font-medium">Role:</strong> {profile.role || '—'} &bull; <strong className="font-medium">Dept:</strong> {profile.department || '—'}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        <strong>Nationality:</strong> {profile.nationality || '—'} {profile.nric ? ` • NRIC: ${profile.nric}` : ''}
+                      </div>
+                      <div className="mt-3 flex items-center flex-wrap gap-2">
+                        <button
+                          onClick={downloadApplicationPdf}
+                          disabled={pdfLoading === 'application' || !profile}
+                          className={`inline-flex items-center px-3 py-2 rounded-lg text-xs font-semibold ${pdfLoading === 'application' ? 'bg-gray-200 text-gray-600' : 'bg-blue-50 text-blue-600'}`}
+                        >
+                          <Download size={14} />
+                          <span className="ml-1.5">{pdfLoading === 'application' ? 'Preparing…' : 'Download PDF'}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            try {
+                              localStorage.removeItem('onboardingProfile');
+                              localStorage.removeItem(OFFER_STORAGE_KEY);
+                              localStorage.removeItem(CONTRACT_STORAGE_KEY);
+                              setProfile(null);
+                              setOfferData(null);
+                              setContractData(null);
+                            } catch (e) {
+                              console.warn('Failed to clear data', e);
+                            }
+                          }}
+                          className="inline-flex items-center space-x-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-semibold"
+                        >
+                          <XCircle size={14} />
+                          <span>Clear Profile</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── OFFER ACCEPTANCE card content ────────────────────── */}
+                  {task.key === 'offer' && !locked && (
+                    <div className="mt-4">
+                      {isOfferDone && offerData ? (
+                        <div className="bg-slate-50 rounded-lg border p-3">
+                          <div className="text-xs text-slate-400 uppercase font-bold mb-2">Offer accepted</div>
+                          <div className="text-sm font-semibold text-slate-900 truncate">{offerData.fullName || '—'}</div>
+                          <div className="text-xs text-slate-500">{offerData.position || '—'} &bull; {offerData.department || '—'}</div>
+                          <div className="text-xs text-slate-500 mt-1">Salary: MYR {offerData.monthlySalary || '—'}</div>
+                          <div className="text-xs text-slate-400 mt-1">Accepted: {offerData.acceptanceDate || '—'}</div>
+                          <div className="mt-3 flex items-center flex-wrap gap-2">
+                            <button
+                              onClick={downloadOfferPdf}
+                              disabled={pdfLoading === 'offer'}
+                              className={`inline-flex items-center px-3 py-2 rounded-lg text-xs font-semibold ${pdfLoading === 'offer' ? 'bg-gray-200 text-gray-600' : 'bg-blue-50 text-blue-600'}`}
+                            >
+                              <Download size={14} />
+                              <span className="ml-1.5">{pdfLoading === 'offer' ? 'Preparing…' : 'Download PDF'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                        onClick={() => setShowOfferForm(true)}
+                        className="
+                          inline-flex items-center gap-2
+                          px-5 py-3
+                          rounded-xl
+                          bg-gradient-to-r from-blue-600 to-indigo-600
+                          text-white text-sm font-bold
+                          shadow-lg shadow-blue-500/30
+                          hover:from-blue-700 hover:to-indigo-700
+                          hover:shadow-xl hover:scale-[1.02]
+                          focus:outline-none focus:ring-2 focus:ring-blue-400
+                          transition-all
+                        "
+                      >
+                        <Edit3 size={16} />
+                        <span>Fill Offer Form</span>
+                      </button>
+
                       )}
                     </div>
-                    <div className="flex items-center space-x-3 text-xs text-slate-400">
-                      <span className={`font-bold ${config.color}`}>{config.label}</span>
-                      <span>{doc.size}</span>
-                      <span>Uploaded {doc.uploadedAt}</span>
+                  )}
+
+                  {/* ── CONTRACT card content ────────────────────────────── */}
+                  {task.key === 'contract' && !locked && (
+                    <div className="mt-4">
+                      {isContractDone && contractData ? (
+                        <div className="bg-slate-50 rounded-lg border p-3">
+                          <div className="text-xs text-slate-400 uppercase font-bold mb-2">Contract completed</div>
+                          <div className="text-sm font-semibold text-slate-900 truncate">{contractData.fullName || '—'}</div>
+                          <div className="text-xs text-slate-500">{contractData.jobTitle || '—'} &bull; {contractData.department || '—'}</div>
+                          <div className="text-xs text-slate-500 mt-1">Bank: {contractData.bankName || '—'} &bull; Acc: {contractData.accountNumber || '—'}</div>
+                          <div className="text-xs text-slate-400 mt-1">Signed: {contractData.signatureDate || '—'}</div>
+                          <div className="mt-3 flex items-center flex-wrap gap-2">
+                            <button
+                              onClick={downloadContractPdf}
+                              disabled={pdfLoading === 'contract'}
+                              className={`inline-flex items-center px-3 py-2 rounded-lg text-xs font-semibold ${pdfLoading === 'contract' ? 'bg-gray-200 text-gray-600' : 'bg-blue-50 text-blue-600'}`}
+                            >
+                              <Download size={14} />
+                              <span className="ml-1.5">{pdfLoading === 'contract' ? 'Preparing…' : 'Download PDF'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                        onClick={() => setShowContractForm(true)}
+                        className="
+                          inline-flex items-center gap-2
+                          px-5 py-3
+                          rounded-xl
+                          bg-gradient-to-r from-blue-600 to-indigo-600
+                          text-white text-sm font-bold
+                          shadow-lg shadow-blue-500/30
+                          hover:from-blue-700 hover:to-indigo-700
+                          hover:shadow-xl hover:scale-[1.02]
+                          focus:outline-none focus:ring-2 focus:ring-blue-400
+                          transition-all
+                        "
+                      >
+                        <Edit3 size={16} />
+                        <span>Fill Contract Form</span>
+                      </button>
+
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full ${
-                      doc.status === 'verified' ? 'bg-jade-100 text-jade-700' :
-                      doc.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      {doc.status}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-1">
-                    <button className="p-2 text-slate-400 hover:text-jade-500 hover:bg-jade-50 rounded-lg transition-all">
-                      <Eye size={18} />
-                    </button>
-                    <button className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all">
-                      <Download size={18} />
-                    </button>
-                    <button className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Footer hint for locked tasks */}
+              {locked && (
+                <div className="mt-4 text-xs text-slate-400 italic">
+                  {task.key === 'offer'
+                    ? 'Complete your application first to unlock this step.'
+                    : 'Complete the offer acceptance first to unlock this step.'}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in">
-            <div className="h-1.5 bg-gradient-to-r from-jade-500 to-jade-400"></div>
-
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Upload Document</h3>
-                <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600">
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Drop Zone */}
-              <div
-                className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all ${
-                  dragActive ? 'border-jade-500 bg-jade-50' : 'border-slate-200 hover:border-jade-500'
-                }`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
-                <div className="w-16 h-16 bg-jade-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Upload className="text-jade-500" size={28} />
-                </div>
-                <p className="font-bold text-slate-800 mb-2">Drag and drop your files here</p>
-                <p className="text-sm text-slate-500 mb-4">or click to browse</p>
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  id="file-upload"
-                  onChange={(e) => e.target.files && handleFiles(e.target.files)}
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="inline-block px-6 py-3 bg-jade-500 text-white rounded-xl font-bold cursor-pointer hover:bg-jade-600 transition-all"
-                >
-                  Choose Files
-                </label>
-                <p className="text-xs text-slate-400 mt-4">Supported: PDF, PNG, JPG, DOCX (Max 10MB each)</p>
-              </div>
-            </div>
-          </div>
+      {/* ── No profile warning ───────────────────────────────────────────── */}
+      {!profile && (
+        <div className="mt-6 bg-yellow-50 border border-yellow-100 rounded-xl p-4 text-sm text-yellow-800">
+          No onboarding profile found in localStorage under <code>onboardingProfile</code>. Fill out the onboarding form to populate the application.
         </div>
+      )}
+
+      {/* ── Form modals ──────────────────────────────────────────────────── */}
+      {showOfferForm && (
+        <OfferAcceptanceForm
+          defaultData={offerData || getDefaultOfferData(profile)}
+          onSubmit={handleOfferSubmit}
+          onClose={() => setShowOfferForm(false)}
+        />
+      )}
+
+      {showContractForm && (
+        <ContractForm
+          defaultData={contractData || getDefaultContractData(profile)}
+          onSubmit={handleContractSubmit}
+          onClose={() => setShowContractForm(false)}
+        />
       )}
     </div>
   );
 };
+
+export default MyDocuments;
