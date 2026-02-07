@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { analyzeOnboarding } from '../../services/geminiService';
+import { createEmployee } from '../../services/api';
 import { OnboardingData, OnboardingJourney } from '../../types';
 import {
   User,

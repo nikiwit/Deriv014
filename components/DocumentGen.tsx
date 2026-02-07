@@ -100,18 +100,37 @@ export const DocumentGen: React.FC = () => {
     setGeneratedDoc('');
     setFeedbackSubmitted(false);
     setNegotiationMode(false);
-    
-    // Simulate Intelligent Routing Analysis
-    setModelStatus('local'); 
-    await new Promise(r => setTimeout(r, 800));
+
+    setModelStatus('local');
+    await new Promise(r => setTimeout(r, 400));
     setModelStatus('premium');
-    
-    const promptData = JSON.stringify(params);
-    const result = await generateComplexContract(promptData);
-    
-    setGeneratedDoc(result);
-    setLoading(false);
-    setModelStatus('idle');
+
+    const jurisdiction: 'MY' | 'SG' = params.jurisdiction.includes('Singapore') ? 'SG' : 'MY';
+
+    const request: GenerateContractRequest = {
+      employee_name: params.employeeName,
+      position: params.role,
+      department: 'Engineering',
+      jurisdiction,
+      start_date: params.startDate,
+      salary: parseFloat(params.salary.replace(/[^0-9.]/g, '')) || 0,
+    };
+
+    try {
+      const result = await generateContractAPI(request);
+      setGeneratedDoc(
+        `Contract generated successfully for ${result.employee_name} (${result.jurisdiction}).\n\n` +
+        `Document ID: ${result.id}\n` +
+        `Type: ${result.document_type}\n\n` +
+        `The PDF has been downloaded automatically.`
+      );
+      downloadDocument(result.download_url, `contract_${result.jurisdiction.toLowerCase()}_${result.employee_name.replace(/ /g, '_')}.pdf`);
+    } catch (err: any) {
+      setGeneratedDoc(`Error: ${err.message}\n\nPlease ensure the backend server is running on port 5001.`);
+    } finally {
+      setLoading(false);
+      setModelStatus('idle');
+    }
   };
 
   const triggerNegotiation = () => {
@@ -176,7 +195,7 @@ export const DocumentGen: React.FC = () => {
               onChange={handleChange}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:ring-2 focus:ring-derivhr-500/20 focus:border-derivhr-500 outline-none transition-all font-bold text-sm appearance-none"
             >
-              {GLOBAL_JURISDICTIONS.map(jur => <option key={jur} value={jur}>{jur}</option>)}
+              {SUPPORTED_JURISDICTIONS.map(jur => <option key={jur} value={jur}>{jur}</option>)}
             </select>
           </div>
 

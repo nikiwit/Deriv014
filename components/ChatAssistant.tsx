@@ -2,13 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAgent, getRAGContext, resetRagSession } from '../services/geminiService';
 import { validateTelegramToken, getTelegramUpdates, sendTelegramMessage, sendWhatsAppMessage } from '../services/messagingService';
 import { AGENTS, AgentId, getAgentConfig } from '../services/agentRegistry';
-import { GoogleGenAI } from "@google/genai";
 import { Message, IntegrationConfig } from '../types';
 import { calculateOvertime, calculateContributions } from '../utils/payroll';
 import { PUBLIC_HOLIDAYS_MY, MALAYSIAN_STATES, MOCK_LEAVE_BALANCES } from '../constants';
 import { Send, Paperclip, Bot, User, Cpu, ThumbsUp, ThumbsDown, Calculator, BriefcaseBusiness, Truck, Wallet, MessageCircle, Smartphone, Check, Briefcase, RefreshCw, AlertCircle, Slack } from 'lucide-react';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 type ToolType = 'none' | 'ot_calc' | 'epf_calc' | 'leave_status';
 
@@ -55,6 +52,7 @@ export const ChatAssistant: React.FC = () => {
       lastOffset: 0
   });
   const [connectionError, setConnectionError] = useState('');
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   
   // Tool State
   const [salaryInput, setSalaryInput] = useState<string>('');
@@ -191,36 +189,51 @@ export const ChatAssistant: React.FC = () => {
     }]);
   };
 
-  // Centralized AI Logic
+  // Centralized AI Logic — calls Flask backend RAG
   const processAIResponse = async (userText: string, replyToId: string, source: 'UI' | 'Telegram' | 'WhatsApp', externalId?: string) => {
     setIsTyping(true);
+    try {
+      const result: ChatResponse = await sendChatMessage(userText, chatSessionId);
 
-    const agent = getAgentConfig(currentAgent);
-    const { response: assistantResponse, modelUsed } = await chatWithAgent(userText, agent);
+      // Persist session for follow-up messages
+      if (!chatSessionId) setChatSessionId(result.session_id);
 
-    // Add Bot Message to UI
-    const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: assistantResponse,
-      modelUsed: modelUsed,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, botMsg]);
-    setIsTyping(false);
+      const sourceSuffix = result.sources.length > 0
+        ? '\n\n---\n_Sources: ' + result.sources.map(s => `${s.file} (${s.jurisdiction})`).join(', ') + '_'
+        : '';
 
-    // Send back to External API if applicable
-    if (integrationConfig.connected) {
+      const assistantResponse = result.response + sourceSuffix;
+
+      const botMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: assistantResponse,
+        modelUsed: 'Gemini-3-Pro',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, botMsg]);
+
+      // Send back to External API if applicable
+      if (integrationConfig.connected) {
         if (source === 'Telegram' && externalId) {
-            await sendTelegramMessage(integrationConfig.apiKey, externalId, assistantResponse);
+            await sendTelegramMessage(integrationConfig.apiKey, externalId, result.response);
         } else if (source === 'UI' && integrationConfig.type === 'Telegram' && integrationConfig.extraId) {
-            // Reply to last known Telegram user if chatting from UI
-             await sendTelegramMessage(integrationConfig.apiKey, integrationConfig.extraId, assistantResponse);
+             await sendTelegramMessage(integrationConfig.apiKey, integrationConfig.extraId, result.response);
         } else if (source === 'UI' && integrationConfig.type === 'WhatsApp' && integrationConfig.extraId) {
-            // Send to configured WhatsApp number (Simulated for this demo mostly)
-            // In a real scenario, we'd need a specific 'to' number, here we use extraId as the default recipient for demo
-             await sendWhatsAppMessage(integrationConfig.apiKey, integrationConfig.extraId, '60123456789', assistantResponse); 
+             await sendWhatsAppMessage(integrationConfig.apiKey, integrationConfig.extraId, '60123456789', result.response);
         }
+      }
+    } catch (err: any) {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001.',
+        modelUsed: 'System',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
