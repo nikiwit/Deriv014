@@ -1,0 +1,97 @@
+{
+  "title": "Employee Onboarding Contract",
+  "company": "Deriv Solutions Sdn Bhd",
+  "sections": [
+    {
+      "id": "personal",
+      "title": "Personal & Identification Details",
+      "fields": [
+        {
+          "key": "fullName",
+          "label": "Full Name (as per NRIC/Passport)",
+          "type": "text",
+          "required": true,
+          "minLength": 3
+        },
+        {
+          "key": "nric",
+          "label": "NRIC No",
+          "type": "text",
+          "pattern": "^\\d{6}-\\d{2}-\\d{4}$",
+          "placeholder": "950620-08-1234"
+        },
+        {
+          "key": "nationality",
+          "label": "Nationality",
+          "type": "select",
+          "required": true,
+          "options": ["Malaysian", "Non-Malaysian"]
+        },
+        {
+          "key": "dateOfBirth",
+          "label": "Date of Birth",
+          "type": "date",
+          "required": true
+        }
+      ]
+    },
+
+    {
+      "id": "bank",
+      "title": "Banking Details",
+      "fields": [
+        {
+          "key": "bankName",
+          "label": "Bank Name",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Maybank",
+            "CIMB",
+            "Public Bank",
+            "RHB",
+            "Hong Leong Bank",
+            "AmBank",
+            "UOB",
+            "OCBC",
+            "DBS"
+          ]
+        },
+        {
+          "key": "accountHolder",
+          "label": "Account Holder Name",
+          "type": "text",
+          "required": true,
+          "minLength": 3
+        },
+        {
+          "key": "accountNumber",
+          "label": "Account Number",
+          "type": "number",
+          "required": true,
+          "minLength": 8,
+          "maxLength": 16
+        }
+      ]
+    },
+
+    {
+      "id": "policies",
+      "title": "Policy Acknowledgements",
+      "fields": [
+        {
+          "key": "acknowledgeHandbook",
+          "label": "I agree to the Employee Handbook",
+          "type": "checkbox",
+          "required": true
+        },
+        {
+          "key": "finalDeclaration",
+          "label": "I confirm the declaration",
+          "type": "checkbox",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

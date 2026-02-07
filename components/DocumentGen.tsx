@@ -15,6 +15,11 @@ function loadJson(key: string): Record<string, any> | null {
   }
 }
 
+const SUPPORTED_JURISDICTIONS = [
+  'Malaysia (Employment Act 1955)',
+  'Singapore (Employment Act)',
+];
+
 export const DocumentGen: React.FC = () => {
   const [params, setParams] = useState<ContractParams>({
     employeeName: '',

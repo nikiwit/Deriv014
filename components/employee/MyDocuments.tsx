@@ -11,6 +11,8 @@ import {
 import { OfferAcceptanceForm } from './OfferAcceptanceForm';
 import { ContractForm } from './ContractForm';
 
+      import contractSchema from '../../docs/contract.schema.json';
+
 const API_BASE = 'http://localhost:5001';
 const OFFER_STORAGE_KEY = 'offerAcceptanceData';
 const CONTRACT_STORAGE_KEY = 'contractData';
@@ -539,13 +541,23 @@ export const MyDocuments: React.FC = () => {
         />
       )}
 
-      {showContractForm && (
+      {/* {showContractForm && (
         <ContractForm
           defaultData={contractData || getDefaultContractData(profile)}
           onSubmit={handleContractSubmit}
           onClose={() => setShowContractForm(false)}
         />
-      )}
+      )} */}
+
+        {showContractForm && (
+          <ContractForm
+            schema={contractSchema}
+            defaultData={contractData || getDefaultContractData(profile)}
+            onSubmit={handleContractSubmit}
+            onClose={() => setShowContractForm(false)}
+          />
+        )}
+
     </div>
   );
 };
