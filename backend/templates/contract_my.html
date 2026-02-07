@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Employment Contract - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 4px 0; }
+  .field strong { display: inline-block; width: 180px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Employment Contract</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Generated on {{ generated_date }}</p>
+
+<h2>1. Parties</h2>
+<p>This Employment Contract ("Contract") is entered into between:</p>
+<p><strong>Employer:</strong> {{ company_name }}, {{ company_reg }}</p>
+<p><strong>Employee:</strong> {{ employee_name }}{% if nric %} (NRIC/Passport: {{ nric }}){% endif %}</p>
+{% if employee_address %}<p><strong>Address:</strong> {{ employee_address }}</p>{% endif %}
+
+<h2>2. Position & Department</h2>
+<div class="field"><strong>Position:</strong> {{ position }}</div>
+<div class="field"><strong>Department:</strong> {{ department }}</div>
+<div class="field"><strong>Reporting To:</strong> Head of {{ department }}</div>
+<div class="field"><strong>Employment Type:</strong> Full-time Permanent</div>
+
+<h2>3. Commencement</h2>
+<div class="field"><strong>Start Date:</strong> {{ start_date }}</div>
+<div class="field"><strong>Probation Period:</strong> {{ probation_months }} months</div>
+<p>Performance will be reviewed at the end of the probation period. The Company reserves the right to extend probation by up to 3 additional months if necessary.</p>
+
+<h2>4. Remuneration</h2>
+<div class="field"><strong>Monthly Salary:</strong> {{ currency }} {{ salary }}</div>
+<div class="field"><strong>Payment:</strong> Monthly, by the last working day of each month via bank transfer</div>
+<div class="field"><strong>Statutory Contributions:</strong> {{ statutory_contributions }}</div>
+
+<h2>5. Working Hours</h2>
+<div class="field"><strong>Standard Hours:</strong> {{ work_hours }}</div>
+<div class="field"><strong>Overtime:</strong> {{ overtime_rate }}. Requires prior manager approval.</div>
+
+<h2>6. Leave Entitlements</h2>
+<table>
+  <tr><th>Leave Type</th><th>Entitlement</th></tr>
+  <tr><td>Annual Leave</td><td>{{ leave_annual }}</td></tr>
+  <tr><td>Sick Leave</td><td>{{ leave_sick }}</td></tr>
+  <tr><td>Hospitalization Leave</td><td>{{ leave_hospitalization }}</td></tr>
+  <tr><td>Maternity Leave</td><td>{{ leave_maternity }}</td></tr>
+  <tr><td>Paternity Leave</td><td>{{ leave_paternity }}</td></tr>
+  <tr><td>Public Holidays</td><td>11 days (as gazetted for Selangor)</td></tr>
+</table>
+
+<h2>7. Medical Benefits</h2>
+<p>The Employee is entitled to medical coverage up to {{ medical_coverage }}, including outpatient and specialist consultations at panel clinics.</p>
+
+<h2>8. Confidentiality</h2>
+<p>The Employee shall not, during or after employment, disclose any confidential information of the Company, its clients, or business partners without prior written consent. This obligation survives termination of employment.</p>
+
+<h2>9. Termination</h2>
+<div class="field"><strong>Notice Period:</strong> {{ notice_period }} (by either party)</div>
+<p>During probation, either party may terminate with 1 week's written notice. The Company may terminate immediately for gross misconduct as defined under the Employment Act 1955.</p>
+
+<h2>10. Governing Law</h2>
+<p>This Contract shall be governed by and construed in accordance with the {{ governing_law }} and any amendments thereto.</p>
+
+<h2>11. Acceptance</h2>
+<p>By signing below, both parties agree to the terms and conditions set forth in this Contract.</p>
+
+<table style="border: none; margin-top: 50px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>For {{ company_name }}</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Authorized Signatory</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform. Document reference: {{ generated_date }}.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

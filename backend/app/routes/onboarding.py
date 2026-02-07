@@ -1,0 +1,245 @@
+import json
+import uuid
+
+from flask import Blueprint, jsonify, request
+
+from app.database import get_db
+from app.models import EmployeeProfile
+
+bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
+
+# Required documents per jurisdiction (T5)
+REQUIRED_DOCS = {
+    "MY": [
+        "Signed employment contract",
+        "NRIC copy (front and back)",
+        "Educational certificates",
+        "Previous employment reference letters",
+        "Bank account details form",
+        "Passport-sized photographs (2 copies)",
+        "EPF nomination form",
+        "SOCSO registration form",
+        "Emergency contact form",
+    ],
+    "SG": [
+        "Signed employment contract",
+        "NRIC or valid work pass copy",
+        "Educational certificates",
+        "Previous employment reference letters",
+        "Bank account details form",
+        "Passport-sized photographs (2 copies)",
+        "CPF nomination form",
+        "Tax declaration form (IR8A)",
+        "Emergency contact form",
+    ],
+}
+
+
+@bp.route("/employees", methods=["POST"])
+def create_employee():
+    """Register a new employee and initialize their onboarding checklist."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    try:
+        profile = EmployeeProfile.from_dict(data)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    employee_id = str(uuid.uuid4())
+    db = get_db()
+
+    # Check if email already exists
+    existing = db.execute("SELECT id FROM employees WHERE email = ?", (profile.email,)).fetchone()
+    if existing:
+        return jsonify({"error": "Employee with this email already exists"}), 409
+
+    db.execute(
+        """INSERT INTO employees
+        (id, email, full_name, nric, jurisdiction, position, department, start_date,
+         phone, address, bank_name, bank_account,
+         emergency_contact_name, emergency_contact_phone, emergency_contact_relation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            employee_id, profile.email, profile.full_name, profile.nric,
+            profile.jurisdiction, profile.position, profile.department, profile.start_date,
+            profile.phone, profile.address, profile.bank_name, profile.bank_account,
+            profile.emergency_contact_name, profile.emergency_contact_phone,
+            profile.emergency_contact_relation,
+        ),
+    )
+
+    # Initialize onboarding checklist
+    for doc_name in REQUIRED_DOCS.get(profile.jurisdiction, REQUIRED_DOCS["MY"]):
+        db.execute(
+            "INSERT INTO onboarding_documents (employee_id, document_name) VALUES (?, ?)",
+            (employee_id, doc_name),
+        )
+
+    db.commit()
+
+    return jsonify({
+        "id": employee_id,
+        "email": profile.email,
+        "full_name": profile.full_name,
+        "jurisdiction": profile.jurisdiction,
+        "status": "onboarding",
+        "checklist_url": f"/api/onboarding/employees/{employee_id}/checklist",
+    }), 201
+
+
+@bp.route("/employees/<employee_id>", methods=["GET"])
+def get_employee(employee_id):
+    """Get employee profile."""
+    db = get_db()
+    emp = db.execute("SELECT * FROM employees WHERE id = ?", (employee_id,)).fetchone()
+    if not emp:
+        return jsonify({"error": "Employee not found"}), 404
+
+    return jsonify({k: emp[k] for k in emp.keys()})
+
+
+@bp.route("/employees/<employee_id>", methods=["PUT"])
+def update_employee(employee_id):
+    """Update employee profile (T3 - personal state change)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    db = get_db()
+    emp = db.execute("SELECT id FROM employees WHERE id = ?", (employee_id,)).fetchone()
+    if not emp:
+        return jsonify({"error": "Employee not found"}), 404
+
+    # Only allow updating specific fields
+    allowed = {
+        "full_name", "phone", "address", "bank_name", "bank_account",
+        "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
+        "nric", "position", "department", "start_date",
+    }
+    updates = {k: v for k, v in data.items() if k in allowed and v}
+    if not updates:
+        return jsonify({"error": f"No valid fields to update. Allowed: {sorted(allowed)}"}), 400
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [employee_id]
+    db.execute(
+        f"UPDATE employees SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        values,
+    )
+    db.commit()
+
+    return jsonify({"updated": list(updates.keys()), "employee_id": employee_id})
+
+
+@bp.route("/employees/<employee_id>/checklist", methods=["GET"])
+def get_checklist(employee_id):
+    """Get onboarding document checklist with submission status."""
+    db = get_db()
+    emp = db.execute("SELECT full_name, jurisdiction, status FROM employees WHERE id = ?", (employee_id,)).fetchone()
+    if not emp:
+        return jsonify({"error": "Employee not found"}), 404
+
+    docs = db.execute(
+        "SELECT id, document_name, required, submitted, submitted_at, notes "
+        "FROM onboarding_documents WHERE employee_id = ? ORDER BY id",
+        (employee_id,),
+    ).fetchall()
+
+    items = [
+        {
+            "id": d["id"],
+            "document_name": d["document_name"],
+            "required": bool(d["required"]),
+            "submitted": bool(d["submitted"]),
+            "submitted_at": d["submitted_at"],
+            "notes": d["notes"],
+        }
+        for d in docs
+    ]
+
+    total = len(items)
+    submitted = sum(1 for d in items if d["submitted"])
+
+    return jsonify({
+        "employee_id": employee_id,
+        "employee_name": emp["full_name"],
+        "jurisdiction": emp["jurisdiction"],
+        "onboarding_status": emp["status"],
+        "progress": f"{submitted}/{total}",
+        "complete": submitted == total,
+        "documents": items,
+    })
+
+
+@bp.route("/employees/<employee_id>/checklist/<int:doc_id>", methods=["PUT"])
+def update_checklist_item(employee_id, doc_id):
+    """Mark a document as submitted or add notes."""
+    data = request.get_json() or {}
+    db = get_db()
+
+    doc = db.execute(
+        "SELECT id FROM onboarding_documents WHERE id = ? AND employee_id = ?",
+        (doc_id, employee_id),
+    ).fetchone()
+    if not doc:
+        return jsonify({"error": "Document not found"}), 404
+
+    submitted = data.get("submitted", True)
+    notes = data.get("notes", "")
+
+    db.execute(
+        "UPDATE onboarding_documents SET submitted = ?, submitted_at = CURRENT_TIMESTAMP, notes = ? "
+        "WHERE id = ?",
+        (1 if submitted else 0, notes, doc_id),
+    )
+
+    # Check if all docs are submitted - update employee status
+    remaining = db.execute(
+        "SELECT COUNT(*) as cnt FROM onboarding_documents "
+        "WHERE employee_id = ? AND required = 1 AND submitted = 0",
+        (employee_id,),
+    ).fetchone()["cnt"]
+
+    if remaining == 0:
+        db.execute(
+            "UPDATE employees SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (employee_id,),
+        )
+
+    db.commit()
+
+    return jsonify({
+        "doc_id": doc_id,
+        "submitted": bool(submitted),
+        "remaining_required": remaining,
+        "onboarding_complete": remaining == 0,
+    })
+
+
+@bp.route("/employees", methods=["GET"])
+def list_employees():
+    """List all employees with onboarding progress."""
+    db = get_db()
+    employees = db.execute(
+        "SELECT id, email, full_name, jurisdiction, position, department, status, created_at "
+        "FROM employees ORDER BY created_at DESC"
+    ).fetchall()
+
+    result = []
+    for emp in employees:
+        total = db.execute(
+            "SELECT COUNT(*) as cnt FROM onboarding_documents WHERE employee_id = ?",
+            (emp["id"],),
+        ).fetchone()["cnt"]
+        submitted = db.execute(
+            "SELECT COUNT(*) as cnt FROM onboarding_documents WHERE employee_id = ? AND submitted = 1",
+            (emp["id"],),
+        ).fetchone()["cnt"]
+        result.append({
+            **{k: emp[k] for k in emp.keys()},
+            "progress": f"{submitted}/{total}",
+        })
+
+    return jsonify({"employees": result})
