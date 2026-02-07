@@ -55,7 +55,7 @@ export const chatWithAgent = async (
         } else {
              modelName = 'Gemini-3-Pro';
              const response = await ai.models.generateContent({
-                 model: 'gemini-3-pro-preview',
+                 model: 'gemini-2.5-flash',
                  contents: `Role: ${systemInstruction}
                  
                  User Query: ${query}
@@ -82,7 +82,7 @@ export const generateComplexContract = async (
 ): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Using Pro for complex legal reasoning
+      model: 'gemini-2.5-flash', // Using Pro for complex legal reasoning
       contents: `
         You are an advanced Global Legal AI Expert specializing in International Employment Law.
         Create a detailed employment contract based on the following JSON parameters:
@@ -123,7 +123,7 @@ export const generateStrategicInsights = async (
 ): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-flash',
       contents: `
         Analyze the following workforce data and provided market trends in the context of the Global Job Market (with APAC/US/EU focus):
         ${marketData}
@@ -167,7 +167,7 @@ export const analyzeOnboarding = async (
         ` : '';
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-2.5-flash',
             contents: `
                 Act as a Senior HR Onboarding Specialist & Global Mobility Expert. 
                 Analyze the following new hire data and generate a comprehensive, modern Onboarding Journey.
@@ -207,7 +207,7 @@ export const reviewCandidateSubmission = async (
 ): Promise<string> => {
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-2.5-flash',
             contents: `
               Act as a Payroll & Compliance Officer for a Global company (focus on Malaysia context).
               Review the following new hire submission for errors, missing info, or compliance risks.

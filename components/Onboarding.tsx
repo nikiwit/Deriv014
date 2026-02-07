@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { analyzeOnboarding } from '../services/geminiService';
+import { listEmployees, createEmployee } from '../services/api';
 import { OnboardingData, OnboardingJourney } from '../types';
 import { NewEmployeeOnboardingForm } from './onboarding/NewEmployeeOnboardingForm';
 import {
@@ -38,51 +39,13 @@ interface ChatMessage {
     step?: number;
 }
 
-// Mock data for employees currently onboarding
-const MOCK_ONBOARDING_EMPLOYEES: OnboardingJourney[] = [
-    {
-        id: '1',
-        employeeId: 'EMP-2024-015',
-        employeeName: 'John Doe',
-        tasks: [],
-        progress: 65,
-        status: 'in_progress',
-        startDate: '2024-01-15',
-    },
-    {
-        id: '2',
-        employeeId: 'EMP-2024-016',
-        employeeName: 'Sarah Lee',
-        tasks: [],
-        progress: 30,
-        status: 'in_progress',
-        startDate: '2024-02-01',
-    },
-    {
-        id: '3',
-        employeeId: 'EMP-2024-017',
-        employeeName: 'Ahmad Rahman',
-        tasks: [],
-        progress: 100,
-        status: 'completed',
-        startDate: '2024-01-20',
-    },
-    {
-        id: '4',
-        employeeId: 'EMP-2024-018',
-        employeeName: 'Priya Sharma',
-        tasks: [],
-        progress: 10,
-        status: 'in_progress',
-        startDate: '2024-02-05',
-    },
-];
+// No more mock data — employees are loaded from the backend
 
 type ViewMode = 'list' | 'wizard' | 'form';
 
 export const Onboarding: React.FC = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
-    const [employees, setEmployees] = useState<OnboardingJourney[]>(MOCK_ONBOARDING_EMPLOYEES);
+    const [employees, setEmployees] = useState<OnboardingJourney[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'completed'>('all');
     const [showFormMode, setShowFormMode] = useState(false);
@@ -113,6 +76,32 @@ export const Onboarding: React.FC = () => {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, loading]);
+
+    // Load employees from backend on mount
+    useEffect(() => {
+        const fetchEmployees = async () => {
+            try {
+                const data = await listEmployees();
+                const mapped: OnboardingJourney[] = data.employees.map(emp => {
+                    const parts = emp.progress.split('/').map(Number);
+                    const [submitted, total] = parts;
+                    return {
+                        id: emp.id,
+                        employeeId: emp.id.slice(0, 13),
+                        employeeName: emp.full_name,
+                        tasks: [],
+                        progress: total > 0 ? Math.round((submitted / total) * 100) : 0,
+                        status: emp.status === 'active' ? 'completed' : 'in_progress',
+                        startDate: emp.created_at?.split('T')[0] || '',
+                    };
+                });
+                setEmployees(mapped);
+            } catch (err) {
+                console.error('Failed to load employees from backend:', err);
+            }
+        };
+        fetchEmployees();
+    }, []);
 
     // Filter employees
     const filteredEmployees = employees.filter(emp => {
@@ -236,10 +225,27 @@ export const Onboarding: React.FC = () => {
         setAnalysis(result);
         setLoading(false);
 
-        // Add new employee to list
+        // Register in backend
+        let backendId = Date.now().toString();
+        try {
+            const created = await createEmployee({
+                email: data.email,
+                full_name: data.fullName,
+                jurisdiction: data.nationality === 'Malaysian' ? 'MY' : 'SG',
+                position: data.role,
+                department: data.department,
+                start_date: data.startDate,
+                nric: data.nric || '',
+            });
+            backendId = created.id;
+        } catch (err) {
+            console.error('Backend employee creation failed:', err);
+        }
+
+        // Add new employee to local list
         const newEmployee: OnboardingJourney = {
-            id: Date.now().toString(),
-            employeeId: `EMP-2024-${String(employees.length + 19).padStart(3, '0')}`,
+            id: backendId,
+            employeeId: backendId.slice(0, 13),
             employeeName: data.fullName,
             tasks: [],
             progress: 0,

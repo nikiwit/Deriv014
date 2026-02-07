@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { analyzeOnboarding } from '../../services/geminiService';
+import { createEmployee } from '../../services/api';
 import { OnboardingData, OnboardingJourney } from '../../types';
 import {
   User,
@@ -138,6 +139,22 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
       try {
         const result = await analyzeOnboarding(formData);
         setAnalysis(result);
+
+        // Also register in backend
+        try {
+          await createEmployee({
+            email: formData.email,
+            full_name: formData.fullName,
+            jurisdiction: formData.nationality === 'Malaysian' ? 'MY' : 'SG',
+            position: formData.role,
+            department: formData.department,
+            start_date: formData.startDate,
+            nric: formData.nric || '',
+          });
+        } catch (err) {
+          console.error('Backend employee creation failed:', err);
+        }
+
         onSubmit(formData, result);
       } catch (error) {
         setErrors({ submit: 'Failed to generate onboarding plan. Please try again.' });
