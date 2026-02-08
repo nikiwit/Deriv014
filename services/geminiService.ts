@@ -286,7 +286,7 @@ import { OnboardingData, CandidateProfile } from "../types";
 import { AgentConfig } from "./agentRegistry";
 import fs from "fs/promises";
 
-import removeMarkdown from "remove-markdown";
+// Markdown is now preserved for proper rendering in the UI
 
 // After getting the response from Gemini:
 
@@ -669,6 +669,176 @@ function detectComplianceGapsFromCandidate(candidate: CandidateProfile): string[
   return gaps;
 }
 
+/**
+ * Select a preferred OpenRouter model from the available list.
+ * @param availableOpenRouterModels - list of available OpenRouter models
+ * @param preferredCandidates - list of preferred model names (substring match)
+ * @returns The best matching model name, or null.
+ */
+function selectPreferredOpenRouterModel(
+  availableOpenRouterModels: string[],
+  preferredCandidates: string[]
+): string | null {
+  if (!availableOpenRouterModels || !availableOpenRouterModels.length) return null;
+
+  for (const candidate of preferredCandidates) {
+    const found = availableOpenRouterModels.find((m) => m.includes(candidate));
+    if (found) return found;
+  }
+  return availableOpenRouterModels[0]; // Absolute fallback
+}
+
+/**
+ * Call OpenRouter with retry logic.
+ * @param content - The content to send to the model.
+ * @param preferredModels - Ordered list of preferred OpenRouter models.
+ * @returns {text: string, modelUsed: string}
+ */
+const generateWithOpenRouter = async (content: any, preferredModels: string[]): Promise<{ text: string; modelUsed: string }> => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OpenRouter API key missing");
+
+    // Convert Gemini content format to OpenRouter message format
+    let messages = [];
+    if (Array.isArray(content)) {
+        messages = content.map(c => ({
+            role: c.role === 'user' ? 'user' : 'assistant',
+            content: typeof c.parts[0].text === 'string' ? c.parts[0].text : JSON.stringify(c.parts[0])
+        }));
+    } else {
+        messages = [{ role: 'user', content: String(content) }];
+    }
+
+    // Fetch available OpenRouter models (if needed, this could be cached)
+    const openRouterModelsRes = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { "Authorization": `Bearer ${apiKey}` }
+    });
+    const openRouterModelsData = await openRouterModelsRes.json();
+    const availableOpenRouterModels = openRouterModelsData.data.map((m: any) => m.id);
+
+    const modelToUse = selectPreferredOpenRouterModel(availableOpenRouterModels, preferredModels);
+    if (!modelToUse) throw new Error("No suitable OpenRouter model found.");
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://derivhr.com",
+            "X-Title": "DerivHR"
+        },
+        body: JSON.stringify({
+            "model": modelToUse,
+            "messages": messages,
+            "temperature": 0.3 // Default temperature
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`OpenRouter Error: ${err}`);
+    }
+
+    const data = await response.json();
+    return { text: data.choices[0].message.content, modelUsed: `OpenRouter (${modelToUse})` };
+};
+
+/**
+ * Robust generation wrapper with 429 (Rate Limit) handling and multi-provider fallback.
+ * Now prioritizes OpenRouter, then Gemini.
+ */
+export const generateWithRetry = async (
+    content: any, 
+    geminiConfig?: { preferredModels?: string[], model?: string, config?: any },
+    openRouterConfig?: { preferredModels?: string[] }
+): Promise<{ text: string; modelUsed: string }> => {
+    const defaultOpenRouterPreferences = ["deepseek/deepseek-chat", "google/nemotron-3-8b-base", "google/gemini-2.0-flash-lite-preview:free"];
+    const defaultGeminiPreferences = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+    const orPreferred = openRouterConfig?.preferredModels || defaultOpenRouterPreferences;
+    const gPreferred = geminiConfig?.preferredModels || defaultGeminiPreferences;
+    const gInitialModel = geminiConfig?.model;
+
+    // 1. Try OpenRouter first
+    if (process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY) {
+        try {
+            console.log("Attempting OpenRouter call...");
+            return await generateWithOpenRouter(content, orPreferred);
+        } catch (orErr: any) {
+            console.warn("OpenRouter failed:", orErr.message, "Falling back to Gemini...");
+        }
+    } else {
+        console.warn("OpenRouter API key not configured. Skipping OpenRouter fallback.");
+    }
+
+    // 2. Fallback to Gemini
+    try {
+        const availableGeminiModels = await getGeminiModels();
+        if (!availableGeminiModels.length) {
+            throw new Error("No Gemini models available and OpenRouter also failed or not configured.");
+        }
+
+        const modelToUse = gInitialModel || selectPreferredModel(availableGeminiModels, gPreferred) || availableGeminiModels[0];
+        
+        console.log(`Attempting Gemini call with model: ${modelToUse}...`);
+        const response = await ai.models.generateContent({ model: modelToUse, contents: content, ...geminiConfig?.config });
+        return { 
+            text: (response as any).text ?? (response as any).responseText ?? JSON.stringify(response), 
+            modelUsed: modelToUse 
+        };
+    } catch (err: any) {
+        // Handle Gemini-specific rate limits or general errors
+        if (err.message?.includes('429') || err.status === 429 || err.message?.includes('quota')) {
+            console.warn(`Gemini model ${gInitialModel || 'preferred'} rate limited or failed. Trying Gemini fallback...`);
+            
+            const fallbackGemini = availableGeminiModels.find(m => 
+                m.includes('gemini-1.5-flash') || 
+                m.includes('gemini-2.0-flash-lite')
+            );
+
+            if (fallbackGemini && fallbackGemini !== gInitialModel) {
+                try {
+                    console.log(`Attempting Gemini fallback call with model: ${fallbackGemini}...`);
+                    const response = await ai.models.generateContent({ model: fallbackGemini, contents: content, ...geminiConfig?.config });
+                    return { 
+                        text: (response as any).text ?? (response as any).responseText ?? JSON.stringify(response), 
+                        modelUsed: fallbackGemini 
+                    };
+                } catch (fallbackErr) {
+                    console.error("Gemini fallback also failed.", fallbackErr);
+                }
+            }
+        }
+        throw err; // If all else fails
+    }
+};
+
+/**
+ * Specialized chat function for the Employee Assistant.
+ */
+export const chatWithEmployeeAgent = async (
+    query: string,
+    systemPrompt: string
+): Promise<{ response: string; modelUsed: string }> => {
+    try {
+        // Add JD Context if available
+        let context = systemPrompt;
+        if (query.toLowerCase().includes('job') || query.toLowerCase().includes('role') || query.toLowerCase().includes('benefit')) {
+            context += "\n\nREFER TO JOB DESCRIPTION (JD) STANDARDS:\n- Full Stack Developer: RM 5.5k-8.5k, Hybrid (3/2), Engineering Lead reporting.\n- DevOps: RM 6.5k-10k, Hybrid (2/3).\n- Benefits: RM 50k Medical, RM 1.5k L&D, 2-month Bonus cap.";
+        }
+
+        const { text, modelUsed } = await generateWithRetry(
+            `${context}\n\nUser Question: ${query}\n\nAnswer concisely.`,
+            { preferredModels: ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] },
+            { preferredModels: ["deepseek/deepseek-chat", "google/nemotron-3-8b-base"] }
+        );
+        return { response: text, modelUsed };
+    } catch (error) {
+        console.error("Employee Agent Error:", error);
+        throw error;
+    }
+};
+
 // ---------------------
 // Centralized function to chat with a specific agent.
 // Handles RAG injection, Model Routing, System Prompting, plus M1/M2/M3 logic.
@@ -697,7 +867,7 @@ export const chatWithAgent = async (
           ? `\n\n_Sources: ${ragResult.sources.map((s: any) => `${s.file} (${s.jurisdiction})`).join(", ")}_`
           : "";
         return {
-          response: removeMarkdown(ragResult.response || "") + sourceCitation,
+          response: (ragResult.response || "") + sourceCitation,
           modelUsed: "RAG-Local"
         };
       } catch (err) {
@@ -713,7 +883,7 @@ export const chatWithAgent = async (
       // Fall back to backend RAG if no Gemini models available
       try {
         const ragFallback = await queryBackendRAG(query);
-        return { response: removeMarkdown(ragFallback.response || ""), modelUsed: "RAG-Local" };
+        return { response: ragFallback.response || "", modelUsed: "RAG-Local" };
       } catch (err) {
         return {
           response: "No Gemini models available and backend RAG is unreachable. Please check GEMINI_API_KEY and ensure the backend is running (python run.py).",
@@ -722,12 +892,11 @@ export const chatWithAgent = async (
       }
     }
 
-    // Choose model smartly; prefer Pro/3 then flash
+    // Choose model smartly; prefer Flash 2.0/2.5 for speed and quota, fallback to 1.5
     const preferred = selectPreferredModel(availableModels, [
-      // "gemini-2.5-flash",
-      "gemini-2.0-flash",
+      "gemini-2.5-flash"
     ])!;
-    const modelUsed = preferred;
+    let modelUsed = preferred;
 
     // Special premium workflows for M1/M2/M3
     if (intent === "M1_POLICY_ENFORCE") {
@@ -745,13 +914,8 @@ INSTRUCTIONS:
 3) Return a short "confidence" label: [High | Medium | Low] depending on how fully the KB supports the assertion.
 OUTPUT: JSON with fields: { "canonical_answer": "...", "contradictions": ["..."], "confidence": "High" }
 `;
-      const response = await ai.models.generateContent({
-        model: modelUsed,
-        contents: prompt
-      });
-      // response .text or .response depending on SDK; attempt common shapes
-      const text = (response as any).text ?? (response as any).responseText ?? JSON.stringify(response);
-      return { response: removeMarkdown(text) + `\n\n Model used: ${modelUsed}`, modelUsed };
+      const { text, modelUsed: actualModel } = await generateWithRetry(modelUsed, prompt);
+      return { response: text + `\n\n**Model used:** ${actualModel}`, modelUsed: actualModel };
     }
 
     if (intent === "M2_COMPLIANCE_MONITOR") {
@@ -770,13 +934,8 @@ INSTRUCTIONS:
 2) If no payload is included, summarize the top 5 compliance checks the organization should run automatically.
 3) Output in bullet points with recommended remediation steps.
 `;
-      const response = await ai.models.generateContent({
-        model: modelUsed,
-        contents: prompt,
-        config: { temperature: 0.0 }
-      });
-      const text = (response as any).text ?? (response as any).responseText ?? JSON.stringify(response);
-      return { response: removeMarkdown(text), modelUsed };
+      const { text, modelUsed: actualModel } = await generateWithRetry(modelUsed, prompt, { temperature: 0.0 });
+      return { response: removeMarkdown(text), modelUsed: actualModel };
     }
 
     if (intent === "M3_REGULATORY_FORECAST") {
@@ -800,13 +959,8 @@ INSTRUCTIONS:
 3) For any visa/immigration entries, predict the likely failure points and suggest actions to reduce exposure.
 4) Return results as Markdown, with a one-line summary per profile and a final "Next Steps" checklist.
 `;
-      const response = await ai.models.generateContent({
-        model: modelUsed,
-        contents: prompt,
-        config: { temperature: 0.1 }
-      });
-      const text = (response as any).text ?? (response as any).responseText ?? JSON.stringify(response);
-      return { response: removeMarkdown(text), modelUsed };
+      const { text, modelUsed: actualModel } = await generateWithRetry(modelUsed, prompt, { temperature: 0.1 });
+      return { response: removeMarkdown(text), modelUsed: actualModel };
     }
 
     // Default premium behaviour: forward query to model with systemInstruction and RAG
@@ -818,12 +972,8 @@ User Query: ${query}
 
 Answer concisely and professionally. If specific laws apply, cite them.
 `;
-    const defaultResponse = await ai.models.generateContent({
-      model: modelUsed,
-      contents: defaultPrompt
-    });
-    const defaultText = (defaultResponse as any).text ?? (defaultResponse as any).responseText ?? JSON.stringify(defaultResponse);
-    return { response: removeMarkdown(defaultText), modelUsed };
+    const { text, modelUsed: actualModel } = await generateWithRetry(modelUsed, defaultPrompt);
+    return { response: removeMarkdown(text), modelUsed: actualModel };
   } catch (error: any) {
     console.error("Agent Chat Error:", error);
     return {
@@ -840,7 +990,7 @@ Answer concisely and professionally. If specific laws apply, cite them.
 export const generateComplexContract = async (details: string): Promise<string> => {
   try {
     const available = await getGeminiModels();
-    const model = selectPreferredModel(available, ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]) ?? available[0];
+    const model = selectPreferredModel(available, ["gemini-2.5-flash"]) ?? available[0];
     const response = await ai.models.generateContent({
       model,
       contents: `
@@ -867,7 +1017,7 @@ export const generateComplexContract = async (details: string): Promise<string> 
 export const generateStrategicInsights = async (marketData: string): Promise<string> => {
   try {
     const available = await getGeminiModels();
-    const model = selectPreferredModel(available, ["gemini-3-pro", "gemini-1.5-pro", "gemini-1.5-flash"]) ?? available[0];
+    const model = selectPreferredModel(available, ["gemini-2.5-flash"]) ?? available[0];
     const response = await ai.models.generateContent({
       model,
       contents: `
@@ -1026,7 +1176,7 @@ export const analyzeOnboarding = async (data: OnboardingData): Promise<string> =
     const model =
       selectPreferredModel(
         available,
-        ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
+        ["gemini-2.5-flash"]
       ) ?? available[0];
 
     // 3) Build visa/NRIC sections
@@ -1057,6 +1207,7 @@ export const analyzeOnboarding = async (data: OnboardingData): Promise<string> =
     const prompt = `
         Act as a Senior HR Onboarding Specialist & Global Mobility Expert. 
         Analyze the following new hire data and generate a comprehensive, modern Onboarding Journey.
+        Refer to standard Job Descriptions (JD) for ${data.role} if applicable.
 
         Employee Data:
         ${JSON.stringify(data)}
@@ -1082,14 +1233,11 @@ export const analyzeOnboarding = async (data: OnboardingData): Promise<string> =
         - Keep sections concise but actionable.
       `;
 
-    // 5) Ask the AI to generate content
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-    });
+    // 5) Ask the AI to generate content with retry logic
+    const { text } = await generateWithRetry(model, prompt);
 
-    // 6) Return text content (fallback to JSON if needed)
-    return (response as any).text ?? JSON.stringify(response);
+    // 6) Return text content
+    return text;
   } catch (error) {
     // If validation error or other thrown Error: rethrow so callers can handle the message
     if (error instanceof Error && error.message?.startsWith("Validation failed")) {
@@ -1102,11 +1250,72 @@ export const analyzeOnboarding = async (data: OnboardingData): Promise<string> =
   }
 };
 
+/**
+ * Parses a resume (PDF/Image) using Gemini Multimodal capabilities.
+ * Returns a partial OnboardingData object to populate the form.
+ */
+export const parseResume = async (file: File): Promise<Partial<OnboardingData>> => {
+  try {
+    const available = await getGeminiModels();
+    // Prefer flash/pro 1.5 for multimodal
+    const model = selectPreferredModel(available, ["gemini-2.5-flash"]) ?? available[0];
+
+    // Convert file to base64
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+
+    // Remove data URL prefix (e.g. "data:application/pdf;base64,")
+    const base64Content = base64Data.split(',')[1];
+
+    const prompt = `
+      Extract the following candidate information from this resume.
+      Return the result as a raw JSON object (no markdown code blocks) with these keys:
+      - fullName (string)
+      - email (string)
+      - role (string, infer the most likely job title applied for or current title)
+      - department (string, infer a likely department e.g. Engineering, Sales, Marketing)
+      - nric (string, if Malaysian NRIC format is found)
+      - nationality (string, 'Malaysian' or 'Non-Malaysian' - infer from address/NRIC/Universities)
+      - salary (string, only if explicitly mentioned, else empty string)
+      
+      If a field cannot be found, leave it as an empty string.
+    `;
+
+    const { text } = await generateWithRetry(model, [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: file.type, data: base64Content } }
+          ]
+        }
+      ]);
+    
+    // Clean up potential markdown formatting in response
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    try {
+      const parsed = JSON.parse(jsonStr);
+      return parsed;
+    } catch (e) {
+      console.warn("Failed to parse resume JSON:", jsonStr);
+      return {};
+    }
+  } catch (error) {
+    console.error("Error parsing resume:", error);
+    throw new Error("Failed to extract data from resume.");
+  }
+};
+
 
 export const reviewCandidateSubmission = async (data: CandidateProfile): Promise<string> => {
   try {
     const available = await getGeminiModels();
-    const model = selectPreferredModel(available, ["gemini-3-pro", "gemini-1.5-pro", "gemini-1.5-flash"]) ?? available[0];
+    const model = selectPreferredModel(available, ["gemini-2.5-flash"]) ?? available[0];
 
     // Local quick checks (cheap)
     const gaps = detectComplianceGapsFromCandidate(data);

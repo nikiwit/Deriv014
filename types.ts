@@ -99,7 +99,7 @@ export interface InitialOnboardingJourney {
 export type ViewState =
   // HR Admin views
   | 'dashboard' | 'documents' | 'assistant' | 'planning'
-  | 'training' | 'knowledge' | 'leave' | 'onboarding' | 'candidate' | 'new_employee'
+  | 'training' | 'knowledge' | 'leave' | 'onboarding' | 'candidate' | 'new_employee' | 'hr_agent'
   // Auth views
   | 'login'
   // Employee views
@@ -123,6 +123,18 @@ export interface Message {
   feedback?: 'positive' | 'negative';
   feedbackComment?: string;
   attachments?: string[];
+  // Agent system fields
+  agentUsed?: 'main_hr' | 'policy_research' | 'compliance' | 'document' | 'employee_support';
+  jurisdiction?: 'MY' | 'SG' | 'BOTH';
+  confidence?: number;
+  sources?: ChatSource[];
+}
+
+export interface ChatSource {
+  file: string;
+  jurisdiction: string;
+  score?: number | null;
+  snippet?: string;
 }
 
 export interface ComplianceRisk {

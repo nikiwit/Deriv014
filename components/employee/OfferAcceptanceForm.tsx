@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FileSignature } from 'lucide-react';
+import { SignaturePad } from '../design-system/SignaturePad';
 
 interface OfferAcceptanceFormProps {
   defaultData: Record<string, any>;
@@ -37,6 +38,8 @@ export const OfferAcceptanceForm: React.FC<OfferAcceptanceFormProps> = ({
   onClose,
 }) => {
   const [form, setForm] = useState<Record<string, any>>({ ...defaultData });
+  const [signature, setSignature] = useState<string | null>(null);
+
   const set = (key: string, value: any) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
@@ -46,7 +49,11 @@ export const OfferAcceptanceForm: React.FC<OfferAcceptanceFormProps> = ({
       alert('Please confirm your offer acceptance before submitting.');
       return;
     }
-    onSubmit({ ...form, completedAt: new Date().toISOString() });
+    if (!signature) {
+      alert('Please provide your digital signature.');
+      return;
+    }
+    onSubmit({ ...form, signature, completedAt: new Date().toISOString() });
   };
 
   return (
@@ -140,7 +147,7 @@ export const OfferAcceptanceForm: React.FC<OfferAcceptanceFormProps> = ({
                 <li>The company policies referenced in the offer letter</li>
               </ul>
             </div>
-            <label className="flex items-start space-x-2 cursor-pointer">
+            <label className="flex items-start space-x-2 cursor-pointer mb-4">
               <input
                 type="checkbox"
                 checked={form.accepted || false}
@@ -151,6 +158,18 @@ export const OfferAcceptanceForm: React.FC<OfferAcceptanceFormProps> = ({
                 I confirm that I have read, understood, and accept the offer of employment.<span className="text-red-400 ml-0.5">*</span>
               </span>
             </label>
+            
+            <div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-100">
+              <p className="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                <FileSignature className="mr-2 text-jade-500" size={18} />
+                Digital Signature Required
+              </p>
+              <SignaturePad 
+                onSave={setSignature} 
+                onClear={() => setSignature(null)} 
+              />
+            </div>
+
             <div className="mt-3">
               <Field label="Acceptance Date" type="date" value={form.acceptanceDate} onChange={v => set('acceptanceDate', v)} required />
             </div>

@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-load_dotenv()
+# Load .env.local file from project root directory
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env.local')
+load_dotenv(env_path)
 
 
 def create_app():
@@ -29,11 +31,17 @@ def create_app():
     from app import rag
     rag.init_app(app)
 
+    # HR Agent
+    from app import hr_agent
+    hr_agent.init_hr_agent(app)
+
     #Blueprints #original
-    from app.routes import chat, documents, onboarding
+    from app.routes import chat, documents, onboarding, hr_agent as hr_agent_routes
     app.register_blueprint(chat.bp)
     app.register_blueprint(documents.bp)
+    app.register_blueprint(documents.onboarding_docs_bp)
     app.register_blueprint(onboarding.bp)
+    app.register_blueprint(hr_agent_routes.bp)
 
     # # Blueprints
     # from app.routes import chat, documents, onboarding, slack

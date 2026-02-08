@@ -128,3 +128,51 @@ def history(session_id):
             for m in messages
         ],
     })
+
+
+@bp.route("/agent", methods=["POST"])
+def agent_chat():
+    """
+    Agent-routed chat endpoint.
+
+    Routes queries to specialized HR agents based on intent classification.
+    Returns response with agent metadata and source citations.
+    """
+    from app.agents import AgentOrchestrator
+
+    data = request.get_json()
+    if not data or not data.get("message"):
+        return jsonify({"error": "Message is required"}), 400
+
+    message = data["message"]
+    session_id = _ensure_session(data.get("session_id"), data.get("jurisdiction"))
+    employee_context = data.get("employee_context")
+
+    _save_message(session_id, "user", message)
+
+    try:
+        # Get orchestrator and process query
+        orchestrator = AgentOrchestrator()
+        engine = rag.get_chat_engine(session_id)
+
+        result = orchestrator.process_query(
+            session_id=session_id,
+            query=message,
+            rag_engine=engine,
+            jurisdiction=data.get("jurisdiction"),
+            employee_context=employee_context
+        )
+    except Exception as e:
+        return jsonify({"error": f"Agent error: {str(e)}"}), 500
+
+    _save_message(session_id, "assistant", result["response"], result["sources"])
+
+    return jsonify({
+        "session_id": session_id,
+        "response": result["response"],
+        "sources": result["sources"],
+        "agent_used": result["agent_used"],
+        "confidence": result["confidence"],
+        "jurisdiction": result["jurisdiction"],
+        "routing_reason": result.get("routing_reason", ""),
+    })

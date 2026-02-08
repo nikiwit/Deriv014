@@ -145,6 +145,7 @@ import { MyLeave } from './components/employee/MyLeave';
 import { MyDocuments } from './components/employee/MyDocuments';
 import { MyProfile } from './components/employee/MyProfile';
 import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
+import { HRAgent } from './components/HRAgent';
 import { ViewState, User, UserRole } from './types';
 
 // Helper: load user profile from localStorage if exists
@@ -236,6 +237,8 @@ function AppContent() {
           return <Onboarding />;
         case 'candidate':
           return <CandidatePortal />;
+        case 'hr_agent':
+          return <HRAgent />;
         default:
           return <Dashboard />;
       }

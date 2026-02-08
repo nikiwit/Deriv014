@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { Zap, Lock, Users, Briefcase, ArrowRight, Loader2, UserPlus, Sparkles } from 'lucide-react';
+import { Zap, Lock, Users, Briefcase, ArrowRight, Loader2, UserPlus, ShieldCheck } from 'lucide-react';
 import { UserRole } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { DEMO_USERS } from '../../constants';
+import { Card } from '../design-system/Card';
+import { Button } from '../design-system/Button';
+import { Heading, Text } from '../design-system/Typography';
+import { Badge } from '../design-system/Badge';
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -18,10 +22,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
     e.preventDefault();
     setLoading(true);
 
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 400));
 
-    // Get default demo user for the selected role
     const defaultUser = DEMO_USERS.find(u => u.role === selectedRole);
     if (defaultUser) {
       const success = login(defaultUser.email, selectedRole);
@@ -35,110 +37,112 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Header */}
-      <nav className="bg-derivhr-dark px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-xl">
+      {/* Header - Professional Dark */}
+      <nav className="bg-slate-900 px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md border-b border-slate-800">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-derivhr-500 rounded-lg flex items-center justify-center shadow-lg shadow-derivhr-500/20">
+          <div className="w-8 h-8 bg-derivhr-500 rounded-lg flex items-center justify-center">
             <Zap className="text-white w-5 h-5 fill-current" />
           </div>
-          <span className="text-xl font-black text-white tracking-tighter">
+          <span className="text-xl font-bold text-white tracking-tight">
             Deriv<span className="text-derivhr-500">HR</span>
           </span>
         </div>
+        <Badge variant="outline" className="border-slate-600 text-slate-200 font-semibold bg-white/5 px-3 py-1">
+          Secure Portal
+        </Badge>
       </nav>
 
-      <div className="flex-1 flex items-center justify-center p-8 relative overflow-hidden">
-        {/* Background Decor */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-derivhr-500/5 rounded-full blur-[120px]"></div>
-          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-[120px]"></div>
-        </div>
-
-        <div className="w-full max-w-md relative z-10">
-          {/* Login Card */}
-          <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-derivhr-500 to-indigo-500 w-full"></div>
-
+      <div className="flex-1 flex items-center justify-center p-6 md:p-8">
+        <div className="w-full max-w-md">
+          {/* Main Login Card */}
+          <Card className="shadow-xl border-slate-200 p-0 overflow-hidden bg-white">
             <div className="p-8">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center p-3 bg-derivhr-50 rounded-2xl mb-4">
-                  <Lock className="text-derivhr-500 w-8 h-8" />
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center justify-center p-4 bg-slate-50 rounded-2xl mb-4 border border-slate-100">
+                  <Lock className="text-slate-900" size={28} />
                 </div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Welcome Back</h1>
-                <p className="text-slate-500 font-medium">Sign in to access your portal</p>
+                <Heading level="h2" className="!text-2xl mb-2">Welcome Back</Heading>
+                <Text variant="muted" weight="medium">Sign in to access your dashboard</Text>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-6">
+              <form onSubmit={handleLogin} className="space-y-8">
                 {/* Role Selection */}
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">
-                    I am a...
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
+                  <Text weight="bold" size="sm" className="uppercase tracking-widest !text-slate-400 mb-4 block">
+                    Identity Selection
+                  </Text>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
                     <button
                       type="button"
                       onClick={() => setSelectedRole('hr_admin')}
-                      className={`p-5 rounded-xl border-2 transition-all flex flex-col items-center space-y-2 ${
+                      className={`p-6 rounded-xl border-2 transition-all flex flex-col items-center space-y-3 ${
                         selectedRole === 'hr_admin'
-                          ? 'border-derivhr-500 bg-derivhr-50 text-derivhr-700 shadow-lg shadow-derivhr-500/10'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                          ? 'border-derivhr-500 bg-white text-slate-900 shadow-md'
+                          : 'border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-200 text-slate-500'
                       }`}
                     >
-                      <Users size={28} />
+                      <Users size={32} className={selectedRole === 'hr_admin' ? 'text-derivhr-500' : ''} />
                       <span className="font-bold text-sm">HR Admin</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedRole('employee')}
-                      className={`p-5 rounded-xl border-2 transition-all flex flex-col items-center space-y-2 ${
+                      className={`p-6 rounded-xl border-2 transition-all flex flex-col items-center space-y-3 ${
                         selectedRole === 'employee'
-                          ? 'border-jade-500 bg-jade-50 text-jade-700 shadow-lg shadow-jade-500/10'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                          ? 'border-derivhr-500 bg-white text-slate-900 shadow-md'
+                          : 'border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-200 text-slate-500'
                       }`}
                     >
-                      <Briefcase size={28} />
+                      <Briefcase size={32} className={selectedRole === 'employee' ? 'text-derivhr-500' : ''} />
                       <span className="font-bold text-sm">Employee</span>
                     </button>
                   </div>
 
-                  {/* New Onboarding Button */}
-                  <button
-                    type="button"
+                  {/* New Onboarding Professional Banner */}
+                  <div 
                     onClick={onNewOnboarding}
-                    className="w-full p-4 rounded-xl border-2 border-derivhr-500 bg-gradient-to-r from-derivhr-500 to-derivhr-600 text-white transition-all flex items-center justify-center space-x-3 hover:shadow-lg hover:shadow-derivhr-500/30 hover:scale-[1.02] group"
+                    className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-derivhr-300 transition-all cursor-pointer group flex items-center justify-between"
                   >
-                    <div className="p-2 bg-white/20 rounded-lg">
-                      <UserPlus size={24} />
+                    <div className="flex items-center space-x-4">
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 text-slate-600 group-hover:text-derivhr-500 group-hover:border-derivhr-200 transition-colors">
+                          <UserPlus size={20} />
+                        </div>
+                        <div className="text-left">
+                          <Text weight="bold" size="sm" className="!text-slate-900">New Onboarding</Text>
+                          <Text size="xs" className="!text-slate-500">Initiate journey for new hire</Text>
+                        </div>
                     </div>
-                    <div className="text-left">
-                      <span className="font-bold text-base block">New Employee Onboarding</span>
-                      <span className="text-xs text-white/80 font-medium">Start onboarding for a new hire</span>
-                    </div>
-                    <Sparkles size={20} className="opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all" />
-                  </button>
+                    <ArrowRight size={18} className="text-slate-300 group-hover:text-derivhr-500 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </div>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-4 bg-gradient-to-r from-derivhr-500 to-derivhr-600 hover:from-derivhr-600 hover:to-derivhr-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-derivhr-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  {loading ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <>
-                      <span>Continue to Portal</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
+                <div className="pt-2">
+                    <Button
+                      type="submit"
+                      isLoading={loading}
+                      size="lg"
+                      className="w-full h-14 font-bold text-base shadow-lg shadow-derivhr-500/10"
+                      rightIcon={<ArrowRight size={20} />}
+                    >
+                      Continue to Portal
+                    </Button>
+                </div>
               </form>
             </div>
-          </div>
+            
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-center space-x-2">
+                <ShieldCheck size={14} className="text-jade-600" />
+                <Text size="xs" weight="semibold" className="!text-slate-400 uppercase tracking-widest">Enterprise Security Active</Text>
+            </div>
+          </Card>
 
-          <div className="text-center mt-6 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-            DerivHR Platform v2.0 — Demo Mode
+          <div className="text-center mt-8 space-y-1">
+            <Text size="xs" weight="bold" className="!text-slate-400 uppercase tracking-widest">
+                DerivHR Platform v2.0
+            </Text>
+            <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-400 border-slate-200">
+                Authorized Demo Instance
+            </Badge>
           </div>
         </div>
       </div>

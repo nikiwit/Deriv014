@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { analyzeOnboarding } from '../../services/geminiService';
+import { analyzeOnboarding, parseResume } from '../../services/geminiService';
 import { createEmployee } from '../../services/api';
 import { OnboardingData, OnboardingJourney } from '../../types';
 import {
@@ -18,8 +18,11 @@ import {
   Loader2,
   X,
   AlertCircle,
-  Info
+  Info,
+  Upload,
+  FileText
 } from 'lucide-react';
+import { Button } from '../design-system/Button';
 
 interface NewEmployeeOnboardingFormProps {
   onSubmit: (data: OnboardingData, analysis: string) => void;
@@ -62,6 +65,8 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
 }) => {
   const [currentStep, setCurrentStep] = useState<FormStep>('personal');
   const [loading, setLoading] = useState(false);
+  const [analyzingResume, setAnalyzingResume] = useState(false);
+  const [resumeName, setResumeName] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [analysis, setAnalysis] = useState<string>('');
 
@@ -95,6 +100,38 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
       };
     }
   });
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAnalyzingResume(true);
+    setResumeName(file.name);
+    setErrors({}); // Clear previous errors
+
+    try {
+      const extractedData = await parseResume(file);
+      
+      setFormData(prev => ({
+        ...prev,
+        fullName: extractedData.fullName || prev.fullName,
+        email: extractedData.email || prev.email,
+        role: extractedData.role || prev.role,
+        department: extractedData.department || prev.department,
+        nationality: (extractedData.nationality === 'Malaysian' || extractedData.nationality === 'Non-Malaysian') 
+          ? extractedData.nationality 
+          : prev.nationality,
+        nric: extractedData.nric || prev.nric,
+        salary: extractedData.salary || prev.salary
+      }));
+
+    } catch (error) {
+      console.error("Resume parsing failed", error);
+      setErrors(prev => ({ ...prev, resume: "Failed to extract data. Please fill manually." }));
+    } finally {
+      setAnalyzingResume(false);
+    }
+  };
 
   const validateStep = (step: FormStep): boolean => {
     const newErrors: Record<string, string> = {};
@@ -179,6 +216,47 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
       } catch (e) {
         // Don't block submission if storage fails (quota, private mode, etc.)
         console.warn('Could not save onboarding profile to localStorage:', e);
+      }
+
+      // Create employee in backend with auto-generated documents
+      try {
+        const response = await fetch('http://localhost:5001/api/onboarding/employees', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            full_name: formData.fullName,
+            jurisdiction: formData.nationality === 'Malaysian' ? 'MY' : 'SG',
+            position: formData.role,
+            department: formData.department,
+            start_date: formData.startDate,
+            nric: formData.nric || '',
+            salary: formData.salary
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create employee');
+        }
+
+        const employeeData = await response.json();
+        
+        // Store generated documents info
+        if (employeeData.generated_documents && employeeData.generated_documents.length > 0) {
+          localStorage.setItem('generatedDocuments', JSON.stringify(employeeData.generated_documents));
+          console.log('Auto-generated documents:', employeeData.generated_documents);
+        }
+
+        if (employeeData.workflow_errors && employeeData.workflow_errors.length > 0) {
+          console.warn('Workflow warnings:', employeeData.workflow_errors);
+        }
+      } catch (backendError: any) {
+        console.error('Backend employee creation failed:', backendError);
+        // Don't block submission if backend fails, but log the error
+        setErrors({ 
+          submit: `Onboarding created but document generation had issues: ${backendError.message}` 
+        });
       }
 
       onSubmit(formData, result);
@@ -297,14 +375,53 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
       <div className="p-8">
         {currentStep === 'personal' && (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center space-x-2 mb-6">
-              <div className="p-2 bg-derivhr-50 rounded-xl">
-                <User className="text-derivhr-500" size={20} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Personal Information</h3>
-                <p className="text-slate-500 text-sm">Enter the new employee's basic details</p>
-              </div>
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <User className="text-derivhr-500" size={24} />
+                        Personal Information
+                    </h3>
+                    <p className="text-slate-500 text-sm mt-1">Enter the new employee's basic details or upload a CV.</p>
+                </div>
+                
+                {/* Resume Upload Button */}
+                <div className="w-full md:w-auto">
+                    <input
+                        type="file"
+                        id="resume-upload"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                        onChange={handleResumeUpload}
+                    />
+                    <label 
+                        htmlFor="resume-upload"
+                        className={`
+                            flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl font-bold text-sm cursor-pointer transition-all border-2 border-dashed
+                            ${analyzingResume 
+                                ? 'bg-slate-50 border-slate-300 text-slate-400 cursor-wait' 
+                                : 'bg-white border-derivhr-200 text-derivhr-600 hover:bg-derivhr-50 hover:border-derivhr-400'
+                            }
+                        `}
+                    >
+                        {analyzingResume ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                <span>Extracting Data...</span>
+                            </>
+                        ) : resumeName ? (
+                            <>
+                                <FileText size={16} />
+                                <span>{resumeName} (Change)</span>
+                            </>
+                        ) : (
+                            <>
+                                <Upload size={16} />
+                                <span>Auto-fill from Resume</span>
+                            </>
+                        )}
+                    </label>
+                    {errors.resume && <p className="text-red-500 text-xs mt-1 font-bold text-center">{errors.resume}</p>}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { generateComplexContract } from '../services/geminiService';
+import { generateContractAPI, downloadDocument } from '../services/api';
 import { ContractParams } from '../types';
 import { GLOBAL_JURISDICTIONS } from '../constants';
 import { Bot, FileDown, Loader2, Scale, ThumbsUp, ThumbsDown, MessageSquare, Handshake, TrendingUp, Download, CheckCircle2, User, Upload } from 'lucide-react';

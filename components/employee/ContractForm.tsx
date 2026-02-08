@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FileSignature } from 'lucide-react';
+import { SignaturePad } from '../design-system/SignaturePad';
 
 /**
  * ContractForm
@@ -44,6 +45,7 @@ export type FieldType =
   | 'textarea'
   | 'bank'
   | 'nric'
+  | 'signature'
   | 'custom';
 
 export interface FieldSchema {
@@ -193,6 +195,16 @@ const DefaultField: React.FC<{
   const { type = 'text', placeholder, options } = schema;
 
   switch (type) {
+    case 'signature':
+      return (
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <SignaturePad 
+            onSave={onChange} 
+            onClear={() => onChange(null)} 
+          />
+          {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
+        </div>
+      );
     case 'textarea':
       return (
         <>

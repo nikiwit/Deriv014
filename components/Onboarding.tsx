@@ -5,6 +5,8 @@ import { InitialOnboardingJourney, OnboardingData, OnboardingJourney } from '../
 
 
 import { NewEmployeeOnboardingForm } from './onboarding/NewEmployeeOnboardingForm';
+import { GeneratedDocumentsPanel } from './onboarding/GeneratedDocumentsPanel';
+import { Badge } from './design-system/Badge';
 import {
     Send,
     Sparkles,
@@ -67,6 +69,7 @@ export const Onboarding: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'completed'>('all');
     const [showFormMode, setShowFormMode] = useState(false);
+    const [selectedEmployee, setSelectedEmployee] = useState<{ id: string; name: string } | null>(null);
 
     // Onboarding profile from localStorage (employee-submitted data)
     const [onboardingProfile, setOnboardingProfile] = useState<Record<string, any> | null>(null);
@@ -143,12 +146,19 @@ export const Onboarding: React.FC = () => {
             try {
                 const data = await listEmployees();
                 const mapped: OnboardingJourney[] = data.employees.map(emp => {
-                    const parts = emp.progress.split('/').map(Number);
-                    const [submitted, total] = parts;
+                    let submitted = 0;
+                    let total = 0;
+                    
+                    if (emp.progress && typeof emp.progress === 'string' && emp.progress.includes('/')) {
+                        const parts = emp.progress.split('/').map(Number);
+                        submitted = parts[0] || 0;
+                        total = parts[1] || 0;
+                    }
+
                     return {
                         id: emp.id,
-                        employeeId: emp.id.slice(0, 13),
-                        employeeName: emp.full_name,
+                        employeeId: emp.id ? emp.id.slice(0, 13) : 'EMP-' + Math.random().toString(36).slice(2, 7),
+                        employeeName: emp.full_name || 'Unnamed Employee',
                         tasks: [],
                         progress: total > 0 ? Math.round((submitted / total) * 100) : 0,
                         status: emp.status === 'active' ? 'completed' : 'in_progress',
@@ -175,7 +185,7 @@ export const Onboarding: React.FC = () => {
         total: employees.length,
         inProgress: employees.filter(e => e.status === 'in_progress').length,
         completed: employees.filter(e => e.status === 'completed').length,
-        avgProgress: Math.round(employees.reduce((sum, e) => sum + e.progress, 0) / employees.length),
+        avgProgress: employees.length > 0 ? Math.round(employees.reduce((sum, e) => sum + e.progress, 0) / employees.length) : 0,
     };
 
     // Format NRIC input automatically
@@ -506,42 +516,59 @@ export const Onboarding: React.FC = () => {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-4 gap-4">
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-5">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-slate-100 rounded-xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                        <div className="flex items-center space-x-3 mb-3">
+                            <div className="p-2 bg-slate-100 rounded-lg">
                                 <Users className="text-slate-600" size={18} />
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Hires</span>
                         </div>
-                        <span className="text-3xl font-black text-slate-900">{stats.total}</span>
+                        <span className="text-3xl font-bold text-slate-900">{stats.total}</span>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-5">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-amber-50 rounded-xl">
-                                <Clock className="text-amber-500" size={18} />
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                        <div className="flex items-center space-x-3 mb-3">
+                            <div className="p-2 bg-amber-50 rounded-lg">
+                                <Clock className="text-amber-600" size={18} />
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">In Progress</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active</span>
                         </div>
-                        <span className="text-3xl font-black text-amber-600">{stats.inProgress}</span>
+                        <span className="text-3xl font-bold text-amber-600">{stats.inProgress}</span>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-5">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-jade-50 rounded-xl">
-                                <CheckCircle2 className="text-jade-500" size={18} />
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                        <div className="flex items-center space-x-3 mb-3">
+                            <div className="p-2 bg-jade-50 rounded-lg">
+                                <CheckCircle2 className="text-jade-600" size={18} />
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completed</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Completed</span>
                         </div>
-                        <span className="text-3xl font-black text-jade-600">{stats.completed}</span>
+                        <span className="text-3xl font-bold text-jade-600">{stats.completed}</span>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-5">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="p-2 bg-derivhr-50 rounded-xl">
-                                <Sparkles className="text-derivhr-500" size={18} />
+                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center space-x-3 mb-3">
+                                <div className="p-2 bg-derivhr-50 rounded-lg">
+                                    <Sparkles className="text-derivhr-500" size={18} />
+                                </div>
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg. Progress</span>
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Avg. Progress</span>
+                            <div className="flex items-baseline space-x-1">
+                                <span className="text-3xl font-bold text-derivhr-600">{stats.avgProgress}%</span>
+                                <Badge 
+                                    variant={stats.avgProgress > 70 ? 'success' : stats.avgProgress > 30 ? 'warning' : 'destructive'} 
+                                    className="ml-2 text-[10px]"
+                                >
+                                    {stats.avgProgress > 70 ? 'Optimal' : stats.avgProgress > 30 ? 'On Track' : 'Needs Attention'}
+                                </Badge>
+                            </div>
                         </div>
-                        <span className="text-3xl font-black text-derivhr-600">{stats.avgProgress}%</span>
+                        <p className="text-[11px] text-slate-400 mt-3 font-medium leading-tight border-t pt-3">
+                            {stats.avgProgress > 70 
+                                ? "Workflows are highly efficient this month." 
+                                : stats.avgProgress === 0 && stats.total === 0
+                                ? "No active onboarding journeys found."
+                                : "AI suggests checking 'IT Setup' for pending tasks."}
+                        </p>
                     </div>
                 </div>
 
@@ -675,8 +702,12 @@ export const Onboarding: React.FC = () => {
                                 </div>
 
                                 <div className="flex items-center space-x-2">
-                                    <button className="p-2 text-slate-400 hover:text-derivhr-500 hover:bg-derivhr-50 rounded-lg transition-all" title="View Details">
-                                        <Eye size={18} />
+                                    <button 
+                                        onClick={() => setSelectedEmployee({ id: emp.id, name: emp.employeeName })}
+                                        className="p-2 text-slate-400 hover:text-derivhr-500 hover:bg-derivhr-50 rounded-lg transition-all" 
+                                        title="View Documents"
+                                    >
+                                        <FileText size={18} />
                                     </button>
                                     <button className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all" title="Send Reminder">
                                         <Bell size={18} />
@@ -836,6 +867,15 @@ export const Onboarding: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {/* Generated Documents Panel */}
+            {selectedEmployee && (
+                <GeneratedDocumentsPanel
+                    employeeId={selectedEmployee.id}
+                    employeeName={selectedEmployee.name}
+                    onClose={() => setSelectedEmployee(null)}
+                />
             )}
         </div>
     );

@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 
 from app.database import get_db
 from app.models import EmployeeProfile
+from app.workflow import OnboardingWorkflow
 
 bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
 
@@ -68,7 +69,7 @@ REQUIRED_DOCS = {
 
 @bp.route("/employees", methods=["POST"])
 def create_employee():
-    """Register a new employee and initialize their onboarding checklist."""
+    """Register a new employee and initialize their onboarding checklist with auto-generated documents."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body is required"}), 400
@@ -116,6 +117,36 @@ def create_employee():
     except Exception as e:
         current_app.logger.warning(f"Failed to append profile to markdown: {e}")
 
+    # Execute workflow to auto-generate documents
+    generated_documents = []
+    workflow_errors = []
+    
+    try:
+        template_dir = current_app.config.get("TEMPLATE_DIR", os.path.join(os.path.dirname(__file__), "..", "templates"))
+        output_dir = current_app.config.get("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "..", "generated_documents"))
+        
+        workflow = OnboardingWorkflow(template_dir, output_dir, db)
+        result = workflow.execute(profile)
+        
+        if result.success:
+            generated_documents = [
+                {
+                    "id": doc.id,
+                    "document_type": doc.document_type,
+                    "file_path": doc.file_path,
+                    "created_at": doc.created_at,
+                    "status": doc.status
+                }
+                for doc in result.documents
+            ]
+        else:
+            workflow_errors = result.errors
+            current_app.logger.warning(f"Workflow completed with errors: {result.errors}")
+            
+    except Exception as e:
+        workflow_errors.append(f"Workflow execution failed: {str(e)}")
+        current_app.logger.error(f"Workflow execution error: {e}")
+
     return jsonify({
         "id": employee_id,
         "email": profile.email,
@@ -123,6 +154,9 @@ def create_employee():
         "jurisdiction": profile.jurisdiction,
         "status": "onboarding",
         "checklist_url": f"/api/onboarding/employees/{employee_id}/checklist",
+        "generated_documents": generated_documents,
+        "workflow_errors": workflow_errors,
+        "message": f"Onboarding initiated. Generated {len(generated_documents)} documents automatically."
     }), 201
 
 
@@ -311,6 +345,77 @@ def get_template(template_name):
         content = content.replace("{{" + key + "}}", value)
 
     return jsonify({"template": template_name, "content": content})
+
+
+@bp.route("/employees/<employee_id>/documents", methods=["GET"])
+def get_employee_documents(employee_id):
+    """Get all generated documents for an employee."""
+    db = get_db()
+    
+    # Verify employee exists
+    emp = db.execute("SELECT id, full_name FROM employees WHERE id = ?", (employee_id,)).fetchone()
+    if not emp:
+        return jsonify({"error": "Employee not found"}), 404
+    
+    # Get generated documents
+    docs = db.execute(
+        """SELECT id, document_type, file_path, created_at, status
+        FROM generated_documents 
+        WHERE employee_id = ? 
+        ORDER BY created_at DESC""",
+        (employee_id,)
+    ).fetchall()
+    
+    documents = [
+        {
+            "id": doc["id"],
+            "document_type": doc["document_type"],
+            "file_path": doc["file_path"],
+            "created_at": doc["created_at"],
+            "status": doc["status"],
+            "download_url": f"/api/onboarding/documents/{doc['id']}/download"
+        }
+        for doc in docs
+    ]
+    
+    return jsonify({
+        "employee_id": employee_id,
+        "employee_name": emp["full_name"],
+        "documents": documents,
+        "total": len(documents)
+    })
+
+
+@bp.route("/documents/<document_id>/download", methods=["GET"])
+def download_document(document_id):
+    """Download a generated document."""
+    db = get_db()
+    
+    doc = db.execute(
+        """SELECT file_path, document_type, employee_name
+        FROM generated_documents 
+        WHERE id = ?""",
+        (document_id,)
+    ).fetchone()
+    
+    if not doc:
+        return jsonify({"error": "Document not found"}), 404
+    
+    file_path = doc["file_path"]
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found on server"}), 404
+    
+    # Generate a user-friendly filename
+    document_type = doc["document_type"].replace("_", " ").title()
+    employee_name = doc["employee_name"].replace(" ", "_")
+    filename = f"{employee_name}_{document_type}.pdf"
+    
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/pdf'
+    )
 
 
 

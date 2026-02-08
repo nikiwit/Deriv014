@@ -1,12 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { getGeminiModels, selectPreferredModel } from '../services/geminiService';
+import { chatWithEmployeeAgent } from '../services/geminiService';
 import { Message } from '../types';
 import { Send, Bot, User, Cpu, RefreshCw, ShieldAlert, Info } from 'lucide-react';
-
-import removeMarkdown from "remove-markdown";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 const STORAGE_KEY = "derivhr_employee_chat_messages";
 
@@ -189,32 +185,14 @@ export const EmployeeChatAssistant: React.FC = () => {
 
     // Send to AI with profile context
     try {
-      const available = await getGeminiModels();
-      const model = selectPreferredModel(available, [
-        "gemini-2.0-flash-001",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash",
-      ]);
-
-      if (!model) {
-        throw new Error("No AI models available");
-      }
-
       const systemPrompt = buildSystemPrompt(profile);
-
-      const response = await ai.models.generateContent({
-        model,
-        contents: `${systemPrompt}\n\nUser Question: ${userText}\n\nAnswer helpfully and concisely. Only discuss this employee's data. If the question is about other employees, politely decline.`,
-        config: { temperature: 0.3 }
-      });
-
-      const text = (response as any).text ?? JSON.stringify(response);
+      const { response, modelUsed } = await chatWithEmployeeAgent(userText, systemPrompt);
 
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: removeMarkdown(text),
-        modelUsed: model,
+        content: response,
+        modelUsed: modelUsed,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, botMsg]);
@@ -309,7 +287,11 @@ export const EmployeeChatAssistant: React.FC = () => {
                     ? 'bg-emerald-600 text-white rounded-tr-none border-emerald-600'
                     : 'bg-white border-slate-200 text-slate-800 rounded-tl-none'
                 }`}>
-                  <p className="leading-relaxed whitespace-pre-wrap text-sm font-medium">{msg.content}</p>
+                  {msg.role === 'user' ? (
+                    <p className="leading-relaxed whitespace-pre-wrap text-sm font-medium">{msg.content}</p>
+                  ) : (
+                    <MarkdownRenderer content={msg.content} className="text-sm" />
+                  )}
                 </div>
               </div>
             </div>
