@@ -29,7 +29,7 @@ The hackathon pitch presentation is available in the [Deriv014 Pitch Deck](Deriv
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, Recharts |
 | Backend | Flask 3.1, Python 3.x, SQLite |
 | RAG Engine | LlamaIndex 0.12.5 (VectorStoreIndex) |
-| LLM | Google Gemini 2.5 Flash |
+| LLM | OpenAI GPT-4o-mini |
 | Embeddings | OpenAI text-embedding-3-small |
 | PDF Generation | xhtml2pdf with Jinja2 templates |
 
@@ -82,7 +82,6 @@ Deriv014/
 - **Node.js** >= 18
 - **Python** >= 3.10
 - **API Keys:**
-  - Google Gemini API key — [Get one here](https://aistudio.google.com/apikey)
   - OpenAI API key — [Get one here](https://platform.openai.com/api-keys)
 
 ## Getting Started
@@ -108,14 +107,13 @@ pip install -r requirements.txt
 Create **`backend/.env`**:
 
 ```env
-GOOGLE_API_KEY=your_gemini_api_key
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-Create **`.env`** in the project root (for frontend Gemini features):
+Create **`.env`** in the project root (for frontend AI features):
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 ### 4. Start the application
@@ -238,10 +236,10 @@ These files are loaded into a LlamaIndex VectorStoreIndex using OpenAI embedding
 | Issue | Solution |
 |-------|----------|
 | Vector index errors after changing embedding model | Delete `backend/instance/index_store/` and restart the backend to rebuild |
-| Gemini rate limit errors | Free tier has limited requests/minute. The app uses Gemini for LLM only (not embeddings) to minimize this |
+| OpenAI rate limit errors | Check your OpenAI usage dashboard for quota. GPT-4o-mini has generous limits on paid plans |
 | Port conflicts | Frontend uses port 3001, backend uses port 5001. Change in `vite.config.ts` and `backend/run.py` |
-| Backend not connecting | Ensure both terminals are running. Check that `backend/.env` has valid API keys |
-| Empty chatbot responses | Verify `GOOGLE_API_KEY` is set correctly and Gemini 2.5 Flash quota is not exhausted |
+| Backend not connecting | Ensure both terminals are running. Check that `backend/.env` has a valid `OPENAI_API_KEY` |
+| Empty chatbot responses | Verify `OPENAI_API_KEY` is set correctly in both `backend/.env` and root `.env` |
 
 ## Deployment
 

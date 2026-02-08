@@ -118,7 +118,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  modelUsed?: 'Local-Llama-3' | 'Gemini-3-Pro' | 'RAG-Local' | 'System' | 'Error' | string;
+  modelUsed?: 'Local-Llama-3' | 'GPT-4o-mini' | 'RAG-Local' | 'System' | 'Error' | string;
   timestamp: Date;
   feedback?: 'positive' | 'negative';
   feedbackComment?: string;

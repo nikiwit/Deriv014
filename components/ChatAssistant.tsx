@@ -209,7 +209,7 @@ export const ChatAssistant: React.FC = () => {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: assistantResponse,
-        modelUsed: 'Gemini-3-Pro',
+        modelUsed: 'GPT-4o-mini',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, botMsg]);
@@ -339,7 +339,7 @@ export const ChatAssistant: React.FC = () => {
             </div>
             <div className="flex items-center space-x-2">
               <span className="w-1.5 h-1.5 bg-jade-500 rounded-full animate-pulse"></span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active • Gemini 3 Pro</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active • GPT-4o-mini</span>
             </div>
           </div>
         </div>
@@ -626,7 +626,7 @@ export const ChatAssistant: React.FC = () => {
               {/* Avatar */}
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
                 msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 
-                msg.modelUsed === 'Gemini-3-Pro' ? 'bg-derivhr-500 text-white' : 
+                msg.modelUsed === 'GPT-4o-mini' ? 'bg-derivhr-500 text-white' : 
                 msg.modelUsed === 'System' ? 'bg-jade-500 text-white' : 'bg-slate-800 text-white'
               }`}>
                 {msg.role === 'user' ? <User size={14} /> : msg.modelUsed === 'System' ? <RefreshCw size={14} /> : <Cpu size={14} />}

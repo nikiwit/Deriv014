@@ -9,7 +9,7 @@ from llama_index.core import (
     Settings,
 )
 from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
 import logging 
@@ -63,9 +63,9 @@ def init_app(app):
     """Build or load the vector index at startup."""
     global _index
 
-    Settings.llm = Gemini(
+    Settings.llm = OpenAI(
         model=app.config["LLM_MODEL"],
-        api_key=app.config["GOOGLE_API_KEY"],
+        api_key=app.config["OPENAI_API_KEY"],
         temperature=0.1,
     )
     Settings.embed_model = OpenAIEmbedding(

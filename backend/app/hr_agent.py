@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 import requests # Import requests for OpenRouter API calls
 from llama_index.core import VectorStoreIndex, Settings
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.llms import LLM # Import generic LLM type for Settings.llm
 
@@ -62,9 +62,9 @@ class HRAgent:
         self.config = app_config
         
         # Initialize LLM for JD analysis
-        self.llm = Gemini(
+        self.llm = OpenAI(
             model=app_config["LLM_MODEL"],
-            api_key=app_config["GOOGLE_API_KEY"],
+            api_key=app_config["OPENAI_API_KEY"],
             temperature=0.1,
         )
         

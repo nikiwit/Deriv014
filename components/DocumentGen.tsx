@@ -167,7 +167,7 @@ export const DocumentGen: React.FC = () => {
         <div>
           <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight uppercase text-sm tracking-widest">Smart Contract Assembly</h2>
           <p className="text-slate-500 text-sm font-medium">
-            Leveraging <span className="text-derivhr-500 font-bold">Gemini 3 Pro</span> for Global compliance.
+            Leveraging <span className="text-derivhr-500 font-bold">GPT-4o-mini</span> for Global compliance.
           </p>
         </div>
 

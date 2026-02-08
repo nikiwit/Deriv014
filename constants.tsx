@@ -103,7 +103,7 @@ export const MOCK_SANDBOXES: Sandbox[] = [
     id: 'sb_eu_001',
     name: 'EU GDPR & Working Time',
     jurisdiction: 'European Union',
-    baseModel: 'Gemini-3-Pro',
+    baseModel: 'GPT-4o-mini',
     status: 'Training',
     accuracy: 91.0,
     feedbackCount: 45,
