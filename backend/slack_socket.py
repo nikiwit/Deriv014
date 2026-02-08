@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 from flask import Flask
 
@@ -19,7 +18,7 @@ with flask_app.app_context():
 
 print("✅ RAG initialized for Slack")
 
-slack_app = App(token=os.getenv("SLACK_BOT_TOKEN"))
+slack_app = App(token=os.getenv("SLACK_BOT_TOKEN")) 
 
 @slack_app.message("")
 def handle_message(message, say):
