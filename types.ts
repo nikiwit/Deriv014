@@ -17,6 +17,8 @@ export interface User {
   startDate?: string;
   onboardingComplete?: boolean;
   profilePicture?: string;
+  nationality?: 'Malaysian' | 'Non-Malaysian';
+  nric?: string;
 }
 
 export interface AuthContextType {
@@ -25,6 +27,8 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, role: UserRole) => boolean;
   logout: () => void;
+    setUser: (user: User | null) => void; // <-- added
+
 }
 
 // ============================================
@@ -46,6 +50,8 @@ export interface OnboardingTask {
   requiresUpload?: boolean;
   requiresSignature?: boolean;
   dependencies?: string[];
+  /** Template identifier for tasks that open a document form (e.g. 'offer_acceptance', 'contract') */
+  templateId?: 'offer_acceptance' | 'contract';
 }
 
 export interface OnboardingJourney {
@@ -58,6 +64,33 @@ export interface OnboardingJourney {
   aiPlan?: string;
   startDate: string;
 }
+export interface InitialOnboardingJourney {
+  // System fields
+  id: string;
+  employeeId: string;
+  createdAt: string;
+  status: 'in_progress' | 'completed' | 'on_hold';
+  progress: number;
+  aiPlan: string;
+
+  // Personal & job data (from OnboardingData)
+  fullName: string;
+  email: string;
+  role: string;
+  department: string;
+  startDate: string;
+  nationality: 'Malaysian' | 'Non-Malaysian';
+  nric?: string;
+
+  // Onboarding workflow
+  tasks: {
+    id: string;
+    title: string;
+    status: 'pending' | 'completed';
+    completedAt?: string;
+  }[];
+}
+
 
 // ============================================
 // View State (Extended)
@@ -70,7 +103,7 @@ export type ViewState =
   // Auth views
   | 'login'
   // Employee views
-  | 'employee_dashboard' | 'my_onboarding' | 'my_leave' | 'my_documents' | 'my_profile';
+  | 'employee_dashboard' | 'my_onboarding' | 'my_leave' | 'my_documents' | 'my_profile' | 'employee_chat';
 
 export interface ContractParams {
   employeeName: string;
@@ -85,7 +118,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  modelUsed?: 'Local-Llama-3' | 'Gemini-3-Pro' | 'System';
+  modelUsed?: 'Local-Llama-3' | 'Gemini-3-Pro' | 'RAG-Local' | 'System' | 'Error' | string;
   timestamp: Date;
   feedback?: 'positive' | 'negative';
   feedbackComment?: string;
@@ -172,17 +205,65 @@ export interface OnboardingData {
   nric?: string;
 }
 
-export interface CandidateProfile {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    bankName: string;
-    bankAccount: string;
-    taxId: string;
-    epfNo: string;
-    emergencyContact: string;
+// export interface CandidateProfile {
+//     firstName: string;
+//     lastName: string;
+//     email: string;
+//     phone: string;
+//     bankName: string;
+//     bankAccount: string;
+//     taxId: string;
+//     epfNo: string;
+//     emergencyContact: string;
+// }
+
+
+export class CandidateProfile {
+  // --- Identity ---
+  id?: string;
+  name: string;
+  nationality: "Malaysian" | "Non-Malaysian" | string;
+  nric?: string;                 // Malaysians only
+  passportNumber?: string;       // Non-Malaysians
+  dateOfBirth?: string;          // ISO date
+
+  // --- Employment ---
+  role: string;
+  department: string;
+  employmentType: "Permanent" | "Contract" | "Intern" | string;
+  startDate: string;             // ISO date
+  salary: number;
+  currency: string;              // MYR, USD, etc.
+  workLocation?: string;         // MY / SG / Remote
+
+  // --- Immigration (for expats) ---
+  visaType?: string;             // Employment Pass, Dependant Pass
+  visaExpiryDate?: string;       // ISO date
+  immigrationStatus?: string;    // Pending / Approved / Expired
+
+  // --- Statutory / Payroll ---
+  bankName?: string;
+  bankAccount?: string;
+  taxId?: string;                // LHDN / TIN
+  epf?: string;                  // KWSP
+  socso?: string;                // PERKESO
+  eis?: string;
+
+  // --- Contact ---
+  email: string;
+  phone?: string;
+  emergencyContact?: string;
+
+  // --- Metadata / Risk Flags ---
+  onboardingStatus?: "Pending" | "In Progress" | "Completed";
+  lastUpdated?: string;
+  notes?: string;
+
+  constructor(init: CandidateProfile) {
+    Object.assign(this, init);
+  }
 }
+
 
 export interface IntegrationConfig {
   type: 'Telegram' | 'WhatsApp' | '';

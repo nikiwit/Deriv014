@@ -1,7 +1,19 @@
-import React, { useState } from 'react';
-import { generateContractAPI, downloadDocument, GenerateContractRequest } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { generateComplexContract } from '../services/geminiService';
 import { ContractParams } from '../types';
-import { Bot, FileDown, Loader2, Scale, ThumbsUp, ThumbsDown, MessageSquare, Handshake, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { GLOBAL_JURISDICTIONS } from '../constants';
+import { Bot, FileDown, Loader2, Scale, ThumbsUp, ThumbsDown, MessageSquare, Handshake, TrendingUp, Download, CheckCircle2, User, Upload } from 'lucide-react';
+
+const API_BASE = 'http://localhost:5001';
+
+function loadJson(key: string): Record<string, any> | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 const SUPPORTED_JURISDICTIONS = [
   'Malaysia (Employment Act 1955)',
@@ -17,6 +29,60 @@ export const DocumentGen: React.FC = () => {
     startDate: '',
     specialClauses: ''
   });
+
+  // Onboarding data from localStorage
+  const [onboardingProfile, setOnboardingProfile] = useState<Record<string, any> | null>(null);
+  const [offerData, setOfferData] = useState<Record<string, any> | null>(null);
+  const [contractData, setContractData] = useState<Record<string, any> | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  useEffect(() => {
+    setOnboardingProfile(loadJson('onboardingProfile'));
+    setOfferData(loadJson('offerAcceptanceData'));
+    setContractData(loadJson('contractData'));
+  }, []);
+
+  const hasOnboardingData = !!onboardingProfile;
+  const isAppDone = onboardingProfile?.status === 'in_progress';
+  const isOfferDone = !!(offerData && offerData.completedAt);
+  const isContractDone = !!(contractData && contractData.completedAt);
+
+  const loadFromOnboarding = () => {
+    if (!onboardingProfile) return;
+    setParams(prev => ({
+      ...prev,
+      employeeName: onboardingProfile.fullName || prev.employeeName,
+      role: onboardingProfile.role || prev.role,
+      salary: onboardingProfile.salary ? `MYR ${onboardingProfile.salary}` : prev.salary,
+      startDate: onboardingProfile.startDate || prev.startDate,
+    }));
+  };
+
+  const downloadFullReport = async () => {
+    if (!onboardingProfile) return;
+    try {
+      setReportLoading(true);
+      const employeeId = onboardingProfile.id || onboardingProfile.email || 'unknown';
+      const payload = {
+        id: employeeId,
+        profile: onboardingProfile,
+        offer: offerData || {},
+        contract: contractData || {},
+      };
+      const saveRes = await fetch(`${API_BASE}/api/save-full-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
+      window.open(`${API_BASE}/api/generate-full-report-pdf/${encodeURIComponent(employeeId)}`, '_blank');
+    } catch (err: any) {
+      console.error('Failed to generate full report', err);
+      alert('Failed to generate report: ' + (err?.message || err));
+    } finally {
+      setReportLoading(false);
+    }
+  };
   
   const [generatedDoc, setGeneratedDoc] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -210,7 +276,7 @@ export const DocumentGen: React.FC = () => {
         {negotiationMode && (
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 animate-fade-in shadow-inner">
                 <h3 className="text-derivhr-700 font-black flex items-center mb-4 uppercase text-xs tracking-widest">
-                    <TrendingUp className="mr-2" size={18} /> 
+                    <TrendingUp className="mr-2" size={18} />
                     Smart Negotiation Copilot
                 </h3>
                 {negotiationSuggestion ? (
@@ -222,6 +288,68 @@ export const DocumentGen: React.FC = () => {
                         <Loader2 className="animate-spin mr-2" size={16} /> Analyzing market rates...
                     </div>
                 )}
+            </div>
+        )}
+
+        {/* ── Onboarding Profile Data ─────────────────────────────── */}
+        {hasOnboardingData && (
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center">
+                        <User className="mr-2 text-derivhr-500" size={14} />
+                        Onboarding Profile Data
+                    </h3>
+                    <button
+                        onClick={loadFromOnboarding}
+                        className="inline-flex items-center space-x-1 px-3 py-1.5 bg-derivhr-50 text-derivhr-600 rounded-lg text-xs font-bold hover:bg-derivhr-100 transition-all"
+                    >
+                        <Upload size={12} />
+                        <span>Load into Form</span>
+                    </button>
+                </div>
+
+                {/* Profile summary */}
+                <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
+                    <div className="bg-slate-50 rounded-lg p-2">
+                        <span className="text-slate-400 font-bold">Name:</span>{' '}
+                        <span className="text-slate-800 font-medium">{onboardingProfile?.fullName || '—'}</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-2">
+                        <span className="text-slate-400 font-bold">Role:</span>{' '}
+                        <span className="text-slate-800 font-medium">{onboardingProfile?.role || '—'}</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-2">
+                        <span className="text-slate-400 font-bold">Dept:</span>{' '}
+                        <span className="text-slate-800 font-medium">{onboardingProfile?.department || '—'}</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-2">
+                        <span className="text-slate-400 font-bold">Salary:</span>{' '}
+                        <span className="text-slate-800 font-medium">MYR {onboardingProfile?.salary || '—'}</span>
+                    </div>
+                </div>
+
+                {/* Document status badges */}
+                <div className="flex items-center space-x-2 mb-4">
+                    <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-[10px] font-bold ${isAppDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                        <CheckCircle2 size={10} /> <span>Application</span>
+                    </span>
+                    <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-[10px] font-bold ${isOfferDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                        <CheckCircle2 size={10} /> <span>Offer</span>
+                    </span>
+                    <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-[10px] font-bold ${isContractDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                        <CheckCircle2 size={10} /> <span>Contract</span>
+                    </span>
+                </div>
+
+                {/* Download full report */}
+                <button
+                    onClick={downloadFullReport}
+                    disabled={reportLoading}
+                    className="w-full py-3 bg-gradient-to-r from-derivhr-500 to-derivhr-600 hover:from-derivhr-600 hover:to-derivhr-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-derivhr-500/20 flex items-center justify-center space-x-2 transition-all disabled:opacity-60"
+                >
+                    <Download size={16} />
+                    <span>{reportLoading ? 'Generating…' : 'Download Full Report PDF'}</span>
+                </button>
             </div>
         )}
       </div>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { analyzeOnboarding } from '../services/geminiService';
 import { listEmployees, createEmployee } from '../services/api';
-import { OnboardingData, OnboardingJourney } from '../types';
+import { InitialOnboardingJourney, OnboardingData, OnboardingJourney } from '../types';
+
+
 import { NewEmployeeOnboardingForm } from './onboarding/NewEmployeeOnboardingForm';
 import {
     Send,
@@ -29,8 +31,22 @@ import {
     FileText,
     LayoutGrid,
     MessageSquare,
-    Zap
+    Zap,
+    Download,
+    XCircle
 } from 'lucide-react';
+
+const API_BASE = 'http://localhost:5001';
+
+// Helper: load JSON from localStorage
+function loadJson(key: string): Record<string, any> | null {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
 
 interface ChatMessage {
     id: string;
@@ -43,12 +59,56 @@ interface ChatMessage {
 
 type ViewMode = 'list' | 'wizard' | 'form';
 
+
+
 export const Onboarding: React.FC = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [employees, setEmployees] = useState<OnboardingJourney[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'completed'>('all');
     const [showFormMode, setShowFormMode] = useState(false);
+
+    // Onboarding profile from localStorage (employee-submitted data)
+    const [onboardingProfile, setOnboardingProfile] = useState<Record<string, any> | null>(null);
+    const [offerData, setOfferData] = useState<Record<string, any> | null>(null);
+    const [contractData, setContractData] = useState<Record<string, any> | null>(null);
+    const [reportLoading, setReportLoading] = useState(false);
+
+    useEffect(() => {
+        setOnboardingProfile(loadJson('onboardingProfile'));
+        setOfferData(loadJson('offerAcceptanceData'));
+        setContractData(loadJson('contractData'));
+    }, []);
+
+    const isAppDone = onboardingProfile?.status === 'in_progress';
+    const isOfferDone = !!(offerData && offerData.completedAt);
+    const isContractDone = !!(contractData && contractData.completedAt);
+
+    const downloadFullReport = async () => {
+        if (!onboardingProfile) return;
+        try {
+            setReportLoading(true);
+            const employeeId = onboardingProfile.id || onboardingProfile.email || 'unknown';
+            const payload = {
+                id: employeeId,
+                profile: onboardingProfile,
+                offer: offerData || {},
+                contract: contractData || {},
+            };
+            const saveRes = await fetch(`${API_BASE}/api/save-full-report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
+            window.open(`${API_BASE}/api/generate-full-report-pdf/${encodeURIComponent(employeeId)}`, '_blank');
+        } catch (err: any) {
+            console.error('Failed to generate full report', err);
+            alert('Failed to generate report: ' + (err?.message || err));
+        } finally {
+            setReportLoading(false);
+        }
+    };
 
     // Wizard state
     const [step, setStep] = useState(0);
@@ -287,22 +347,51 @@ export const Onboarding: React.FC = () => {
         handleRestart();
     };
 
+    // const handleFormSubmit = (data: OnboardingData, analysisResult: string) => {
+    //     // Add new employee to list
+    //     const newEmployee: OnboardingJourney = {
+    //         id: Date.now().toString(),
+    //         employeeId: `EMP-2024-${String(employees.length + 19).padStart(3, '0')}`,
+    //         employeeName: data.fullName,
+    //         tasks: [],
+    //         progress: 0,
+    //         status: 'in_progress',
+    //         startDate: data.startDate,
+    //         aiPlan: analysisResult,
+    //     };
+    //     setEmployees(prev => [newEmployee, ...prev]);
+    //     setShowFormMode(false);
+    //     setViewMode('list');
+    // };
+
+    
+
+
     const handleFormSubmit = (data: OnboardingData, analysisResult: string) => {
-        // Add new employee to list
-        const newEmployee: OnboardingJourney = {
+        const newEmployee: InitialOnboardingJourney = {
             id: Date.now().toString(),
             employeeId: `EMP-2024-${String(employees.length + 19).padStart(3, '0')}`,
-            employeeName: data.fullName,
-            tasks: [],
-            progress: 0,
+            createdAt: new Date().toISOString(),
+
             status: 'in_progress',
-            startDate: data.startDate,
+            progress: 0,
             aiPlan: analysisResult,
+
+            fullName: data.fullName,
+            email: data.email,
+            role: data.role,
+            department: data.department,
+            startDate: data.startDate,
+            nationality: data.nationality,
+            nric: data.nric,
+
+            tasks: []
         };
+
         setEmployees(prev => [newEmployee, ...prev]);
         setShowFormMode(false);
         setViewMode('list');
-    };
+        };
 
     const renderControls = () => {
         if (loading || step >= 8) return null;
@@ -455,6 +544,72 @@ export const Onboarding: React.FC = () => {
                         <span className="text-3xl font-black text-derivhr-600">{stats.avgProgress}%</span>
                     </div>
                 </div>
+
+                {/* ── Onboarding Profile Card (from localStorage) ─────────── */}
+                {onboardingProfile && (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-6">
+                        <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-derivhr-500 to-derivhr-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                                    {(onboardingProfile.fullName || '?').split(' ').map((n: string) => n[0]).join('')}
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900">{onboardingProfile.fullName || 'Unknown'}</h3>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        {onboardingProfile.role || '—'} &bull; {onboardingProfile.department || '—'} &bull; Start: {onboardingProfile.startDate || '—'}
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-black text-derivhr-500 uppercase tracking-widest bg-derivhr-50 px-3 py-1 rounded-full">
+                                Active Onboarding
+                            </span>
+                        </div>
+
+                        {/* Profile details grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                            <div className="bg-slate-50 rounded-xl p-3">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</div>
+                                <div className="text-sm font-bold text-slate-800 truncate">{onboardingProfile.email || '—'}</div>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nationality</div>
+                                <div className="text-sm font-bold text-slate-800">{onboardingProfile.nationality || '—'}</div>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Salary</div>
+                                <div className="text-sm font-bold text-slate-800">MYR {onboardingProfile.salary || '—'}</div>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">NRIC</div>
+                                <div className="text-sm font-bold text-slate-800">{onboardingProfile.nric || '—'}</div>
+                            </div>
+                        </div>
+
+                        {/* Document status */}
+                        <div className="flex items-center space-x-3 mb-5">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">Documents:</span>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isAppDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                                <CheckCircle2 size={12} /> <span>Application</span>
+                            </span>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isOfferDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                                <CheckCircle2 size={12} /> <span>Offer Letter</span>
+                            </span>
+                            <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isContractDone ? 'bg-jade-100 text-jade-700' : 'bg-slate-100 text-slate-400'}`}>
+                                <CheckCircle2 size={12} /> <span>Contract</span>
+                            </span>
+                        </div>
+
+                        {/* Action button */}
+                        <button
+                            onClick={downloadFullReport}
+                            disabled={reportLoading}
+                            className="inline-flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-derivhr-500 to-derivhr-600 text-white rounded-xl font-bold text-sm hover:from-derivhr-600 hover:to-derivhr-700 transition-all shadow-lg shadow-derivhr-500/20 disabled:opacity-60"
+                        >
+                            <Download size={16} />
+                            <span>{reportLoading ? 'Generating Report…' : 'Get Full Report PDF'}</span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Employee List */}
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden">

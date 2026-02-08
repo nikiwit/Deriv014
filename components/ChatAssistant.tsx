@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { sendChatMessage, ChatResponse } from '../services/api';
+import { chatWithAgent, getRAGContext, resetRagSession } from '../services/geminiService';
 import { validateTelegramToken, getTelegramUpdates, sendTelegramMessage, sendWhatsAppMessage } from '../services/messagingService';
 import { AGENTS, AgentId, getAgentConfig } from '../services/agentRegistry';
 import { Message, IntegrationConfig } from '../types';
@@ -9,17 +9,37 @@ import { Send, Paperclip, Bot, User, Cpu, ThumbsUp, ThumbsDown, Calculator, Brie
 
 type ToolType = 'none' | 'ot_calc' | 'epf_calc' | 'leave_status';
 
+const STORAGE_KEY_MESSAGES = "derivhr_chat_messages";
+
+const WELCOME_MESSAGE: Message = {
+  id: '1',
+  role: 'assistant',
+  content: 'Hello! I am your Global HR Specialist. I can help with International Employment Laws, Leave Requests (Malaysia specific), or Compliance. How can I assist?',
+  timestamp: new Date(),
+  modelUsed: 'Local-Llama-3'
+};
+
+function loadPersistedMessages(): Message[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES);
+    if (!raw) return [WELCOME_MESSAGE];
+    const parsed: Message[] = JSON.parse(raw);
+    // Restore Date objects from JSON strings
+    return parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return [WELCOME_MESSAGE];
+  }
+}
+
+function persistMessages(msgs: Message[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(msgs));
+  } catch { /* quota exceeded — ignore for prototype */ }
+}
+
 export const ChatAssistant: React.FC = () => {
   const [currentAgent, setCurrentAgent] = useState<AgentId>('HR');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hello! I am your Global HR Specialist. I can help with International Employment Laws, Leave Requests (Malaysia specific), or Compliance. How can I assist?',
-      timestamp: new Date(),
-      modelUsed: 'Local-Llama-3'
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>(loadPersistedMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('none');
@@ -44,6 +64,11 @@ export const ChatAssistant: React.FC = () => {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Persist messages to localStorage on every change
+  useEffect(() => {
+    persistMessages(messages);
+  }, [messages]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -99,6 +124,11 @@ export const ChatAssistant: React.FC = () => {
       };
   }, [integrationConfig.connected, integrationConfig.type, integrationConfig.lastOffset, currentAgent]);
 
+
+  const handleNewChat = () => {
+    resetRagSession();
+    setMessages([WELCOME_MESSAGE]);
+  };
 
   const handleAgentSwitch = (agentId: AgentId) => {
     setCurrentAgent(agentId);
@@ -314,6 +344,14 @@ export const ChatAssistant: React.FC = () => {
         </div>
 
         <div className="flex space-x-2">
+            <button
+                onClick={handleNewChat}
+                className="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:text-derivhr-500 hover:bg-slate-50 transition-all mr-1"
+                title="Start new conversation"
+            >
+                <RefreshCw size={14} />
+                <span>New Chat</span>
+            </button>
             {integrationConfig.connected && integrationConfig.type === 'WhatsApp' && (
                 <button 
                     onClick={simulateIncomingWhatsApp}

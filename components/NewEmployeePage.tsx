@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { analyzeOnboarding } from '../services/geminiService';
-import { OnboardingData, OnboardingJourney } from '../types';
+import { InitialOnboardingJourney, OnboardingData, OnboardingJourney } from '../types';
 import { NewEmployeeOnboardingForm } from './onboarding/NewEmployeeOnboardingForm';
 import {
   ArrowLeft,
@@ -35,22 +35,66 @@ export const NewEmployeePage: React.FC<NewEmployeePageProps> = ({
   const [showSuccess, setShowSuccess] = useState(false);
   const [createdEmployee, setCreatedEmployee] = useState<OnboardingJourney | null>(null);
 
-  const handleFormSubmit = (data: OnboardingData, analysisResult: string) => {
-    // Create new employee record
-    const newEmployee: OnboardingJourney = {
-      id: Date.now().toString(),
-      employeeId: `EMP-2024-${String(existingEmployees.length + 19).padStart(3, '0')}`,
-      employeeName: data.fullName,
-      tasks: [],
-      progress: 0,
-      status: 'in_progress',
-      startDate: data.startDate,
-      aiPlan: analysisResult,
-    };
-    
+  const handleFormSubmit = async (data: OnboardingData, analysisResult: string) => {
+  // Load existing employees from local storage
+  const existingEmployees: InitialOnboardingJourney[] = JSON.parse(
+    localStorage.getItem('employees') || '[]'
+  );
+
+  // Create new employee record
+  const newEmployee: InitialOnboardingJourney = {
+    id: Date.now().toString(),
+    employeeId: `EMP-2024-${String(existingEmployees.length + 19).padStart(3, '0')}`,
+    createdAt: new Date().toISOString(),
+
+    status: 'in_progress',
+    progress: 0,
+    aiPlan: analysisResult,
+
+    fullName: data.fullName,
+    email: data.email,
+    role: data.role,
+    department: data.department,
+    startDate: data.startDate,
+    nationality: data.nationality,
+    nric: data.nric,
+
+    tasks: []
+  };
+
+  // Add new employee to the list
+  const updatedEmployees = [...existingEmployees, newEmployee];
+
+  // Save back to local storage
+  localStorage.setItem('employees', JSON.stringify(updatedEmployees));
+
+  console.log('Employee saved:', newEmployee);
+
+
+
+    // Persist employee to backend (SQLite + markdown profiles file)
+    try {
+      const jurisdiction = data.nationality === 'Malaysian' ? 'MY' : 'SG';
+      await fetch('/api/onboarding/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          full_name: data.fullName,
+          nric: data.nric || null,
+          jurisdiction,
+          position: data.role,
+          department: data.department,
+          start_date: data.startDate,
+        }),
+      });
+    } catch (err) {
+      console.warn('Backend employee creation failed (non-blocking):', err);
+    }
+
     setCreatedEmployee(newEmployee);
     setShowSuccess(true);
-    
+
     // Notify parent component
     if (onEmployeeCreated) {
       onEmployeeCreated(newEmployee);
@@ -111,9 +155,9 @@ export const NewEmployeePage: React.FC<NewEmployeePageProps> = ({
             {/* Employee Details */}
             <div className="bg-slate-50 rounded-2xl p-6 mb-6">
               <div className="flex items-center space-x-4 mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-derivhr-500 to-derivhr-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl">
+                {/* <div className="w-16 h-16 bg-gradient-to-br from-derivhr-500 to-derivhr-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl">
                   {createdEmployee.employeeName.split(' ').map(n => n[0]).join('')}
-                </div>
+                </div> */}
                 <div>
                   <h2 className="text-2xl font-black text-slate-900">{createdEmployee.employeeName}</h2>
                   <p className="text-slate-500 font-medium">{createdEmployee.employeeId}</p>

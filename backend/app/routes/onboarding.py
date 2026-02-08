@@ -1,12 +1,43 @@
 import json
+import os
 import uuid
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from app.database import get_db
 from app.models import EmployeeProfile
 
 bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
+
+
+def _append_profile_to_md(profile, employee_id):
+    """Append a new employee block to the profiles markdown file."""
+    md_dir = current_app.config["MD_FILES_DIR"]
+    profiles_path = os.path.join(md_dir, "employees_info_my_profiles.md")
+
+    block = f"""
+---
+
+## Employee {employee_id[:8]}
+id: {employee_id}
+firstName: {profile.full_name.split()[0] if profile.full_name else ''}
+lastName: {' '.join(profile.full_name.split()[1:]) if profile.full_name else ''}
+email: {profile.email}
+phone: {profile.phone or 'N/A'}
+nationality: {profile.jurisdiction}
+nric: {profile.nric or 'N/A'}
+position: {profile.position or 'N/A'}
+department: {profile.department or 'N/A'}
+startDate: {profile.start_date or 'N/A'}
+bankName: {profile.bank_name or 'N/A'}
+bankAccount: {profile.bank_account or 'N/A'}
+emergencyContact: {profile.emergency_contact_name or 'N/A'}
+emergencyContactPhone: {profile.emergency_contact_phone or 'N/A'}
+emergencyContactRelationship: {profile.emergency_contact_relation or 'N/A'}
+complianceStatus: Onboarding
+"""
+    with open(profiles_path, "a", encoding="utf-8") as f:
+        f.write(block)
 
 # Required documents per jurisdiction (T5)
 REQUIRED_DOCS = {
@@ -78,6 +109,12 @@ def create_employee():
         )
 
     db.commit()
+
+    # Append profile to markdown file for RAG indexing
+    try:
+        _append_profile_to_md(profile, employee_id)
+    except Exception as e:
+        current_app.logger.warning(f"Failed to append profile to markdown: {e}")
 
     return jsonify({
         "id": employee_id,
@@ -243,3 +280,37 @@ def list_employees():
         })
 
     return jsonify({"employees": result})
+
+
+@bp.route("/templates/<template_name>", methods=["GET"])
+def get_template(template_name):
+    """Serve a markdown template with optional variable substitution.
+
+    Query params are used as template variables, e.g.:
+    GET /api/onboarding/templates/offer_acceptance_my?name=John+Doe&email=john@co.com
+    """
+    allowed = {
+        "offer_acceptance_my",
+        "offer_acceptance_sg",
+        "contract_my",
+        "contract_sg",
+    }
+    if template_name not in allowed:
+        return jsonify({"error": f"Unknown template. Allowed: {sorted(allowed)}"}), 404
+
+    md_dir = current_app.config["MD_FILES_DIR"]
+    path = os.path.join(md_dir, f"{template_name}.md")
+    if not os.path.exists(path):
+        return jsonify({"error": f"Template file not found: {template_name}.md"}), 404
+
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Substitute {{variable}} placeholders with query params
+    for key, value in request.args.items():
+        content = content.replace("{{" + key + "}}", value)
+
+    return jsonify({"template": template_name, "content": content})
+
+
+

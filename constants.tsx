@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare } from 'lucide-react';
 import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask } from './types';
 
 export const NAVIGATION_ITEMS = [
@@ -185,7 +185,11 @@ export const DEMO_USERS: UserType[] = [
     department: 'Engineering',
     employeeId: 'EMP-2024-001',
     startDate: '2024-01-15',
-    onboardingComplete: false
+    // onboardingComplete: false,
+    // applicationAccount: '',
+    // OfferLetterId: '',
+    // contractId: '',
+
   },
   {
     id: '3',
@@ -209,6 +213,7 @@ export const EMPLOYEE_NAV_ITEMS = [
   { id: 'my_onboarding', label: 'My Onboarding', icon: <ClipboardCheck size={20} /> },
   { id: 'my_leave', label: 'My Leave', icon: <CalendarDays size={20} /> },
   { id: 'my_documents', label: 'My Documents', icon: <FolderOpen size={20} /> },
+  { id: 'employee_chat', label: 'Chat Assistant', icon: <MessageSquare size={20} /> },
   { id: 'my_profile', label: 'My Profile', icon: <User size={20} /> },
 ];
 
@@ -219,7 +224,8 @@ export const EMPLOYEE_NAV_ITEMS = [
 export const DEFAULT_ONBOARDING_TASKS: Omit<OnboardingTask, 'id' | 'status' | 'completedAt'>[] = [
   // Documentation
   { title: 'Upload Identity Document', description: 'Upload a copy of your NRIC or Passport', category: 'documentation', priority: 'required', estimatedMinutes: 5, requiresUpload: true },
-  { title: 'Sign Employment Contract', description: 'Review and digitally sign your employment contract', category: 'documentation', priority: 'required', estimatedMinutes: 15, requiresSignature: true },
+  { title: 'Accept Offer Letter', description: 'Review and sign the official offer acceptance form', category: 'documentation', priority: 'required', estimatedMinutes: 10, requiresSignature: true, templateId: 'offer_acceptance' },
+  { title: 'Sign Employment Contract', description: 'Review and digitally sign your onboarding contract form', category: 'documentation', priority: 'required', estimatedMinutes: 15, requiresSignature: true, templateId: 'contract' },
   { title: 'Complete Tax Forms (EA/PCB)', description: 'Fill in your tax declaration forms for payroll', category: 'documentation', priority: 'required', estimatedMinutes: 10 },
   { title: 'Submit Bank Details', description: 'Provide your bank account information for salary', category: 'documentation', priority: 'required', estimatedMinutes: 5 },
 
