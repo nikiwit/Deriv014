@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAgent, getRAGContext, resetRagSession } from '../services/geminiService';
+import { sendChatMessage, ChatResponse } from '../services/api';
 import { validateTelegramToken, getTelegramUpdates, sendTelegramMessage, sendWhatsAppMessage } from '../services/messagingService';
 import { AGENTS, AgentId, getAgentConfig } from '../services/agentRegistry';
 import { Message, IntegrationConfig } from '../types';
@@ -228,7 +229,7 @@ export const ChatAssistant: React.FC = () => {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001.',
+        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running.',
         modelUsed: 'System',
         timestamp: new Date(),
       };

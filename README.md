@@ -1,5 +1,6 @@
-# DerivHR AI Platform
+# DerivHR Platform
 
+<<<<<<< Updated upstream
 An AI-powered HR management platform built for Deriv's multi-jurisdiction workforce. Features RAG-based policy Q&A, automated contract generation, and end-to-end employee onboarding — covering both Malaysia and Singapore offices.
 
 **Deriv014 AI Hackathon Virtual Round — 07-08 Feb 2026**
@@ -90,9 +91,81 @@ Deriv014/
 
 ```bash
 cd Deriv014
-npm install
+=======
+## Overview
+
+DerivHR is an AI-powered Human Resources management platform designed to streamline and automate various HR processes, from employee onboarding and document generation to workforce analytics and AI-driven insights. It leverages advanced AI models (Gemini, OpenRouter) to provide intelligent assistance, compliance checks, and personalized employee experiences.
+
+## Key Features
+
+-   **AI-Powered Onboarding**: Automated, personalized onboarding journeys for new hires, including compliance checks and task automation.
+-   **Resume Auto-fill**: Upload resumes (PDF, image) for AI-powered extraction and auto-population of onboarding forms.
+-   **Digital Signature**: Securely sign documents electronically with drawing or typed signature options.
+-   **Comprehensive Document Generation**: Generate detailed employment contracts, offer letters, and comprehensive onboarding application PDFs based on employee data and JD analysis.
+-   **Workforce Analytics**: AI-driven insights into hiring velocity, skill gaps, and strategic workforce planning.
+-   **E-Leave Management**: Track leave balances, apply for leave, and manage approvals with built-in statutory compliance.
+-   **HR Chat Assistant**: An AI assistant providing instant support for employee queries, policy information, and document status.
+-   **Resilient AI Backend**: Multi-level fallback strategy (OpenRouter, Gemini) for API calls, ensuring high availability and resilience against rate limits.
+-   **Modern Minimalist UI/UX**: Professional, clean, and intuitive user interface built with React and TailwindCSS, adhering to strong readability and accessibility standards.
+
+## Tech Stack
+
+-   **Frontend**: React, TypeScript, Vite, TailwindCSS, Lucide-React (icons), Recharts (charts).
+-   **Backend**: Python, Flask, LlamaIndex (RAG framework), FPDF (PDF generation), requests.
+-   **Database**: SQLite.
+-   **AI/LLMs**: Google Gemini API, OpenRouter API (Deepseek, Nemotron).
+-   **Deployment**: Local development setup, can be containerized.
+
+## Setup Instructions
+
+### Prerequisites
+
+-   Node.js (LTS version)
+-   Python 3.9+
+-   `pip` (Python package installer)
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd DerivHR
 ```
 
+### 2. Backend Setup
+
+```bash
+# Navigate to the backend directory
+cd backend
+
+# Create and activate a virtual environment
+python -m venv venv
+# On Windows:
+.\venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Initialize the database (if not already done)
+flask init-db
+
+# Run the Flask backend server
+python run.py
+```
+The backend server will typically run on `http://localhost:5001`.
+
+### 3. Frontend Setup
+
+```bash
+# Navigate back to the project root
+cd ..
+
+# Install Node.js dependencies
+>>>>>>> Stashed changes
+npm install
+
+<<<<<<< Updated upstream
 ### 2. Set up the backend
 
 ```bash
@@ -133,9 +206,24 @@ The backend starts on **http://localhost:5001**. On first run it builds the vect
 **Terminal 2 — Frontend (Vite)**
 
 ```bash
+=======
+# Create a .env file in the project root with your API keys:
+# .env content example:
+# API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
+# GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
+# OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
+# VITE_OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
+#
+# Replace YOUR_..._API_KEY with your actual keys.
+# Ensure your .env file is in .gitignore for security.
+
+# Start the Vite frontend development server
+>>>>>>> Stashed changes
 npm run dev
 ```
+The frontend application will typically run on `http://localhost:3000`.
 
+<<<<<<< Updated upstream
 The frontend starts on **http://localhost:3001**. Vite proxies all `/api` requests to the Flask backend automatically.
 
 ### 5. Open the app
@@ -256,3 +344,51 @@ gunicorn -w 4 -b 0.0.0.0:5001 "app:create_app()"
 npm run build
 # Deploy the dist/ folder to your hosting provider
 ```
+=======
+## Usage
+
+Once both the backend and frontend servers are running:
+
+1.  Open your browser to `http://localhost:3000`.
+2.  Log in as either an "HR Admin" or "Employee" (default credentials are in `constants.tsx` for demo).
+3.  Explore the various modules:
+    *   **Dashboard**: Get an executive overview.
+    *   **Onboarding**: Initiate new employee journeys using AI-powered forms or chat.
+    *   **My Onboarding / My Documents**: For employees to complete tasks, sign documents, and download their records.
+    *   **Chat Assistant**: Interact with the AI HR Assistant for queries.
+
+## Folder Structure
+
+```
+.
+├── backend/                  # Flask Backend application
+│   ├── app/                  # Flask app modules (routes, models, services)
+│   ├── instance/             # Local database and generated files
+│   ├── requirements.txt      # Python dependencies
+│   └── run.py                # Backend entry point
+├── components/               # React UI components
+│   ├── auth/                 # Authentication components
+│   ├── design-system/        # Reusable UI components (Button, Card, etc.)
+│   ├── employee/             # Employee-specific components
+│   ├── onboarding/           # Onboarding forms and related UIs
+│   └── ...                   # Other shared components
+├── contexts/                 # React Contexts (e.g., AuthContext)
+├── docs/                     # Project documentation (README, Architecture, Workflows)
+├── md_files/                 # Markdown files used as RAG knowledge base
+├── services/                 # Frontend API integration and AI services
+├── utils/                    # Utility functions
+├── .env                      # Environment variables (API keys, etc.)
+├── .gitignore                # Git ignore file
+├── package.json              # Frontend dependencies and scripts
+├── README.md                 # This file
+└── ...                       # Other configuration files (tsconfig, vite.config)
+```
+
+## Contributing
+
+Contributions are welcome! Please fork the repository and submit pull requests. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+
+(To be determined)
+>>>>>>> Stashed changes

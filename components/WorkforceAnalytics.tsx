@@ -35,7 +35,7 @@ export const WorkforceAnalytics: React.FC = () => {
           </div>
           
           <div className="h-[400px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" aspect={1.5}>
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={MOCK_SKILL_GAP_DATA}>
                 <PolarGrid stroke="#f1f5f9" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} />

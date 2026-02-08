@@ -253,9 +253,198 @@ function detectComplianceGapsFromCandidate(candidate: CandidateProfile): string[
   return gaps;
 }
 
+<<<<<<< Updated upstream
 // ---------------------
 // Employee Agent
 // ---------------------
+=======
+/**
+ * Select a preferred OpenRouter model from the available list.
+ * @param availableOpenRouterModels - list of available OpenRouter models
+ * @param preferredCandidates - list of preferred model names (substring match)
+ * @returns The best matching model name, or null.
+ */
+function selectPreferredOpenRouterModel(
+  availableOpenRouterModels: string[],
+  preferredCandidates: string[]
+): string | null {
+  if (!availableOpenRouterModels || !availableOpenRouterModels.length) return null;
+
+  for (const candidate of preferredCandidates) {
+    const found = availableOpenRouterModels.find((m) => m.includes(candidate));
+    if (found) return found;
+  }
+  return availableOpenRouterModels[0]; // Absolute fallback
+}
+
+/**
+ * Call OpenRouter with retry logic.
+ * @param content - The content to send to the model.
+ * @param preferredModels - Ordered list of preferred OpenRouter models.
+ * @returns {text: string, modelUsed: string}
+ */
+const generateWithOpenRouter = async (content: any, preferredModels: string[]): Promise<{ text: string; modelUsed: string }> => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OpenRouter API key missing");
+
+    // Convert Gemini content format to OpenRouter message format
+    let messages = [];
+    if (Array.isArray(content)) {
+        messages = content.map(c => ({
+            role: c.role === 'user' ? 'user' : 'assistant',
+            content: typeof c.parts[0].text === 'string' ? c.parts[0].text : JSON.stringify(c.parts[0])
+        }));
+    } else {
+        messages = [{ role: 'user', content: String(content) }];
+    }
+
+    // Fetch available OpenRouter models (if needed, this could be cached)
+    const openRouterModelsRes = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { "Authorization": `Bearer ${apiKey}` }
+    });
+    const openRouterModelsData = await openRouterModelsRes.json();
+    const availableOpenRouterModels = openRouterModelsData.data.map((m: any) => m.id);
+
+    const modelToUse = selectPreferredOpenRouterModel(availableOpenRouterModels, preferredModels);
+    if (!modelToUse) throw new Error("No suitable OpenRouter model found.");
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://derivhr.com",
+            "X-Title": "DerivHR"
+        },
+        body: JSON.stringify({
+            "model": modelToUse,
+            "messages": messages,
+            "temperature": 0.3 // Default temperature
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`OpenRouter Error: ${err}`);
+    }
+
+    const data = await response.json();
+    return { text: data.choices[0].message.content, modelUsed: `OpenRouter (${modelToUse})` };
+};
+
+/**
+ * Robust generation wrapper with 429 (Rate Limit) handling and multi-provider fallback.
+ * Now prioritizes OpenRouter, then Gemini.
+ */
+export const generateWithRetry = async (
+    content: any, 
+    geminiConfig?: { preferredModels?: string[], model?: string, config?: any },
+    openRouterConfig?: { preferredModels?: string[] }
+): Promise<{ text: string; modelUsed: string }> => {
+    const defaultOpenRouterPreferences = ["deepseek/deepseek-chat", "google/nemotron-3-8b-base", "google/gemini-2.0-flash-lite-preview:free"];
+    const defaultGeminiPreferences = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+    const orPreferred = openRouterConfig?.preferredModels || defaultOpenRouterPreferences;
+    const gPreferred = geminiConfig?.preferredModels || defaultGeminiPreferences;
+    const gInitialModel = geminiConfig?.model;
+
+    // 1. Try OpenRouter first
+    if (process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY) {
+        try {
+            console.log("Attempting OpenRouter call...");
+            return await generateWithOpenRouter(content, orPreferred);
+        } catch (orErr: any) {
+            console.warn("OpenRouter failed:", orErr.message, "Falling back to Gemini...");
+        }
+    } else {
+        console.warn("OpenRouter API key not configured. Skipping OpenRouter fallback.");
+    }
+
+    // 2. Fallback to Gemini
+    let availableGeminiModels: string[] = [];
+    try {
+        availableGeminiModels = await getGeminiModels();
+        if (!availableGeminiModels.length) {
+            throw new Error("No Gemini models available and OpenRouter also failed or not configured.");
+        }
+
+        const modelToUse = gInitialModel || selectPreferredModel(availableGeminiModels, gPreferred) || availableGeminiModels[0];
+        
+        console.log(`Attempting Gemini call with model: ${modelToUse}...`);
+        const response = await ai.models.generateContent({ model: modelToUse, contents: content, ...geminiConfig?.config });
+        return { 
+            text: (response as any).text ?? (response as any).responseText ?? JSON.stringify(response), 
+            modelUsed: modelToUse 
+        };
+    } catch (err: any) {
+        // Handle Gemini-specific rate limits or general errors
+        if (err.message?.includes('429') || err.status === 429 || err.message?.includes('quota')) {
+            console.warn(`Gemini model ${gInitialModel || 'preferred'} rate limited or failed. Trying Gemini fallback...`);
+            
+            const fallbackGemini = availableGeminiModels.find(m => 
+                m.includes('gemini-1.5-flash') || 
+                m.includes('gemini-2.0-flash-lite')
+            );
+
+            if (fallbackGemini && fallbackGemini !== gInitialModel) {
+                try {
+                    console.log(`Attempting Gemini fallback call with model: ${fallbackGemini}...`);
+                    const response = await ai.models.generateContent({ model: fallbackGemini, contents: content, ...geminiConfig?.config });
+                    return { 
+                        text: (response as any).text ?? (response as any).responseText ?? JSON.stringify(response), 
+                        modelUsed: fallbackGemini 
+                    };
+                } catch (fallbackErr) {
+                    console.error("Gemini fallback also failed.", fallbackErr);
+                }
+            }
+        }
+        // If all else fails, try backend RAG as final fallback before showing error message
+        const isQuotaError = err.message?.includes('429') || err.status === 429 || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED');
+        if (isQuotaError) {
+            console.warn("All external LLMs failed due to quota. Trying backend RAG as fallback...");
+            try {
+                // Extract the user query from content (handle both string and array formats)
+                let userQuery = "";
+                if (typeof content === 'string') {
+                    userQuery = content;
+                } else if (Array.isArray(content)) {
+                    // Extract text from the last user message
+                    const lastUserMsg = content.filter((c: any) => c.role === 'user').pop();
+                    if (lastUserMsg && lastUserMsg.parts && lastUserMsg.parts[0]) {
+                        userQuery = lastUserMsg.parts[0].text;
+                    }
+                }
+                
+                if (userQuery) {
+                    const ragResult = await queryBackendRAG(userQuery);
+                    const sourceCitation = ragResult.sources?.length
+                        ? `\n\n_Sources: ${ragResult.sources.map((s: any) => `${s.file} (${s.jurisdiction})`).join(", ")}_`
+                        : "";
+                    return {
+                        text: (ragResult.response || "") + sourceCitation,
+                        modelUsed: "RAG-Local (Fallback)"
+                    };
+                }
+            } catch (ragErr) {
+                console.error("Backend RAG fallback also failed:", ragErr);
+            }
+            
+            // Only show error message if all fallbacks (including RAG) failed
+            return {
+                text: "I apologize, but I'm currently experiencing high demand and have reached my API quota limit. Please try again in a few minutes. If the issue persists, please contact your administrator to check the API quota settings.",
+                modelUsed: "Error"
+            };
+        }
+        // For other errors, still throw to allow proper error handling upstream
+        throw err;
+    }
+};
+
+/**
+ * Specialized chat function for the Employee Assistant.
+ */
+>>>>>>> Stashed changes
 export const chatWithEmployeeAgent = async (
   query: string,
   systemPrompt: string

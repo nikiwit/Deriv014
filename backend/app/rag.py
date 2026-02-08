@@ -1,5 +1,7 @@
 import json
 import os
+import httpx
+from typing import Any, Dict, List, Optional, Sequence
 
 from llama_index.core import (
     SimpleDirectoryReader,
@@ -9,18 +11,64 @@ from llama_index.core import (
     Settings,
 )
 from llama_index.core.memory import ChatMemoryBuffer
+<<<<<<< Updated upstream
 from llama_index.llms.openai import OpenAI
+=======
+>>>>>>> Stashed changes
 from llama_index.embeddings.openai import OpenAIEmbedding
 
-import logging 
+import logging
+
 logger = logging.getLogger(__name__)
 
 
 _index = None
 _engines = {}  # session_id -> chat_engine
 
+OPENAI_API_KEY = None
+OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
+
+
+def _call_llm(prompt: str, context: str = "") -> str:
+    """Call OpenAI API directly with httpx."""
+    if not OPENAI_API_KEY:
+        raise Exception("OpenAI API key not configured")
+
+    full_prompt = f"""{SYSTEM_PROMPT.replace("{context_str}", context or "No additional context.")}
+
+User question: {prompt}
+
+Please answer the user's question based on the context above."""
+
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+        "User-Agent": "DerivHR-Backend/1.0",
+    }
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": full_prompt}],
+        "temperature": 0.1,
+        "max_tokens": 4000,
+    }
+
+    try:
+        with httpx.Client(timeout=120.0) as client:
+            response = client.post(
+                OPENAI_BASE_URL,
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+    except httpx.HTTPError as e:
+        raise Exception(f"OpenAI API error: {str(e)}")
+
+
 SYSTEM_PROMPT = """
-You are the **Chief HR Intelligence Officer** for Deriv Solutions, an experienced HR professional with deep expertise in employment law and HR operations across multiple jurisdictions.
+You are **Chief HR Intelligence Officer** for Deriv Solutions, an experienced HR professional with deep expertise in employment law and HR operations across multiple jurisdictions.
 
 ## JURISDICTIONAL EXPERTISE
 
@@ -61,13 +109,18 @@ Instruction: Use the previous chat history or the context above to help the user
 
 def init_app(app):
     """Build or load the vector index at startup."""
-    global _index
+    global _index, OPENAI_API_KEY
 
+    OPENAI_API_KEY = app.config.get("OPENAI_API_KEY")
+
+<<<<<<< Updated upstream
     Settings.llm = OpenAI(
         model=app.config["LLM_MODEL"],
         api_key=app.config["OPENAI_API_KEY"],
         temperature=0.1,
     )
+=======
+>>>>>>> Stashed changes
     Settings.embed_model = OpenAIEmbedding(
         model=app.config["EMBEDDING_MODEL"],
         api_key=app.config["OPENAI_API_KEY"],
@@ -99,20 +152,6 @@ def init_app(app):
         _index.storage_context.persist(persist_dir=persist_dir)
 
 
-def get_chat_engine(session_id):
-    """Get or create a chat engine for a session."""
-    if session_id not in _engines:
-        memory = ChatMemoryBuffer.from_defaults(token_limit=4000)
-        _engines[session_id] = _index.as_chat_engine(
-            chat_mode="condense_plus_context",
-            memory=memory,
-            context_prompt=SYSTEM_PROMPT,
-            similarity_top_k=5,
-            verbose=False,
-        )
-    return _engines[session_id]
-
-
 def _extract_sources(source_nodes):
     """Extract citation info from source nodes."""
     sources = []
@@ -122,32 +161,116 @@ def _extract_sources(source_nodes):
         if fname in seen:
             continue
         seen.add(fname)
-        sources.append({
-            "file": fname,
-            "jurisdiction": node.metadata.get("jurisdiction", "Unknown"),
-            "score": round(node.score, 3) if node.score else None,
-            "snippet": node.text[:200] if node.text else "",
-        })
+        sources.append(
+            {
+                "file": fname,
+                "jurisdiction": node.metadata.get("jurisdiction", "Unknown"),
+                "score": round(node.score, 3) if node.score else None,
+                "snippet": node.text[:200] if node.text else "",
+            }
+        )
     return sources
 
 
 def query(session_id, message):
     """Non-streaming chat. Returns (response_text, sources)."""
-    engine = get_chat_engine(session_id)
-    response = engine.chat(message)
-    sources = _extract_sources(response.source_nodes)
-    return str(response), sources
+    # Get relevant context from the index
+    if _index is None:
+        raise Exception("RAG index not initialized")
+
+    retriever = _index.as_retriever(similarity_top_k=5)
+    source_nodes = retriever.retrieve(message)
+    sources = _extract_sources(source_nodes)
+
+    # Build context from retrieved documents
+    context = "\n\n".join(
+        [
+            f"Source: {os.path.basename(node.metadata.get('file_name', 'unknown'))}\n{node.text}"
+            for node in source_nodes
+        ]
+    )
+
+    # Call OpenAI directly
+    response_text = _call_llm(message, context)
+
+    return response_text, sources
 
 
 def stream_chat(session_id, message):
     """Streaming chat. Yields token strings, then a final dict with sources."""
-    engine = get_chat_engine(session_id)
-    response = engine.stream_chat(message)
+    # Get relevant context from the index
+    if _index is None:
+        raise Exception("RAG index not initialized")
 
-    for token in response.response_gen:
-        yield token
+    retriever = _index.as_retriever(similarity_top_k=5)
+    source_nodes = retriever.retrieve(message)
+    sources = _extract_sources(source_nodes)
 
-    sources = _extract_sources(response.source_nodes)
+    # Build context from retrieved documents
+    context = "\n\n".join(
+        [
+            f"Source: {os.path.basename(node.metadata.get('file_name', 'unknown'))}\n{node.text}"
+            for node in source_nodes
+        ]
+    )
+
+    # Call OpenAI with streaming
+    if not OPENAI_API_KEY:
+        raise Exception("OpenAI API key not configured")
+
+    full_prompt = f"""{SYSTEM_PROMPT.replace("{context_str}", context or "No additional context.")}
+
+User question: {message}
+
+Please answer the user's question based on the context above."""
+
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+        "User-Agent": "DerivHR-Backend/1.0",
+    }
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": full_prompt}],
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "stream": True,
+    }
+
+    try:
+        with httpx.Client(timeout=120.0) as client:
+            with client.stream(
+                "POST",
+                OPENAI_BASE_URL,
+                headers=headers,
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                for chunk in response.iter_lines():
+                    if chunk:
+                        line = (
+                            chunk if isinstance(chunk, str) else chunk.decode("utf-8")
+                        )
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            if data == "[DONE]":
+                                break
+                            try:
+                                parsed = json.loads(data)
+                                content = (
+                                    parsed.get("choices", [{}])[0]
+                                    .get("delta", {})
+                                    .get("content", "")
+                                )
+                                if content:
+                                    yield content
+                            except json.JSONDecodeError:
+                                continue
+    except httpx.HTTPError as e:
+        raise Exception(f"OpenRouter API error: {str(e)}")
+
+    # Yield sources at the end
     yield json.dumps({"type": "sources", "data": sources})
 
 
@@ -161,5 +284,6 @@ def rebuild_index(app):
     persist_dir = app.config["INDEX_STORE_DIR"]
     if os.path.exists(persist_dir):
         import shutil
+
         shutil.rmtree(persist_dir)
     init_app(app)
