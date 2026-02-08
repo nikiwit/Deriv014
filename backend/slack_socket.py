@@ -7,14 +7,8 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from app import rag
 
-# -------------------------------------------------
-# Load env
-# -------------------------------------------------
 load_dotenv()
 
-# -------------------------------------------------
-# Create a FAKE Flask app just to init RAG
-# -------------------------------------------------
 flask_app = Flask(__name__)
 
 from app.config import Config
@@ -25,9 +19,6 @@ with flask_app.app_context():
 
 print("✅ RAG initialized for Slack")
 
-# -------------------------------------------------
-# Slack App
-# -------------------------------------------------
 slack_app = App(token=os.getenv("SLACK_BOT_TOKEN"))
 
 @slack_app.message("")
@@ -41,9 +32,6 @@ def handle_message(message, say):
     response, _ = rag.query(session_id, text)
     say(response)
 
-# -------------------------------------------------
-# Start Socket Mode
-# -------------------------------------------------
 if __name__ == "__main__":
     print("🤖 Slack bot running (Socket Mode)")
     SocketModeHandler(
