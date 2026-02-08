@@ -131,6 +131,38 @@ Generate employment contracts automatically:
 3. Complete 4-step wizard
 4. Get AI-generated onboarding plan
 
+
+### Slack Integration (Backend + Frontend)
+
+DerivHR supports Slack as an external interaction channel, allowing employees to ask HR-related questions directly from Slack using the same RAG-based backend logic.
+
+#### How it works (Architecture)
+- Slack messages are received via **Slack Socket Mode**
+- Messages are routed to the **same RAG engine** used by the web chatbot
+- Responses are sent back to Slack in real time
+- Frontend provides a shortcut to open the Slack bot (handoff to Slack)
+
+> Slack bots are workspace-scoped. Users must be invited to the workspace where the DerivHR bot is installed.
+
+---
+
+#### Backend Setup (Slack Bot)
+
+**Required Environment Variables**
+SLACK_BOT_TOKEN=xoxb-xxxxxxxx
+SLACK_APP_TOKEN=xapp-xxxxxxxx
+
+**library**
+pip install slack-bolt python-dotenv
+
+# Run Order
+** Terminal 1 – Start backend (RAG + API)
+python run.py
+
+** Terminal 2 – Start Slack bot (Socket Mode)
+python slack_socket.py
+
+
 ## 🔌 API Reference
 
 ### Backend API Endpoints

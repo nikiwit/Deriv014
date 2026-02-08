@@ -29,11 +29,20 @@ def create_app():
     from app import rag
     rag.init_app(app)
 
-    # Blueprints
+    #Blueprints #original
     from app.routes import chat, documents, onboarding
     app.register_blueprint(chat.bp)
     app.register_blueprint(documents.bp)
     app.register_blueprint(onboarding.bp)
+
+    # # Blueprints
+    # from app.routes import chat, documents, onboarding, slack
+
+    # app.register_blueprint(chat.bp)
+    # app.register_blueprint(documents.bp)
+    # app.register_blueprint(onboarding.bp)
+    # app.register_blueprint(slack.bp)
+
 
     # Health check
     @app.route("/api/health")

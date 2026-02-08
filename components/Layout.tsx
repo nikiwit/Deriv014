@@ -61,11 +61,30 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, childre
           </div>
 
           {/* Slack Integration Mockup */}
-          <button className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all group">
+          {/* <button className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all group">
              <Slack size={16} className="text-slate-500 group-hover:text-[#4A154B]" />
              <span className="text-xs font-bold text-slate-400 group-hover:text-white">Sync Slack</span>
              <span className="w-1.5 h-1.5 rounded-full bg-jade-500 animate-pulse"></span>
+          </button> */}
+
+          <button
+            onClick={() => {
+              window.open(
+                "https://slack.com/app_redirect?app=A0AE0F42GUR",
+                "_blank"
+              );
+            }}
+            className="w-full flex items-center justify-center space-x-2 p-2.5 rounded-xl border border-white/10 hover:bg-white/5 transition-all group"
+          >
+            <Slack size={16} className="text-slate-500 group-hover:text-[#4A154B]" />
+            <span className="text-xs font-bold text-slate-400 group-hover:text-white">
+              Open Slack Bot
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-jade-500 animate-pulse"></span>
           </button>
+
+
+
 
           {/* Logout Button */}
           <button
