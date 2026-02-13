@@ -21,11 +21,7 @@ class Config:
     INDEX_STORE_DIR = os.path.join(BASE_DIR, "..", "instance", "index_store")
     GEMINI_API_KEY= os.environ.get("GEMINI_API_KEY")
 
-<<<<<<< Updated upstream
     # LLM + Embeddings (both OpenAI)
     LLM_MODEL = "gpt-4o-mini"
-=======
-    # LLM (Gemini for responses, OpenAI for embeddings)
     LLM_MODEL = "gemini-1.5-flash"
->>>>>>> Stashed changes
     EMBEDDING_MODEL = "text-embedding-3-small"

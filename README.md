@@ -1,97 +1,6 @@
 # DerivHR Platform
 
-<<<<<<< Updated upstream
-An AI-powered HR management platform built for Deriv's multi-jurisdiction workforce. Features RAG-based policy Q&A, automated contract generation, and end-to-end employee onboarding — covering both Malaysia and Singapore offices.
 
-**Deriv014 AI Hackathon Virtual Round — 07-08 Feb 2026**
-
-The hackathon pitch presentation is available in the [Deriv014 Pitch Deck](Deriv014%20Pitch%20Deck.pdf).
-
-## Features
-
-### Core
-- **AI HR Assistant** — RAG-powered chatbot that answers employee questions using indexed company policies, with source citations and jurisdiction awareness (MY/SG)
-- **Smart Contract Generation** — Auto-generates jurisdiction-specific employment contracts (PDF) with statutory defaults (EPF/SOCSO for MY, CPF for SG)
-- **Employee Onboarding** — 4-step wizard with dual mode: structured form or conversational AI chat
-- **Document Checklist** — Tracks required compliance documents per jurisdiction with auto-promotion to active status
-- **E-Leave Management** — Leave request and approval workflows
-- **Workforce Analytics** — AI-driven workforce insights and metrics dashboard
-
-### Platform
-- **HR Admin Portal** — Dashboard, onboarding management, contract generation, knowledge base, analytics
-- **Employee Portal** — Personal dashboard, onboarding progress, leave requests, documents, profile
-- **Slack Integration** — Employees can query HR policies directly from Slack via Socket Mode bot
-- **Streaming Responses** — Real-time token streaming via Server-Sent Events (SSE)
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Recharts |
-| Backend | Flask 3.1, Python 3.x, SQLite |
-| RAG Engine | LlamaIndex 0.12.5 (VectorStoreIndex) |
-| LLM | OpenAI GPT-4o-mini |
-| Embeddings | OpenAI text-embedding-3-small |
-| PDF Generation | xhtml2pdf with Jinja2 templates |
-
-## Project Structure
-
-```
-Deriv014/
-├── App.tsx                        # Main app with role-based routing
-├── components/
-│   ├── Layout.tsx                 # HR admin layout + sidebar
-│   ├── Dashboard.tsx              # Workforce overview & metrics
-│   ├── ChatAssistant.tsx          # HR RAG chatbot
-│   ├── DocumentGen.tsx            # Contract generation UI
-│   ├── Onboarding.tsx             # HR onboarding management
-│   ├── LeaveManagement.tsx        # E-Leave system
-│   ├── WorkforceAnalytics.tsx     # AI workforce insights
-│   ├── KnowledgeBase.tsx          # Policy document browser
-│   ├── auth/LoginPage.tsx         # Login with role selection
-│   ├── employee/                  # Employee portal views
-│   └── onboarding/                # Onboarding wizard (4-step)
-├── services/
-│   └── api.ts                     # Backend API wrapper
-├── contexts/
-│   └── AuthContext.tsx            # Auth state (localStorage)
-│
-├── backend/
-│   ├── run.py                     # Flask entry point (port 5001)
-│   ├── requirements.txt           # Python dependencies
-│   ├── app/
-│   │   ├── __init__.py            # App factory (create_app)
-│   │   ├── config.py              # Configuration & env vars
-│   │   ├── database.py            # SQLite schema (7 tables)
-│   │   ├── rag.py                 # RAG engine (LlamaIndex + Gemini + OpenAI)
-│   │   └── routes/
-│   │       ├── chat.py            # Chat endpoints (standard + SSE streaming)
-│   │       ├── documents.py       # Contract generation & management
-│   │       └── onboarding.py      # Employee registration & checklist
-│   ├── templates/                 # Jinja2 contract templates (MY/SG)
-│   └── instance/                  # SQLite DB, vector index, generated PDFs
-│
-├── md_files/                      # RAG knowledge base (10+ policy docs)
-│   ├── deriv_my_*.md              # Malaysia policies
-│   └── deriv_sg_*.md              # Singapore policies
-│
-└── docs/                          # Architecture & workflow documentation
-```
-
-## Prerequisites
-
-- **Node.js** >= 18
-- **Python** >= 3.10
-- **API Keys:**
-  - OpenAI API key — [Get one here](https://platform.openai.com/api-keys)
-
-## Getting Started
-
-### 1. Install frontend dependencies
-
-```bash
-cd Deriv014
-=======
 ## Overview
 
 DerivHR is an AI-powered Human Resources management platform designed to streamline and automate various HR processes, from employee onboarding and document generation to workforce analytics and AI-driven insights. It leverages advanced AI models (Gemini, OpenRouter) to provide intelligent assistance, compliance checks, and personalized employee experiences.
@@ -165,7 +74,6 @@ cd ..
 >>>>>>> Stashed changes
 npm install
 
-<<<<<<< Updated upstream
 ### 2. Set up the backend
 
 ```bash
@@ -206,7 +114,6 @@ The backend starts on **http://localhost:5001**. On first run it builds the vect
 **Terminal 2 — Frontend (Vite)**
 
 ```bash
-=======
 # Create a .env file in the project root with your API keys:
 # .env content example:
 # API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
@@ -218,12 +125,10 @@ The backend starts on **http://localhost:5001**. On first run it builds the vect
 # Ensure your .env file is in .gitignore for security.
 
 # Start the Vite frontend development server
->>>>>>> Stashed changes
 npm run dev
 ```
 The frontend application will typically run on `http://localhost:3000`.
 
-<<<<<<< Updated upstream
 The frontend starts on **http://localhost:3001**. Vite proxies all `/api` requests to the Flask backend automatically.
 
 ### 5. Open the app
@@ -344,7 +249,6 @@ gunicorn -w 4 -b 0.0.0.0:5001 "app:create_app()"
 npm run build
 # Deploy the dist/ folder to your hosting provider
 ```
-=======
 ## Usage
 
 Once both the backend and frontend servers are running:
@@ -391,4 +295,3 @@ Contributions are welcome! Please fork the repository and submit pull requests. 
 ## License
 
 (To be determined)
->>>>>>> Stashed changes

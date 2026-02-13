@@ -62,20 +62,12 @@ class HRAgent:
     def __init__(self, app_config: Dict):
         """Initialize the HR agent."""
         self.config = app_config
-<<<<<<< Updated upstream
-        
-        # Initialize LLM for JD analysis
-        self.llm = OpenAI(
-            model=app_config["LLM_MODEL"],
-            api_key=app_config["OPENAI_API_KEY"],
-=======
 
         # Initialize LLM for JD analysis (using OpenRouter/DeepSeek)
         self.llm = OpenAI(
             model="deepseek/deepseek-chat",
             api_key=app_config.get("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
->>>>>>> Stashed changes
             temperature=0.1,
         )
 

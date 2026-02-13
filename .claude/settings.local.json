@@ -11,7 +11,9 @@
       "Bash(git stash:*)",
       "Bash(git add:*)",
       "Bash(npm install:*)",
-      "Bash(if not exist \"c:\\\\Users\\\\shaid\\\\Desktop\\\\DerivHR\\\\backend\\\\temp_data\" mkdir \"c:\\\\Users\\\\shaid\\\\Desktop\\\\DerivHR\\\\backend\\\\temp_data\")"
+      "Bash(if not exist \"c:\\\\Users\\\\shaid\\\\Desktop\\\\DerivHR\\\\backend\\\\temp_data\" mkdir \"c:\\\\Users\\\\shaid\\\\Desktop\\\\DerivHR\\\\backend\\\\temp_data\")",
+      "Bash(curl:*)",
+      "Bash(python:*)"
     ]
   }
 }
