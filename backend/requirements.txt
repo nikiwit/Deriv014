@@ -1,6 +1,10 @@
 flask==3.1.0
 flask-cors==5.0.1
 llama-index-core==0.12.5
+<<<<<<< Updated upstream
+=======
+llama-index-llms-gemini>=0.3.0
+>>>>>>> Stashed changes
 llama-index-llms-openai>=0.3.0
 llama-index-embeddings-openai==0.3.1
 llama-index-readers-file==0.4.4

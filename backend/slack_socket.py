@@ -21,6 +21,25 @@ print("✅ RAG initialized for Slack")
 
 slack_app = App(token=os.getenv("SLACK_BOT_TOKEN")) 
 
+def format_for_slack(text: str) -> str:
+    """
+    Convert Markdown-like output into Slack-friendly mrkdwn.
+    """
+    if not text:
+        return text
+
+    text = text.replace("**", "*")
+
+    text = text.replace("    *   ", "• ")
+    text = text.replace("*   ", "• ")
+    text = text.replace("* ", "• ")
+
+    text = text.replace("\n\n\n", "\n\n")
+
+    return text.strip()
+
+
+
 @slack_app.message("")
 def handle_message(message, say):
     text = message.get("text", "").strip()
@@ -30,7 +49,8 @@ def handle_message(message, say):
     session_id = message.get("user", "slack")
 
     response, _ = rag.query(session_id, text)
-    say(response)
+    slack_text = format_for_slack(response)
+    say(slack_text)
 
 if __name__ == "__main__":
     print("🤖 Slack bot running (Socket Mode)")

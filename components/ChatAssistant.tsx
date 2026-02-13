@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { chatWithAgent, getRAGContext, resetRagSession } from '../services/geminiService';
+import { sendChatMessage, ChatResponse } from '../services/api';
 import { validateTelegramToken, getTelegramUpdates, sendTelegramMessage, sendWhatsAppMessage } from '../services/messagingService';
 import { AGENTS, AgentId, getAgentConfig } from '../services/agentRegistry';
 import { Message, IntegrationConfig } from '../types';
