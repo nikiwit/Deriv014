@@ -42,14 +42,15 @@ export async function sendChatMessage(
 // ── DOCUMENT GENERATION ──────────────────────────────────
 
 export interface GenerateContractRequest {
-  employee_name: string;
-  position: string;
-  department: string;
-  jurisdiction: 'MY' | 'SG';
-  start_date: string;
-  salary: number;
+  employee_name?: string;
+  position?: string;
+  department?: string;
+  jurisdiction?: 'MY' | 'SG';
+  start_date?: string;
+  salary?: number;
   nric?: string;
   employee_address?: string;
+  employee_id?: string;
 }
 
 export interface GenerateContractResponse {
@@ -57,6 +58,7 @@ export interface GenerateContractResponse {
   document_type: string;
   jurisdiction: string;
   employee_name: string;
+  employee_id?: string;
   download_url: string;
 }
 

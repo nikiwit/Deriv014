@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { analyzeOnboarding, parseResume } from '../../services/geminiService';
 import { createEmployee } from '../../services/api';
 import { OnboardingData, OnboardingJourney } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   User,
   Mail,
@@ -63,6 +64,7 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
   onCancel,
   existingEmployees = []
 }) => {
+  const { user: authUser } = useAuth();
   const [currentStep, setCurrentStep] = useState<FormStep>('personal');
   const [loading, setLoading] = useState(false);
   const [analyzingResume, setAnalyzingResume] = useState(false);
@@ -231,7 +233,8 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
             department: formData.department,
             start_date: formData.startDate,
             nric: formData.nric || '',
-            salary: formData.salary
+            salary: formData.salary,
+            hr_user_id: authUser?.id || ''
           })
         });
 
@@ -251,11 +254,41 @@ export const NewEmployeeOnboardingForm: React.FC<NewEmployeeOnboardingFormProps>
         if (employeeData.workflow_errors && employeeData.workflow_errors.length > 0) {
           console.warn('Workflow warnings:', employeeData.workflow_errors);
         }
+
+        // Create user profile in Supabase for the new employee
+        try {
+          const nameParts = formData.fullName.trim().split(' ');
+          const firstName = nameParts[0];
+          const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+
+          const supabaseRes = await fetch('http://localhost:5001/api/auth/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email,
+              first_name: firstName,
+              last_name: lastName,
+              role: 'employee',
+              department: formData.department,
+              start_date: formData.startDate,
+              nationality: formData.nationality,
+              nric: formData.nric || ''
+            })
+          });
+
+          if (!supabaseRes.ok && supabaseRes.status !== 409) {
+            console.warn('Supabase user profile creation failed:', await supabaseRes.text());
+          } else if (supabaseRes.status === 409) {
+            console.log('Supabase user already exists for:', formData.email);
+          }
+        } catch (supabaseError) {
+          console.warn('Supabase user profile request failed:', supabaseError);
+        }
       } catch (backendError: any) {
         console.error('Backend employee creation failed:', backendError);
         // Don't block submission if backend fails, but log the error
-        setErrors({ 
-          submit: `Onboarding created but document generation had issues: ${backendError.message}` 
+        setErrors({
+          submit: `Onboarding created but document generation had issues: ${backendError.message}`
         });
       }
 

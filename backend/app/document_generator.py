@@ -4,7 +4,11 @@ from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
+from pathlib import Path
 
+_BASE_DIR = Path(__file__).resolve().parent.parent
+TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 def generate_contract(params, template_dir, output_dir):
     """Generate employment contract PDF from structured data.
@@ -35,15 +39,41 @@ def generate_contract(params, template_dir, output_dir):
         **defaults,
     )
 
+    # doc_id = str(uuid.uuid4())
+    # filename = f"contract_{params.jurisdiction.lower()}_{doc_id[:8]}.pdf"
+    # os.makedirs(output_dir, exist_ok=True)
+    # file_path = os.path.join(output_dir, filename)
+
+    # with open(file_path, "wb") as f:
+    #     pisa.CreatePDF(html_content, dest=f)
+
+    # return doc_id, file_path
+    
+    import json
+    from pathlib import Path
+
     doc_id = str(uuid.uuid4())
-    filename = f"contract_{params.jurisdiction.lower()}_{doc_id[:8]}.pdf"
-    os.makedirs(output_dir, exist_ok=True)
-    file_path = os.path.join(output_dir, filename)
 
-    with open(file_path, "wb") as f:
-        pisa.CreatePDF(html_content, dest=f)
+    # Ensure temp directory exists
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-    return doc_id, file_path
+    # Use employee_id if available, otherwise fall back to a short doc_id prefix
+    file_key = (params.employee_id or "").strip() or doc_id[:8]
+    file_path = TEMP_DIR / f"{file_key}_contract.json"
+
+    # Store contract metadata instead of PDF
+    contract_data = {
+        "doc_id": doc_id,
+        "employee_id": file_key,
+        "jurisdiction": params.jurisdiction,
+        "generated_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "html_content": html_content,  # optional: remove if too large
+    }
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(contract_data, f, indent=2)
+
+    return doc_id, str(file_path)
 
 
 def _get_jurisdiction_defaults(jurisdiction):

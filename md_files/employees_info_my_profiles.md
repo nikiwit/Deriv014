@@ -58,3 +58,43 @@ emergencyContact: N/A
 emergencyContactPhone: N/A
 emergencyContactRelationship: N/A
 complianceStatus: Onboarding
+
+---
+
+## Employee fa4a3196
+id: fa4a3196-6533-4470-9777-98cfc4c430b0
+firstName: John
+lastName: Doe
+email: f@gmail.com
+phone: N/A
+nationality: MY
+nric: 000000-00-0000
+position: Product Manager
+department: Design
+startDate: 2006-10-24
+bankName: N/A
+bankAccount: N/A
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding
+
+---
+
+## Employee e34693af
+id: e34693af-227f-4797-9517-ac7189cb8846
+firstName: Mar
+lastName: Dan
+email: mar@gmail.com
+phone: N/A
+nationality: MY
+nric: 000000-00-0000
+position: Software Engineer
+department: Engineering
+startDate: 2025-12-24
+bankName: N/A
+bankAccount: N/A
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding

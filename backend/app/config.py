@@ -16,6 +16,7 @@ class Config:
     TEMPLATE_DIR = os.path.join(BASE_DIR, "..", "templates")
     OUTPUT_DIR = os.path.join(BASE_DIR, "..", "instance", "generated_docs")
     INDEX_STORE_DIR = os.path.join(BASE_DIR, "..", "instance", "index_store")
+    GEMINI_API_KEY= os.environ.get("GEMINI_API_KEY")
 
     # LLM + Embeddings (both OpenAI)
     LLM_MODEL = "gpt-4o-mini"

@@ -57,15 +57,10 @@ CHECKLISTS = {
 
 @bp.route("/generate", methods=["POST"])
 def generate():
-    """Generate an employment contract PDF."""
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
+    """Generate an employment contract. Missing fields are filled with defaults."""
+    data = request.get_json() or {}
 
-    try:
-        params = ContractParams.from_dict(data)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    params = ContractParams.from_dict(data)
 
     try:
         doc_id, file_path = generate_contract(
@@ -76,28 +71,15 @@ def generate():
     except Exception as e:
         return jsonify({"error": f"Document generation failed: {str(e)}"}), 500
 
-    # Save to database
-    db = get_db()
-    db.execute(
-        "INSERT INTO generated_documents (id, document_type, jurisdiction, employee_name, parameters, file_path) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            doc_id,
-            data.get("document_type", "employment_contract"),
-            params.jurisdiction,
-            params.employee_name,
-            json.dumps(data),
-            file_path,
-        ),
-    )
-    db.commit()
+    file_key = params.employee_id or doc_id[:8]
 
     return jsonify({
         "id": doc_id,
         "document_type": "employment_contract",
         "jurisdiction": params.jurisdiction,
         "employee_name": params.employee_name,
-        "download_url": f"/api/documents/{doc_id}/download",
+        "employee_id": file_key,
+        "download_url": f"/api/download-contract-json/{file_key}",
     }), 201
 
 
@@ -315,6 +297,9 @@ def save_application_comprehensive():
 
     return jsonify({"status": "saved", "id": employee_id}), 200
 
+from datetime import datetime
+from pathlib import Path
+from fpdf import FPDF
 
 def _generate_comprehensive_app_pdf(data, out_path: Path):
     pdf = FPDF(format="A4", unit="mm")
@@ -327,6 +312,24 @@ def _generate_comprehensive_app_pdf(data, out_path: Path):
         v = data.get(key, default)
         return _safe_text(str(v) if v else default)
 
+    # Geometry & spacing
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    line_h = 7
+    small_line_h = 6
+    section_gap = 6
+
+    def full_width(text, h=line_h):
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, h, text)
+
+    def section_title(text):
+        pdf.set_font("Arial", "B", 12)
+        pdf.set_x(pdf.l_margin)
+        # border="B" isn't always necessary; using ln=True then small gap
+        pdf.cell(0, 8, text, ln=True)
+        pdf.ln(2)
+        pdf.set_font("Arial", "", 11)
+
     # Title
     pdf.set_font("Arial", "B", 18)
     pdf.cell(0, 10, "ONBOARDING APPLICATION", ln=True, align="C")
@@ -335,71 +338,63 @@ def _generate_comprehensive_app_pdf(data, out_path: Path):
     pdf.ln(8)
 
     # 1. Employee Details
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "1. EMPLOYEE DETAILS", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Full Name: {val('fullName')}")
-    pdf.multi_cell(180, 7, f"Email: {val('email')}")
-    pdf.multi_cell(180, 7, f"Nationality: {val('nationality')}")
-    pdf.multi_cell(180, 7, f"NRIC / ID: {val('nric', 'N/A')}")
-    pdf.ln(4)
+    section_title("1. EMPLOYEE DETAILS")
+    full_width(f"Full Name: {val('fullName')}")
+    full_width(f"Email: {val('email')}")
+    # use two shorter lines for compact items if desired
+    full_width(f"Nationality: {val('nationality')}")
+    full_width(f"NRIC / ID: {val('nric', 'N/A')}")
+    pdf.ln(section_gap)
 
     # 2. Employment Information
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "2. EMPLOYMENT INFORMATION", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Job Title: {val('role')}")
-    pdf.multi_cell(180, 7, f"Department: {val('department')}")
-    pdf.multi_cell(180, 7, f"Start Date: {val('startDate')}")
-    # Infer reporting manager if not set
+    section_title("2. EMPLOYMENT INFORMATION")
+    full_width(f"Job Title: {val('role')}")
+    full_width(f"Department: {val('department')}")
+    full_width(f"Start Date: {val('startDate')}")
     manager = val('reportingTo', 'Department Head')
-    pdf.multi_cell(180, 7, f"Reporting Manager: {manager}")
-    pdf.ln(4)
+    full_width(f"Reporting Manager: {manager}")
+    pdf.ln(section_gap)
 
     # 3. Compensation Summary
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "3. COMPENSATION SUMMARY", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Monthly Base Salary: {val('salary', 'Refer to Offer Letter')}")
-    pdf.multi_cell(180, 7, "Currency: MYR (Malaysian Ringgit)")
-    pdf.multi_cell(180, 7, "Payment Cycle: Monthly, by the 28th of each calendar month.")
-    pdf.ln(4)
+    section_title("3. COMPENSATION SUMMARY")
+    full_width(f"Monthly Base Salary: {val('salary', 'Refer to Offer Letter')}")
+    full_width("Currency: MYR (Malaysian Ringgit)")
+    full_width("Payment Cycle: Monthly, by the 28th of each calendar month.")
+    pdf.ln(section_gap)
 
     # 4. Benefits Enrollment
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "4. BENEFITS ENROLLMENT INSTRUCTIONS", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 6, "As per the company job description and regional policies, you are eligible for:")
-    pdf.multi_cell(180, 6, "- Medical Outpatient & Hospitalization (RM 50,000 annual limit)")
-    pdf.multi_cell(180, 6, "- Performance Bonus (up to 2 months based on KPI)")
-    pdf.multi_cell(180, 6, "- L&D Allowance (RM 1,500/year)")
-    pdf.multi_cell(180, 6, "- Statutory: EPF (13%), SOCSO, EIS")
+    section_title("4. BENEFITS ENROLLMENT INSTRUCTIONS")
+    full_width("As per the company job description and regional policies, you are eligible for:")
+    # smaller line height for the bullets to fit neatly
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, "- Medical Outpatient & Hospitalization (RM 50,000 annual limit)")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, "- Performance Bonus (up to 2 months based on KPI)")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, "- L&D Allowance (RM 1,500/year)")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, "- Statutory: EPF (13%), SOCSO, EIS")
     pdf.ln(2)
     pdf.set_font("Arial", "I", 10)
-    pdf.multi_cell(180, 6, "Action Required: Complete your 'My Profile' statutory details to initiate enrollment.")
-    pdf.ln(4)
+    full_width("Action Required: Complete your 'My Profile' statutory details to initiate enrollment.", h=small_line_h)
+    pdf.set_font("Arial", "", 11)
+    pdf.ln(section_gap)
 
     # 5. Company Policies
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "5. COMPANY POLICIES ACKNOWLEDGMENT", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 6, "You acknowledge compliance with the following foundational documents:")
-    pdf.multi_cell(180, 6, " [x] Employee Handbook - Global Standards")
-    pdf.multi_cell(180, 6, " [x] Code of Conduct - Professional Integrity")
-    pdf.multi_cell(180, 6, " [x] IT & Data Security - Acceptable Use Policy")
-    pdf.multi_cell(180, 6, " [x] Privacy Notice - PDPA Compliance")
-    pdf.ln(4)
+    section_title("5. COMPANY POLICIES ACKNOWLEDGMENT")
+    full_width("You acknowledge compliance with the following foundational documents:")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, " [x] Employee Handbook - Global Standards")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, " [x] Code of Conduct - Professional Integrity")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, " [x] IT & Data Security - Acceptable Use Policy")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, small_line_h, " [x] Privacy Notice - PDPA Compliance")
+    pdf.ln(section_gap)
 
     # 6. Contractual Agreements
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "6. CONTRACTUAL AGREEMENTS (ITEMIZED)", ln=True, border="B")
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
+    section_title("6. CONTRACTUAL AGREEMENTS (ITEMIZED)")
     agreements = [
         "1. Confidentiality: Employee shall not disclose trade secrets or proprietary data.",
         "2. IP Assignment: All inventions and works produced are the Company's sole property.",
@@ -408,15 +403,23 @@ def _generate_comprehensive_app_pdf(data, out_path: Path):
         "5. Compliance: Employee agrees to follow all local Malaysian statutory regulations."
     ]
     for agg in agreements:
-        pdf.multi_cell(180, 6, agg)
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, small_line_h, agg)
     pdf.ln(6)
 
-    # Signatures
-    pdf.line(15, pdf.get_y(), 195, pdf.get_y())
-    pdf.ln(2)
-    pdf.multi_cell(180, 7, f"Applicant Signature: {val('fullName')}")
-    pdf.multi_cell(180, 7, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
+    # Signatures - draw a thin line across the usable area and print labels below
+    cur_y = pdf.get_y() + 6
+    line_x1 = pdf.l_margin
+    line_x2 = pdf.l_margin + usable_width
+    # draw signature line left-to-right but leave margin space inside auto page margin
+    pdf.line(line_x1, cur_y, line_x2, cur_y)
+    pdf.ln(8)
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"Applicant Signature: {val('fullName')}")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"Date: {datetime.now().strftime('%Y-%m-%d')}")
 
+    # Finish
     pdf.output(str(out_path))
 
 
@@ -452,7 +455,6 @@ def save_offer_acceptance():
 
     return jsonify({"status": "saved", "id": employee_id}), 200
 
-
 def _generate_offer_pdf(data, out_path: Path):
     pdf = FPDF(format="A4", unit="mm")
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -464,6 +466,31 @@ def _generate_offer_pdf(data, out_path: Path):
         v = data.get(key, default)
         return _safe_text(str(v) if v else default)
 
+    # Useful geometry
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    gap = 6  # gap between two columns, mm
+    col_w = (usable_width - gap) / 2
+    line_h = 7
+
+    # Helper: draw two columns of wrapped text, keeping rows aligned vertically
+    def two_col_multicell(left_text, right_text, left_w=col_w, right_w=col_w, h=line_h):
+        # Save starting position
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+
+        # Left column
+        pdf.multi_cell(left_w, h, left_text)
+        y_after_left = pdf.get_y()
+
+        # Right column: go back to start y, move to right column x
+        pdf.set_xy(x_start + left_w + gap, y_start)
+        pdf.multi_cell(right_w, h, right_text)
+        y_after_right = pdf.get_y()
+
+        # Move cursor to the next line after the taller of the two columns,
+        # and reset x to left margin
+        pdf.set_xy(pdf.l_margin, max(y_after_left, y_after_right))
+
     # Title
     pdf.set_font("Arial", "B", 16)
     pdf.cell(0, 10, "Offer Acceptance Form", ln=True, align="C")
@@ -474,26 +501,25 @@ def _generate_offer_pdf(data, out_path: Path):
     pdf.cell(0, 8, "CANDIDATE INFORMATION", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Full Name: {val('fullName')}")
-    pdf.multi_cell(180, 7, f"NRIC/Passport No: {val('nricPassport')}")
-    pdf.multi_cell(180, 7, f"Email: {val('email')}")
-    pdf.multi_cell(180, 7, f"Mobile: {val('mobile')}")
+
+    # Use two-column rows for compact fields
+    two_col_multicell(f"Full Name: {val('fullName')}", f"NRIC/Passport No: {val('nricPassport')}")
+    two_col_multicell(f"Email: {val('email')}", f"Mobile: {val('mobile')}")
     pdf.ln(4)
 
-    # Offer Details
+    # Offer Details (we mix one- and two-column rows)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 8, "OFFER DETAILS", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Company: {val('company')}")
-    pdf.multi_cell(180, 7, f"Position: {val('position')}")
-    pdf.multi_cell(180, 7, f"Department: {val('department')}")
-    pdf.multi_cell(180, 7, f"Reporting To: {val('reportingTo')}")
-    pdf.multi_cell(180, 7, f"Start Date: {val('startDate')}")
-    pdf.multi_cell(180, 7, f"Employment Type: {val('employmentType')}")
-    pdf.multi_cell(180, 7, f"Probation Period: {val('probationPeriod')}")
-    pdf.multi_cell(180, 7, f"Monthly Salary: MYR {val('monthlySalary')}")
-    pdf.multi_cell(180, 7, f"Benefits: {val('benefits')}")
+
+    two_col_multicell(f"Company: {val('company')}", f"Position: {val('position')}")
+    two_col_multicell(f"Department: {val('department')}", f"Reporting To: {val('reportingTo')}")
+    two_col_multicell(f"Start Date: {val('startDate')}", f"Employment Type: {val('employmentType')}")
+    two_col_multicell(f"Probation Period: {val('probationPeriod')}", f"Monthly Salary: MYR {val('monthlySalary')}")
+    # Benefits may be long -> full width
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"Benefits: {val('benefits')}")
     pdf.ln(4)
 
     # Offer Acceptance
@@ -503,17 +529,27 @@ def _generate_offer_pdf(data, out_path: Path):
     pdf.set_font("Arial", "", 11)
     name = val("fullName") or "______"
     company = val("company") or "______"
-    pdf.multi_cell(180, 7, f"I, {name}, hereby accept the offer of employment with {company} under the terms and conditions outlined in the offer letter.")
+
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"I, {name}, hereby accept the offer of employment with {company} under the terms and conditions outlined in the offer letter.")
     pdf.ln(2)
-    pdf.multi_cell(180, 7, "I confirm that I have read, understood, and agree to:")
-    pdf.multi_cell(180, 7, "  - The position responsibilities and reporting structure")
-    pdf.multi_cell(180, 7, "  - The compensation and benefits package")
-    pdf.multi_cell(180, 7, "  - The probation period and terms of employment")
-    pdf.multi_cell(180, 7, "  - The company policies referenced in the offer letter")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, "I confirm that I have read, understood, and agree to:")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, "  - The position responsibilities and reporting structure")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, "  - The compensation and benefits package")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, "  - The probation period and terms of employment")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, "  - The company policies referenced in the offer letter")
     pdf.ln(2)
+
     accepted = "[x]" if data.get("accepted") else "[ ]"
-    pdf.multi_cell(180, 7, f"{accepted} Offer Accepted")
-    pdf.multi_cell(180, 7, f"Acceptance Date: {val('acceptanceDate')}")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"{accepted} Offer Accepted")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"Acceptance Date: {val('acceptanceDate')}")
     pdf.ln(4)
 
     # Emergency Contact
@@ -521,10 +557,9 @@ def _generate_offer_pdf(data, out_path: Path):
     pdf.cell(0, 8, "EMERGENCY CONTACT DETAILS", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Emergency Contact Name: {val('emergencyName')}")
-    pdf.multi_cell(180, 7, f"Relationship: {val('emergencyRelationship')}")
-    pdf.multi_cell(180, 7, f"Mobile Number: {val('emergencyMobile')}")
-    pdf.multi_cell(180, 7, f"Alternative Number: {val('emergencyAltNumber') or 'N/A'}")
+
+    two_col_multicell(f"Emergency Contact Name: {val('emergencyName')}", f"Relationship: {val('emergencyRelationship')}")
+    two_col_multicell(f"Mobile Number: {val('emergencyMobile')}", f"Alternative Number: {val('emergencyAltNumber') or 'N/A'}")
     pdf.ln(4)
 
     # Conflicts of Interest
@@ -533,19 +568,27 @@ def _generate_offer_pdf(data, out_path: Path):
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
     no_conflicts = data.get("noConflicts", True)
-    pdf.multi_cell(180, 7, f"{'[x]' if no_conflicts else '[ ]'} I have NO conflicts of interest")
-    pdf.multi_cell(180, 7, f"{'[ ]' if no_conflicts else '[x]'} I have potential conflicts to disclose")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"{'[x]' if no_conflicts else '[ ]'} I have NO conflicts of interest")
+    pdf.set_x(pdf.l_margin)
+    pdf.multi_cell(usable_width, line_h, f"{'[ ]' if no_conflicts else '[x]'} I have potential conflicts to disclose")
     if not no_conflicts:
-        pdf.multi_cell(180, 7, f"Details: {val('conflictDetails') or 'N/A'}")
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, line_h, f"Details: {val('conflictDetails') or 'N/A'}")
     pdf.ln(4)
 
-    # Signature
+    # Signature block - two columns: signature (left) and date (right)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Signature: {val('fullName')}")
-    pdf.multi_cell(0, 7, f"Date: {val('acceptanceDate')}")
+    sig_left = f"Signature: {val('fullName')}"
+    sig_right = f"Date: {val('acceptanceDate')}"
 
+    # Use the two-column helper to keep signature and date aligned even if they wrap
+    two_col_multicell(sig_left, sig_right, left_w=col_w, right_w=col_w, h=line_h)
+
+    # Optionally add space for handwriting/signature line
+    pdf.ln(6)
+    # print file
     pdf.output(str(out_path))
-
 
 @onboarding_docs_bp.route("/api/generate-offer-pdf/<employee_id>", methods=["GET"])
 @cross_origin()
@@ -579,7 +622,6 @@ def save_contract():
 
     return jsonify({"status": "saved", "id": employee_id}), 200
 
-
 def _generate_contract_pdf(data, out_path: Path):
     pdf = FPDF(format="A4", unit="mm")
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -588,11 +630,39 @@ def _generate_contract_pdf(data, out_path: Path):
     pdf.add_page()
 
     def val(key, default=""):
-        v = data.get(key, default)
+        v = data.get(key, default).strip()
         return _safe_text(str(v) if v else default)
 
     def check(key):
         return "[x]" if data.get(key) else "[ ]"
+
+    # Geometry
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    gap = 6  # mm between columns
+    col_w = (usable_width - gap) / 2
+    line_h = 6
+
+    # Helper: two-column wrapped text keeping rows vertically aligned
+    def two_col_multicell(left_text, right_text, left_w=col_w, right_w=col_w, h=line_h):
+        x_start = pdf.get_x()
+        y_start = pdf.get_y()
+
+        # Left column
+        pdf.multi_cell(left_w, h, left_text)
+        y_after_left = pdf.get_y()
+
+        # Right column: reset to original y and move to right column x
+        pdf.set_xy(x_start + left_w + gap, y_start)
+        pdf.multi_cell(right_w, h, right_text)
+        y_after_right = pdf.get_y()
+
+        # Move cursor to the next line after taller column and reset X
+        pdf.set_xy(pdf.l_margin, max(y_after_left, y_after_right))
+
+    # Small helper to print a full-width label/value
+    def full_width(text, h=line_h):
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, h, text)
 
     # Title
     pdf.set_font("Arial", "B", 16)
@@ -601,110 +671,133 @@ def _generate_contract_pdf(data, out_path: Path):
     pdf.cell(0, 8, "Deriv Solutions Sdn Bhd", ln=True, align="C")
     pdf.ln(6)
 
-    # Section 1: Personal & Identification
+    # SECTION 1: Personal & Identification
     pdf.set_font("Arial", "B", 13)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 8, "SECTION 1: PERSONAL & IDENTIFICATION DETAILS", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Full Name (as per NRIC/Passport): {val('fullName')}")
-    pdf.multi_cell(180, 7, f"NRIC No: {val('nric', 'N/A')}")
-    pdf.multi_cell(180, 7, f"Passport No (for non-Malaysians): {val('passportNo', 'N/A')}")
-    pdf.multi_cell(180, 7, f"Nationality: {val('nationality')}")
-    pdf.multi_cell(180, 7, f"Date of Birth: {val('dateOfBirth')}")
-    pdf.multi_cell(180, 7, f"Gender: {val('gender')}")
-    pdf.multi_cell(180, 7, f"Marital Status: {val('maritalStatus')}")
-    pdf.multi_cell(180, 7, f"Race: {val('race')}")
-    pdf.multi_cell(180, 7, f"Religion: {val('religion')}")
+
+    two_col_multicell(f"Full Name (as per NRIC/Passport): {val('fullName')}",
+                      f"NRIC No: {val('nric', 'N/A')}")
+    two_col_multicell(f"Passport No (for non-Malaysians): {val('passportNo', 'N/A')}",
+                      f"Nationality: {val('nationality')}")
+    two_col_multicell(f"Date of Birth: {val('dateOfBirth')}", f"Gender: {val('gender')}")
+    two_col_multicell(f"Marital Status: {val('maritalStatus')}", f"Race: {val('race')}")
+    full_width(f"Religion: {val('religion')}")
     pdf.ln(3)
 
-    # Residential Address
+    # Residential Address (full width)
     pdf.set_font("Arial", "B", 11)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 7, "Residential Address", ln=True)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Address: {val('address1')}, {val('address2')}")
-    pdf.multi_cell(180, 7, f"Postcode: {val('postcode')}  City: {val('city')}  State: {val('state')}")
-    pdf.multi_cell(180, 7, f"Country: {val('country')}")
+    two_col_multicell(f"Address: {val('address1')}".strip() + (f", {val('address2')}".strip() if val('address2') else ""), "")
+    two_col_multicell(f"Postcode: {val('postcode')}", f"City: {val('city')}")
+    two_col_multicell(f"State: {val('state')}", f"Country: {val('country')}")
     pdf.ln(3)
 
     # Contact
     pdf.set_font("Arial", "B", 11)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 7, "Contact Information", ln=True)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Personal Email: {val('personalEmail')}")
-    pdf.multi_cell(180, 7, f"Work Email: {val('workEmail')}")
-    pdf.multi_cell(180, 7, f"Mobile Number: {val('mobile')}")
-    pdf.multi_cell(180, 7, f"Alternative Number: {val('altNumber', 'N/A')}")
+    two_col_multicell(f"Personal Email: {val('personalEmail')}", f"Work Email: {val('workEmail')}")
+    two_col_multicell(f"Mobile Number: {val('mobile')}", f"Alternative Number: {val('altNumber', 'N/A')}")
     pdf.ln(3)
 
     # Emergency Contact
     pdf.set_font("Arial", "B", 11)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 7, "Emergency Contact", ln=True)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Name: {val('emergencyName')}")
-    pdf.multi_cell(180, 7, f"Relationship: {val('emergencyRelationship')}")
-    pdf.multi_cell(180, 7, f"Mobile: {val('emergencyMobile')}")
-    pdf.multi_cell(180, 7, f"Alt Number: {val('emergencyAltNumber', 'N/A')}")
+    two_col_multicell(f"Name: {val('emergencyName')}", f"Relationship: {val('emergencyRelationship')}")
+    two_col_multicell(f"Mobile: {val('emergencyMobile')}", f"Alt Number: {val('emergencyAltNumber', 'N/A')}")
+    pdf.ln(3)
 
-    # Section 2: Employment & Bank
+    # SECTION 2: Employment & Bank
     pdf.add_page()
     pdf.set_font("Arial", "B", 13)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 8, "SECTION 2: EMPLOYMENT & BANK INFORMATION", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Job Title: {val('jobTitle')}")
-    pdf.multi_cell(180, 7, f"Department: {val('department')}")
-    pdf.multi_cell(180, 7, f"Reporting To: {val('reportingTo')}")
-    pdf.multi_cell(180, 7, f"Start Date: {val('startDate')}")
-    pdf.multi_cell(180, 7, f"Employment Type: {val('employmentType')}")
-    pdf.multi_cell(180, 7, f"Work Location: {val('workLocation')}")
-    pdf.multi_cell(180, 7, f"Work Model: {val('workModel')}")
-    pdf.multi_cell(180, 7, f"Probation Period: {val('probationPeriod')}")
+
+    two_col_multicell(f"Job Title: {val('jobTitle')}", f"Department: {val('department')}")
+    two_col_multicell(f"Reporting To: {val('reportingTo')}", f"Start Date: {val('startDate')}")
+    two_col_multicell(f"Employment Type: {val('employmentType')}", f"Work Location: {val('workLocation')}")
+    two_col_multicell(f"Work Model: {val('workModel')}", f"Probation Period: {val('probationPeriod')}")
     pdf.ln(3)
 
     pdf.set_font("Arial", "B", 11)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 7, "Banking Details (for Salary Credit)", ln=True)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Bank Name: {val('bankName')}")
-    pdf.multi_cell(180, 7, f"Account Holder Name: {val('accountHolder')}")
-    pdf.multi_cell(180, 7, f"Account Number: {val('accountNumber')}")
-    pdf.multi_cell(180, 7, f"Bank Branch: {val('bankBranch')}")
+    two_col_multicell(f"Bank Name: {val('bankName')}", f"Account Holder Name: {val('accountHolder')}")
+    two_col_multicell(f"Account Number: {val('accountNumber')}", f"Bank Branch: {val('bankBranch')}")
+    pdf.ln(3)
 
-    # Section 3: Statutory Registrations
-    pdf.ln(6)
+    # SECTION 3: Statutory Registrations
     pdf.set_font("Arial", "B", 13)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 8, "SECTION 3: STATUTORY REGISTRATIONS", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"EPF Number: {val('epfNumber', 'New registration needed')}")
-    pdf.multi_cell(180, 7, f"SOCSO Number: {val('socsoNumber', 'New registration needed')}")
-    pdf.multi_cell(180, 7, f"EIS Number: {val('eisNumber', 'New registration needed')}")
-    pdf.multi_cell(180, 7, f"Income Tax Number: {val('taxNumber', 'New registration needed')}")
+    two_col_multicell(f"EPF Number: {val('epfNumber', 'New registration needed')}",
+                      f"SOCSO Number: {val('socsoNumber', 'New registration needed')}")
+    two_col_multicell(f"EIS Number: {val('eisNumber', 'New registration needed')}",
+                      f"Income Tax Number: {val('taxNumber', 'New registration needed')}")
+    pdf.set_x(pdf.l_margin)
     tax_resident = "Malaysian Tax Resident" if data.get("taxResident") else "Non-Resident"
-    pdf.multi_cell(180, 7, f"Tax Resident Status: {tax_resident}")
+    full_width(f"Tax Resident Status: {tax_resident}")
+    pdf.ln(3)
 
-    # Section 4: Policy Acknowledgements
+    # SECTION 4: Policy Acknowledgements
     pdf.add_page()
     pdf.set_font("Arial", "B", 13)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 8, "SECTION 4: POLICY ACKNOWLEDGEMENTS", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"{check('acknowledgeHandbook')} Employee Handbook - read and agreed")
-    pdf.multi_cell(180, 7, f"{check('acknowledgeIT')} IT & Data Security Policy - read and agreed")
-    pdf.multi_cell(180, 7, f"{check('acknowledgePrivacy')} Data Privacy Policy (PDPA) - consented")
-    pdf.multi_cell(180, 7, f"{check('acknowledgeConfidentiality')} Confidentiality & Code of Conduct - agreed")
+    pdf.set_x(pdf.l_margin)
+    full_width(f"{check('acknowledgeHandbook')} Employee Handbook - read and agreed")
+    pdf.set_x(pdf.l_margin)
+    full_width(f"{check('acknowledgeIT')} IT & Data Security Policy - read and agreed")
+    pdf.set_x(pdf.l_margin)
+    full_width(f"{check('acknowledgePrivacy')} Data Privacy Policy (PDPA) - consented")
+    pdf.set_x(pdf.l_margin)
+    full_width(f"{check('acknowledgeConfidentiality')} Confidentiality & Code of Conduct - agreed")
     pdf.ln(4)
 
     # Final Declaration
     pdf.set_font("Arial", "B", 13)
+    pdf.set_x(pdf.l_margin)
     pdf.cell(0, 8, "FINAL DECLARATION", ln=True)
     pdf.ln(2)
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"{check('finalDeclaration')} I declare that all information provided is true, accurate, and complete.")
-    pdf.ln(4)
+    pdf.set_x(pdf.l_margin)
+    full_width(f"{check('finalDeclaration')} I declare that all information provided is true, accurate, and complete.")
+    pdf.ln(6)
 
-    pdf.multi_cell(180, 7, f"Employee Full Name: {val('fullName')}")
-    pdf.multi_cell(180, 7, f"Employee Signature: {val('fullName')}")
-    pdf.multi_cell(180, 7, f"Date: {val('signatureDate')}")
+    # Signature block: two columns (signature left, date right)
+    sig_left = f"Employee Full Name: {val('fullName')}"
+    sig_center = f"Employee Signature: {val('fullName')}"
+    sig_right = f"Date: {val('signatureDate')}"
+
+    # Use two-col for name/date and render signature line in center area
+    two_col_multicell(sig_left, sig_right)
+    # center column for signature line (drawn as horizontal line)
+    # compute center x and y
+    x_center = pdf.l_margin + col_w + gap
+    y_center = pdf.get_y() + 6
+    # line width 60% of col_w centered in the center area
+    line_w = col_w * 0.6
+    line_x = x_center + (col_w - line_w) / 2
+    pdf.line(line_x, y_center, line_x + line_w, y_center)
+    # add label below line
+    pdf.set_xy(line_x, y_center + 2)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(line_w, 5, "Sign above", align="C")
 
     pdf.output(str(out_path))
 
@@ -741,6 +834,9 @@ def save_full_report():
 
     return jsonify({"status": "saved", "id": employee_id}), 200
 
+from datetime import datetime
+from pathlib import Path
+from fpdf import FPDF
 
 def _generate_full_report_pdf(data, out_path: Path):
     """Generate a comprehensive PDF combining profile, offer acceptance, and contract data."""
@@ -749,15 +845,31 @@ def _generate_full_report_pdf(data, out_path: Path):
     pdf.set_left_margin(15)
     pdf.set_right_margin(15)
 
-    profile = data.get("profile", {})
-    offer = data.get("offer", {})
-    contract = data.get("contract", {})
+    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+    line_h = 7
+    small_h = 6
+    section_gap = 6
+
+    profile = data.get("profile", {}) or {}
+    offer = data.get("offer", {}) or {}
+    contract = data.get("contract", {}) or {}
 
     def val(src, key, default=""):
         v = src.get(key, default) if src else default
         return _safe_text(str(v) if v else default)
 
-    # ── Cover page ──
+    def full(text, h=line_h):
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, h, text)
+
+    def section_title(text, size=14):
+        pdf.set_font("Arial", "B", size)
+        pdf.set_x(pdf.l_margin)
+        pdf.cell(0, 10, text, ln=True)
+        pdf.ln(2)
+        pdf.set_font("Arial", "", 11)
+
+    # ── COVER PAGE ──
     pdf.add_page()
     pdf.set_font("Arial", "B", 20)
     pdf.cell(0, 15, "Employee Full Report", ln=True, align="C")
@@ -773,148 +885,153 @@ def _generate_full_report_pdf(data, out_path: Path):
     pdf.ln(8)
 
     # Document status summary
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "DOCUMENT STATUS", ln=True)
-    pdf.ln(2)
-    pdf.set_font("Arial", "", 11)
+    section_title("DOCUMENT STATUS", size=12)
     app_status = "Completed" if profile.get("status") == "in_progress" else "Not started"
     offer_status = "Completed" if offer.get("completedAt") else "Not completed"
     contract_status = "Completed" if contract.get("completedAt") else "Not completed"
-    pdf.multi_cell(180, 7, f"[{'x' if app_status == 'Completed' else ' '}] Application: {app_status}")
-    pdf.multi_cell(180, 7, f"[{'x' if offer_status == 'Completed' else ' '}] Offer Acceptance: {offer_status}")
-    pdf.multi_cell(180, 7, f"[{'x' if contract_status == 'Completed' else ' '}] Contract: {contract_status}")
-    pdf.ln(4)
+    full(f"[{'x' if app_status == 'Completed' else ' '}] Application: {app_status}")
+    full(f"[{'x' if offer_status == 'Completed' else ' '}] Offer Acceptance: {offer_status}")
+    full(f"[{'x' if contract_status == 'Completed' else ' '}] Contract: {contract_status}")
+    pdf.ln(section_gap)
 
     # ── Part 1: Application / Profile ──
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "PART 1: ONBOARDING APPLICATION", ln=True)
-    pdf.ln(4)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(180, 7, f"Full Name: {val(profile, 'fullName')}")
-    pdf.multi_cell(180, 7, f"Email: {val(profile, 'email')}")
-    pdf.multi_cell(180, 7, f"Role: {val(profile, 'role')}")
-    pdf.multi_cell(180, 7, f"Department: {val(profile, 'department')}")
-    pdf.multi_cell(180, 7, f"Start Date: {val(profile, 'startDate')}")
-    pdf.multi_cell(180, 7, f"Nationality: {val(profile, 'nationality')}")
-    pdf.multi_cell(180, 7, f"NRIC: {val(profile, 'nric', 'N/A')}")
-    pdf.multi_cell(180, 7, f"Salary: {val(profile, 'salary', 'N/A')}")
+    section_title("PART 1: ONBOARDING APPLICATION")
+    full(f"Full Name: {val(profile, 'fullName')}")
+    full(f"Email: {val(profile, 'email')}")
+    full(f"Role: {val(profile, 'role')}")
+    full(f"Department: {val(profile, 'department')}")
+    full(f"Start Date: {val(profile, 'startDate')}")
+    full(f"Nationality: {val(profile, 'nationality')}")
+    full(f"NRIC: {val(profile, 'nric', 'N/A')}")
+    full(f"Salary: {val(profile, 'salary', 'N/A')}")
 
     if profile.get("aiPlan"):
         pdf.ln(4)
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "AI Onboarding Plan:", ln=True)
         pdf.set_font("Arial", "", 10)
-        plan_text = str(profile.get("aiPlan", ""))
-        for line in plan_text.split("\n"):
-            pdf.multi_cell(180, 6, _safe_text(line))
+        for line in str(profile.get("aiPlan", "")).splitlines():
+            pdf.set_x(pdf.l_margin)
+            pdf.multi_cell(usable_width, small_h, _safe_text(line))
+    pdf.ln(section_gap)
 
     # ── Part 2: Offer Acceptance ──
     if offer.get("completedAt"):
         pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "PART 2: OFFER ACCEPTANCE", ln=True)
-        pdf.ln(4)
-
+        section_title("PART 2: OFFER ACCEPTANCE")
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Candidate Information", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Full Name: {val(offer, 'fullName')}")
-        pdf.multi_cell(180, 7, f"NRIC/Passport: {val(offer, 'nricPassport')}")
-        pdf.multi_cell(180, 7, f"Email: {val(offer, 'email')}")
-        pdf.multi_cell(180, 7, f"Mobile: {val(offer, 'mobile')}")
+
+        full(f"Full Name: {val(offer, 'fullName')}")
+        full(f"NRIC/Passport: {val(offer, 'nricPassport')}")
+        full(f"Email: {val(offer, 'email')}")
+        full(f"Mobile: {val(offer, 'mobile')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Offer Details", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Company: {val(offer, 'company')}")
-        pdf.multi_cell(180, 7, f"Position: {val(offer, 'position')}")
-        pdf.multi_cell(180, 7, f"Department: {val(offer, 'department')}")
-        pdf.multi_cell(180, 7, f"Reporting To: {val(offer, 'reportingTo')}")
-        pdf.multi_cell(180, 7, f"Start Date: {val(offer, 'startDate')}")
-        pdf.multi_cell(180, 7, f"Employment Type: {val(offer, 'employmentType')}")
-        pdf.multi_cell(180, 7, f"Probation: {val(offer, 'probationPeriod')}")
-        pdf.multi_cell(180, 7, f"Monthly Salary: MYR {val(offer, 'monthlySalary')}")
-        pdf.multi_cell(180, 7, f"Benefits: {val(offer, 'benefits')}")
+        full(f"Company: {val(offer, 'company')}")
+        full(f"Position: {val(offer, 'position')}")
+        full(f"Department: {val(offer, 'department')}")
+        full(f"Reporting To: {val(offer, 'reportingTo')}")
+        full(f"Start Date: {val(offer, 'startDate')}")
+        full(f"Employment Type: {val(offer, 'employmentType')}")
+        full(f"Probation: {val(offer, 'probationPeriod')}")
+        full(f"Monthly Salary: MYR {val(offer, 'monthlySalary')}")
+        # Benefits can be long — ensure full width and smaller line height if needed
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(usable_width, small_h, f"Benefits: {val(offer, 'benefits')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Acceptance", ln=True)
         pdf.set_font("Arial", "", 11)
         accepted = "[x]" if offer.get("accepted") else "[ ]"
-        pdf.multi_cell(180, 7, f"{accepted} Offer Accepted on {val(offer, 'acceptanceDate')}")
+        full(f"{accepted} Offer Accepted on {val(offer, 'acceptanceDate')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Emergency Contact", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Name: {val(offer, 'emergencyName')} ({val(offer, 'emergencyRelationship')})")
-        pdf.multi_cell(180, 7, f"Mobile: {val(offer, 'emergencyMobile')}")
+        full(f"Name: {val(offer, 'emergencyName')} ({val(offer, 'emergencyRelationship')})")
+        full(f"Mobile: {val(offer, 'emergencyMobile')}")
+        pdf.ln(section_gap)
 
     # ── Part 3: Contract ──
     if contract.get("completedAt"):
         pdf.add_page()
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, "PART 3: EMPLOYMENT CONTRACT", ln=True)
-        pdf.ln(4)
-
+        section_title("PART 3: EMPLOYMENT CONTRACT")
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Personal Details", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Full Name: {val(contract, 'fullName')}")
-        pdf.multi_cell(180, 7, f"NRIC: {val(contract, 'nric', 'N/A')}")
-        pdf.multi_cell(180, 7, f"Passport: {val(contract, 'passportNo', 'N/A')}")
-        pdf.multi_cell(180, 7, f"Nationality: {val(contract, 'nationality')}")
-        pdf.multi_cell(180, 7, f"DOB: {val(contract, 'dateOfBirth')} | Gender: {val(contract, 'gender')} | Marital: {val(contract, 'maritalStatus')}")
+        full(f"Full Name: {val(contract, 'fullName')}")
+        full(f"NRIC: {val(contract, 'nric', 'N/A')}")
+        full(f"Passport: {val(contract, 'passportNo', 'N/A')}")
+        full(f"Nationality: {val(contract, 'nationality')}")
+        full(f"DOB: {val(contract, 'dateOfBirth')} | Gender: {val(contract, 'gender')} | Marital: {val(contract, 'maritalStatus')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Address", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"{val(contract, 'address1')}, {val(contract, 'address2')}")
-        pdf.multi_cell(180, 7, f"{val(contract, 'postcode')} {val(contract, 'city')}, {val(contract, 'state')}, {val(contract, 'country')}")
+        full(f"{val(contract, 'address1')}" + (f", {val(contract, 'address2')}" if val(contract, 'address2') else ""))
+        full(f"{val(contract, 'postcode')} {val(contract, 'city')}, {val(contract, 'state')}, {val(contract, 'country')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Employment", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Job Title: {val(contract, 'jobTitle')}")
-        pdf.multi_cell(180, 7, f"Department: {val(contract, 'department')}")
-        pdf.multi_cell(180, 7, f"Type: {val(contract, 'employmentType')} | Model: {val(contract, 'workModel')}")
-        pdf.multi_cell(180, 7, f"Start Date: {val(contract, 'startDate')} | Probation: {val(contract, 'probationPeriod')}")
+        full(f"Job Title: {val(contract, 'jobTitle')}")
+        full(f"Department: {val(contract, 'department')}")
+        full(f"Type: {val(contract, 'employmentType')} | Model: {val(contract, 'workModel')}")
+        full(f"Start Date: {val(contract, 'startDate')} | Probation: {val(contract, 'probationPeriod')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Banking", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"Bank: {val(contract, 'bankName')} | Account: {val(contract, 'accountNumber')}")
-        pdf.multi_cell(180, 7, f"Holder: {val(contract, 'accountHolder')} | Branch: {val(contract, 'bankBranch')}")
+        full(f"Bank: {val(contract, 'bankName')} | Account: {val(contract, 'accountNumber')}")
+        full(f"Holder: {val(contract, 'accountHolder')} | Branch: {val(contract, 'bankBranch')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Statutory", ln=True)
         pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(180, 7, f"EPF: {val(contract, 'epfNumber', 'Pending')} | SOCSO: {val(contract, 'socsoNumber', 'Pending')}")
-        pdf.multi_cell(180, 7, f"EIS: {val(contract, 'eisNumber', 'Pending')} | Tax: {val(contract, 'taxNumber', 'Pending')}")
+        full(f"EPF: {val(contract, 'epfNumber', 'Pending')} | SOCSO: {val(contract, 'socsoNumber', 'Pending')}")
+        full(f"EIS: {val(contract, 'eisNumber', 'Pending')} | Tax: {val(contract, 'taxNumber', 'Pending')}")
         pdf.ln(3)
 
         pdf.set_font("Arial", "B", 11)
+        pdf.set_x(pdf.l_margin)
         pdf.cell(0, 7, "Policy Acknowledgements", ln=True)
         pdf.set_font("Arial", "", 11)
 
         def chk(key):
             return "[x]" if contract.get(key) else "[ ]"
 
-        pdf.multi_cell(180, 7, f"{chk('acknowledgeHandbook')} Employee Handbook")
-        pdf.multi_cell(180, 7, f"{chk('acknowledgeIT')} IT & Data Security")
-        pdf.multi_cell(180, 7, f"{chk('acknowledgePrivacy')} Data Privacy (PDPA)")
-        pdf.multi_cell(180, 7, f"{chk('acknowledgeConfidentiality')} Confidentiality & Code of Conduct")
+        full(f"{chk('acknowledgeHandbook')} Employee Handbook")
+        full(f"{chk('acknowledgeIT')} IT & Data Security")
+        full(f"{chk('acknowledgePrivacy')} Data Privacy (PDPA)")
+        full(f"{chk('acknowledgeConfidentiality')} Confidentiality & Code of Conduct")
         pdf.ln(3)
-        pdf.multi_cell(180, 7, f"Signed: {val(contract, 'fullName')} on {val(contract, 'signatureDate')}")
+        full(f"Signed: {val(contract, 'fullName')} on {val(contract, 'signatureDate')}")
 
+    # final output
     pdf.output(str(out_path))
-
+    
 
 @onboarding_docs_bp.route("/api/generate-full-report-pdf/<employee_id>", methods=["GET"])
 @cross_origin()

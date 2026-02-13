@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 
 from app.database import get_db
 from app.models import EmployeeProfile
+from app.supabase_client import get_supabase
 from app.workflow import OnboardingWorkflow
 
 bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
@@ -147,6 +148,62 @@ def create_employee():
         workflow_errors.append(f"Workflow execution failed: {str(e)}")
         current_app.logger.error(f"Workflow execution error: {e}")
 
+    # Auto-create user account in Supabase and assign to HR manager
+    supabase_user_id = None
+    try:
+        sb = get_supabase()
+        name_parts = profile.full_name.split() if profile.full_name else [""]
+        first_name = name_parts[0]
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+        # Generate employee_id like EMP-YYYY-NNN
+        import datetime
+        year = datetime.datetime.now().year
+        count_result = sb.table("users").select("id", count="exact").eq("role", "employee").execute()
+        emp_count = (count_result.count or 0) + 1
+        generated_employee_id = f"EMP-{year}-{emp_count:03d}"
+
+        user_record = {
+            "email": profile.email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": "employee",
+            "department": profile.department or "",
+            "employee_id": generated_employee_id,
+            "start_date": profile.start_date or "",
+            "onboarding_complete": False,
+            "nationality": "Malaysian" if profile.jurisdiction == "MY" else "Non-Malaysian",
+            "nric": profile.nric or "",
+        }
+
+        # Check if user already exists
+        existing = sb.table("users").select("id").eq("email", profile.email).execute()
+        if existing.data:
+            supabase_user_id = existing.data[0]["id"]
+        else:
+            result = sb.table("users").insert(user_record).execute()
+            if result.data:
+                supabase_user_id = result.data[0]["id"]
+
+        # Assign to HR manager if hr_user_id provided
+        hr_user_id = data.get("hr_user_id")
+        if hr_user_id and supabase_user_id:
+            existing_assignment = (
+                sb.table("hr_employee_assignments")
+                .select("id")
+                .eq("hr_user_id", hr_user_id)
+                .eq("employee_user_id", supabase_user_id)
+                .execute()
+            )
+            if not existing_assignment.data:
+                sb.table("hr_employee_assignments").insert({
+                    "hr_user_id": hr_user_id,
+                    "employee_user_id": supabase_user_id,
+                }).execute()
+
+    except Exception as e:
+        current_app.logger.warning(f"Failed to create Supabase user: {e}")
+
     return jsonify({
         "id": employee_id,
         "email": profile.email,
@@ -156,6 +213,7 @@ def create_employee():
         "checklist_url": f"/api/onboarding/employees/{employee_id}/checklist",
         "generated_documents": generated_documents,
         "workflow_errors": workflow_errors,
+        "supabase_user_id": supabase_user_id,
         "message": f"Onboarding initiated. Generated {len(generated_documents)} documents automatically."
     }), 201
 

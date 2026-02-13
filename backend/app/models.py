@@ -4,32 +4,32 @@ from typing import Optional
 
 @dataclass
 class ContractParams:
-    employee_name: str
-    position: str
-    department: str
-    jurisdiction: str  # "MY" or "SG"
-    start_date: str
-    salary: float
+    employee_name: str = "Employee"
+    position: str = "Employee"
+    department: str = "General"
+    jurisdiction: str = "MY"  # "MY" or "SG"
+    start_date: str = ""
+    salary: float = 0.0
     nric: str = ""
     employee_address: str = ""
+    employee_id: str = ""
 
     @classmethod
     def from_dict(cls, data: dict) -> "ContractParams":
-        required = ["employee_name", "position", "department", "jurisdiction", "start_date", "salary"]
-        missing = [f for f in required if not data.get(f)]
-        if missing:
-            raise ValueError(f"Missing required fields: {', '.join(missing)}")
-        if data["jurisdiction"] not in ("MY", "SG"):
-            raise ValueError("Jurisdiction must be 'MY' or 'SG'")
+        from datetime import date
+        jurisdiction = data.get("jurisdiction", "MY")
+        if jurisdiction not in ("MY", "SG"):
+            jurisdiction = "MY"
         return cls(
-            employee_name=data["employee_name"],
-            position=data["position"],
-            department=data["department"],
-            jurisdiction=data["jurisdiction"],
-            start_date=data["start_date"],
-            salary=float(data["salary"]),
+            employee_name=data.get("employee_name") or "Employee",
+            position=data.get("position") or "Employee",
+            department=data.get("department") or "General",
+            jurisdiction=jurisdiction,
+            start_date=data.get("start_date") or date.today().isoformat(),
+            salary=float(data["salary"]) if data.get("salary") else 0.0,
             nric=data.get("nric", ""),
             employee_address=data.get("employee_address", ""),
+            employee_id=data.get("employee_id", ""),
         )
 
 

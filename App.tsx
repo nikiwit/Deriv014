@@ -143,6 +143,7 @@ import { EmployeeDashboard } from './components/employee/EmployeeDashboard';
 import { MyOnboarding } from './components/employee/MyOnboarding';
 import { MyLeave } from './components/employee/MyLeave';
 import { MyDocuments } from './components/employee/MyDocuments';
+import { MyDocumentsViewer  } from './components/employee/MyDocumentsViewer';
 import { MyProfile } from './components/employee/MyProfile';
 import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
 import { HRAgent } from './components/HRAgent';
@@ -263,6 +264,9 @@ function AppContent() {
           return <MyLeave />;
         case 'my_documents':
           return <MyDocuments />;
+          // return <MyDocumentsViewer />;
+
+        
         case 'employee_chat':
           return <EmployeeChatAssistant />;
         case 'my_profile':

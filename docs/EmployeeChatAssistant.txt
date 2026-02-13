@@ -1,0 +1,502 @@
+// import React, { useState, useRef, useEffect } from 'react';
+// import { chatWithEmployeeAgent } from '../services/geminiService';
+// import { Message } from '../types';
+// import { Send, Bot, User, Cpu, RefreshCw, ShieldAlert, Info } from 'lucide-react';
+// import { MarkdownRenderer } from './MarkdownRenderer';
+// import intentsData from '../docs/intents.json';
+
+// const STORAGE_KEY = "derivhr_employee_chat_messages";
+
+// // ─── Intent types ─────────────────────────────────────────────
+// type IntentKey = 'PROFILE_QUERY' | 'CONTRACT_SIGN_REQUEST' | 'REQUEST_HR_TALK' | 'DOCUMENT_UPLOAD' | 'SMALL_TALK' | 'BOT_CAPABILITIES';
+
+// const INTENTS = intentsData as Record<IntentKey, string[]>;
+
+// // ─── Intent classifier ───────────────────────────────────────
+// function normalise(text: string): string {
+//   return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+// }
+
+// function classifyIntent(userText: string): IntentKey | null {
+//   const normalised = normalise(userText);
+//   const words = normalised.split(/\s+/);
+
+//   let bestIntent: IntentKey | null = null;
+//   let bestScore = 0;
+
+//   for (const [intent, examples] of Object.entries(INTENTS) as [IntentKey, string[]][]) {
+//     for (const example of examples) {
+//       const normExample = normalise(example);
+
+//       // Exact match
+//       if (normalised === normExample) return intent;
+
+//       // Check if user text contains the example or vice-versa
+//       if (normalised.includes(normExample) || normExample.includes(normalised)) {
+//         const score = normExample.length / Math.max(normalised.length, 1);
+//         if (score > bestScore) {
+//           bestScore = score;
+//           bestIntent = intent;
+//         }
+//         continue;
+//       }
+
+//       // Word overlap scoring
+//       const exampleWords = normExample.split(/\s+/);
+//       const overlap = words.filter(w => exampleWords.includes(w)).length;
+//       const score = overlap / Math.max(exampleWords.length, 1);
+//       if (score > bestScore && score >= 0.5) {
+//         bestScore = score;
+//         bestIntent = intent;
+//       }
+//     }
+//   }
+
+//   return bestScore >= 0.4 ? bestIntent : null;
+// }
+
+// // ─── Profile loader ────────────────────────────────────────────
+// interface EmployeeProfile {
+//   fullName: string;
+//   email: string;
+//   role: string;
+//   department: string;
+//   startDate: string;
+//   nationality: string;
+//   nric?: string;
+//   salary?: string;
+//   status?: string;
+// }
+
+// function loadProfile(): EmployeeProfile | null {
+//   try {
+//     const raw = localStorage.getItem('onboardingProfile');
+//     if (!raw) return null;
+//     return JSON.parse(raw) as EmployeeProfile;
+//   } catch {
+//     return null;
+//   }
+// }
+
+// function loadJsonSafe(key: string): Record<string, any> | null {
+//   try {
+//     const raw = localStorage.getItem(key);
+//     if (!raw) return null;
+//     return JSON.parse(raw);
+//   } catch {
+//     return null;
+//   }
+// }
+
+// // ─── Intent response builders ─────────────────────────────────
+// function buildProfileResponse(profile: EmployeeProfile | null): string {
+//   if (!profile) {
+//     return "I don't have your profile on file yet. Please complete the onboarding application form first, and I'll be able to answer questions about your details.";
+//   }
+
+//   const offerData = loadJsonSafe('offerAcceptanceData');
+//   const contractData = loadJsonSafe('contractData');
+
+//   return `Here's your profile information:\n
+// | Field | Details |
+// |---|---|
+// | **Full Name** | ${profile.fullName} |
+// | **Email** | ${profile.email} |
+// | **Role / Position** | ${profile.role} |
+// | **Department** | ${profile.department} |
+// | **Start Date** | ${profile.startDate} |
+// | **Nationality** | ${profile.nationality} |
+// ${profile.nric ? `| **NRIC** | ${profile.nric} |\n` : ''}${profile.salary ? `| **Salary** | MYR ${profile.salary} |\n` : ''}| **Onboarding Status** | ${profile.status || 'In Progress'} |
+
+// **Document Status:**
+// - Application Form: ${profile.status === 'in_progress' ? 'Completed' : 'Pending'}
+// - Offer Acceptance: ${offerData?.completedAt ? 'Completed (' + offerData.completedAt + ')' : 'Pending'}
+// - Employment Contract: ${contractData?.completedAt ? 'Completed (' + contractData.completedAt + ')' : 'Pending'}
+
+// Let me know if you need help with anything else!`;
+// }
+
+// function buildContractSignResponse(): string {
+//   const contractData = loadJsonSafe('contractData');
+//   const offerData = loadJsonSafe('offerAcceptanceData');
+
+//   if (contractData?.completedAt) {
+//     return `Your employment contract was already signed on **${contractData.completedAt}**. No further action is needed.\n\nIf you believe this is an error or need a copy, please navigate to **My Documents** in the sidebar.`;
+//   }
+
+//   if (!offerData?.completedAt) {
+//     return `Before signing your employment contract, you need to **accept your offer letter** first.\n\nPlease go to **My Onboarding** in the sidebar and complete the **"Accept Offer Letter"** task. Once that's done, the contract signing step will become available.`;
+//   }
+
+//   return `Your contract is ready for signing! Here's how to proceed:\n\n1. Go to **My Onboarding** in the sidebar\n2. Find the **"Sign Employment Contract"** task\n3. Click on it to review and digitally sign your contract\n\nIf you're having trouble finding it, make sure previous required tasks are completed first.`;
+// }
+
+// function buildHrTalkResponse(): string {
+//   return `I understand you'd like to speak with HR. Here are your options:\n\n1. **HR Support Email:** Send an email to hr@derivhr.com for general inquiries\n2. **Schedule a Meeting:** Contact your HR manager directly to set up a call\n3. **Urgent Issues:** For confidential or urgent matters, use the internal HR ticketing system\n\nWould you like me to help you with anything else in the meantime?`;
+// }
+
+// function buildDocumentUploadResponse(): string {
+//   return `To upload your documents:\n\n1. Navigate to **My Onboarding** in the sidebar\n2. Find the relevant document task (e.g., "Upload Identity Document")\n3. Click on the task and use the upload button to attach your file\n\n**Accepted formats:** PDF, JPG, PNG, DOC/DOCX\n**Max file size:** 10MB per file\n\nRequired documents typically include:\n- Identity document (NRIC / Passport)\n- Educational certificates\n- Bank account details\n- Passport-sized photographs\n\nIf you're having trouble uploading, try a different browser or check your file size.`;
+// }
+
+// function buildSmallTalkResponse(userText: string): string {
+//   const lower = userText.toLowerCase().trim();
+
+//   if (/^(hi|hello|hey|good\s*(morning|afternoon|evening))/.test(lower)) {
+//     return "Hello! How can I help you with your onboarding today?";
+//   }
+//   if (/^(thanks|thank\s*you|thx|appreciate)/.test(lower)) {
+//     return "You're welcome! Let me know if there's anything else I can help with.";
+//   }
+//   if (/^(bye|goodbye|see\s*you|talk\s*later)/.test(lower)) {
+//     return "Goodbye! Feel free to come back anytime if you have more questions. Have a great day!";
+//   }
+//   if (/^(sorry|my\s*bad)/.test(lower)) {
+//     return "No worries at all! How can I assist you?";
+//   }
+
+//   return "I'm here to help with your onboarding! Feel free to ask me about your profile, documents, contract signing, or anything HR-related.";
+// }
+
+// function buildBotCapabilitiesResponse(): string {
+//   return `I'm your **DerivHR Onboarding Assistant**. Here's what I can help you with:\n
+// | Capability | Description |
+// |---|---|
+// | **Profile Queries** | View your personal details, salary, role, department, and employment info |
+// | **Contract Signing** | Guide you through the contract and offer letter signing process |
+// | **Document Upload** | Help you understand how to upload required onboarding documents |
+// | **HR Contact** | Provide information on how to reach HR for support |
+// | **Onboarding Status** | Check your onboarding progress and next steps |
+// | **Company Policies** | Answer questions about workplace policies and procedures |
+
+// Just ask me a question and I'll do my best to help!`;
+// }
+
+// // ─── Access validation ─────────────────────────────────────────
+// const BLOCKED_PATTERNS = [
+//   /show\s+(me\s+)?(all|every|other)\s+(employee|user|staff|people|person)/i,
+//   /list\s+(all\s+)?(employee|user|staff|people)/i,
+//   /give\s+me\s+(info|information|data|details)\s+(about|on|for)\s+(other|another|all)/i,
+//   /access\s+(other|another|all)\s+(employee|user|staff|people)/i,
+//   /who\s+(else|are\s+the\s+other)/i,
+//   /database\s+(of|with)\s+(employee|user|staff)/i,
+//   /employee\s+(list|database|records|directory)/i,
+//   /other\s+(employee|user|people|staff|colleague)('s|s')?\s+(info|data|profile|salary|detail)/i,
+//   /salary\s+of\s+(other|another|all|every)/i,
+//   /nric\s+of\s+(other|another|all|every)/i,
+// ];
+
+// function isBlockedQuery(query: string): boolean {
+//   return BLOCKED_PATTERNS.some(pattern => pattern.test(query));
+// }
+
+// const BLOCKED_RESPONSE = "I can only assist with questions about your own profile and onboarding. I cannot provide information about other employees. If you need help with something specific to your account, please ask!";
+
+// // ─── System prompt builder ─────────────────────────────────────
+// function buildSystemPrompt(profile: EmployeeProfile | null): string {
+//   const offerData = loadJsonSafe('offerAcceptanceData');
+//   const contractData = loadJsonSafe('contractData');
+
+//   let prompt = `You are a friendly HR Onboarding Assistant for DerivHR. You help new employees with their onboarding process.
+
+// STRICT RULES:
+// 1. You can ONLY answer questions about the current employee whose profile is provided below.
+// 2. You must NEVER reveal, discuss, or look up information about any other employee.
+// 3. If asked about other employees, politely decline and explain you can only help with the current user's profile.
+// 4. Keep answers concise, professional, and helpful.
+// 5. You can help with: onboarding steps, document status, company policies, profile questions, and general HR queries.
+// `;
+
+//   if (profile) {
+//     prompt += `
+// CURRENT EMPLOYEE PROFILE:
+// - Full Name: ${profile.fullName}
+// - Email: ${profile.email}
+// - Role/Position: ${profile.role}
+// - Department: ${profile.department}
+// - Start Date: ${profile.startDate}
+// - Nationality: ${profile.nationality}
+// ${profile.nric ? `- NRIC: ${profile.nric}` : ''}
+// ${profile.salary ? `- Salary: ${profile.salary}` : ''}
+// - Onboarding Status: ${profile.status || 'in_progress'}
+// `;
+
+//     prompt += `\nDOCUMENT STATUS:\n`;
+//     prompt += `- Application Form: ${profile.status === 'in_progress' ? 'Completed' : 'Pending'}\n`;
+//     prompt += `- Offer Acceptance: ${offerData?.completedAt ? 'Completed (' + offerData.completedAt + ')' : 'Pending'}\n`;
+//     prompt += `- Employment Contract: ${contractData?.completedAt ? 'Completed (' + contractData.completedAt + ')' : 'Pending'}\n`;
+//   } else {
+//     prompt += `\nNOTE: No employee profile found in the system. Ask the user to complete their application first.\n`;
+//   }
+
+//   return prompt;
+// }
+
+// // ─── Messages persistence ──────────────────────────────────────
+// function getWelcomeMessage(profile: EmployeeProfile | null): Message {
+//   const name = profile?.fullName?.split(' ')[0] || 'there';
+//   return {
+//     id: '1',
+//     role: 'assistant',
+//     content: `Hello ${name}! I'm your personal HR Onboarding Assistant. I can help you with:\n\n- Your onboarding progress and next steps\n- Document status (application, offer letter, contract)\n- Company policies and procedures\n- Questions about your role and department\n\nHow can I help you today?`,
+//     timestamp: new Date(),
+//     modelUsed: 'System'
+//   };
+// }
+
+// function loadPersistedMessages(profile: EmployeeProfile | null): Message[] {
+//   try {
+//     const raw = localStorage.getItem(STORAGE_KEY);
+//     if (!raw) return [getWelcomeMessage(profile)];
+//     const parsed: Message[] = JSON.parse(raw);
+//     return parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+//   } catch {
+//     return [getWelcomeMessage(profile)];
+//   }
+// }
+
+// function persistMessages(msgs: Message[]): void {
+//   try {
+//     localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs));
+//   } catch { /* quota exceeded */ }
+// }
+
+// // ─── Handle intent-based response ──────────────────────────────
+// function getIntentResponse(intent: IntentKey, userText: string, profile: EmployeeProfile | null): string {
+//   switch (intent) {
+//     case 'PROFILE_QUERY':
+//       return buildProfileResponse(profile);
+//     case 'CONTRACT_SIGN_REQUEST':
+//       return buildContractSignResponse();
+//     case 'REQUEST_HR_TALK':
+//       return buildHrTalkResponse();
+//     case 'DOCUMENT_UPLOAD':
+//       return buildDocumentUploadResponse();
+//     case 'SMALL_TALK':
+//       return buildSmallTalkResponse(userText);
+//     case 'BOT_CAPABILITIES':
+//       return buildBotCapabilitiesResponse();
+//   }
+// }
+
+// // ─── Component ─────────────────────────────────────────────────
+// export const EmployeeChatAssistant: React.FC = () => {
+//   const [profile] = useState<EmployeeProfile | null>(loadProfile);
+//   const [messages, setMessages] = useState<Message[]>(() => loadPersistedMessages(profile));
+//   const [input, setInput] = useState('');
+//   const [isTyping, setIsTyping] = useState(false);
+//   const scrollRef = useRef<HTMLDivElement>(null);
+
+//   // Persist messages
+//   useEffect(() => {
+//     persistMessages(messages);
+//   }, [messages]);
+
+//   // Auto-scroll
+//   useEffect(() => {
+//     if (scrollRef.current) {
+//       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+//     }
+//   }, [messages]);
+
+//   const handleNewChat = () => {
+//     setMessages([getWelcomeMessage(profile)]);
+//   };
+
+//   const handleSend = async () => {
+//     if (!input.trim()) return;
+//     const userText = input.trim();
+
+//     const userMsg: Message = {
+//       id: Date.now().toString(),
+//       role: 'user',
+//       content: userText,
+//       timestamp: new Date()
+//     };
+
+//     setMessages(prev => [...prev, userMsg]);
+//     setInput('');
+//     setIsTyping(true);
+
+//     // Validation: block queries about other users
+//     if (isBlockedQuery(userText)) {
+//       const blockedMsg: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: BLOCKED_RESPONSE,
+//         modelUsed: 'System',
+//         timestamp: new Date()
+//       };
+//       setMessages(prev => [...prev, blockedMsg]);
+//       setIsTyping(false);
+//       return;
+//     }
+
+//     // Intent classification: check against intents.json
+//     const intent = classifyIntent(userText);
+
+//     if (intent) {
+//       // Matched a known intent — respond with predefined answer
+//       const response = getIntentResponse(intent, userText, profile);
+//       const intentMsg: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: response +`\nIntent type  is ${intent}`,
+//         modelUsed: 'System',
+//         timestamp: new Date()
+//       };
+//       setMessages(prev => [...prev, intentMsg]);
+//       setIsTyping(false);
+//       return;
+//     }
+
+//     // No intent matched — fall through to LLM
+//     try {
+//       const systemPrompt = buildSystemPrompt(profile);
+//       const { response, modelUsed } = await chatWithEmployeeAgent(userText, systemPrompt);
+
+//       const botMsg: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: response + `\nIntent type  is ${intent}`,
+//         modelUsed: modelUsed,
+//         timestamp: new Date()
+//       };
+//       setMessages(prev => [...prev, botMsg]);
+//     } catch (error: any) {
+//       const errorMsg: Message = {
+//         id: (Date.now() + 1).toString(),
+//         role: 'assistant',
+//         content: `Sorry, I'm having trouble connecting right now. Please try again in a moment.\n\n_Error: ${String(error)}_`  + `\nIntent type  is ${intent}`,
+//         modelUsed: 'Error',
+//         timestamp: new Date()
+//       };
+//       setMessages(prev => [...prev, errorMsg]);
+//     }
+
+//     setIsTyping(false);
+//   };
+
+//   return (
+//     <div className="flex flex-col h-[calc(100vh-8rem)] bg-white border border-slate-200 rounded-xl overflow-hidden shadow-lg relative">
+//       {/* Header */}
+//       <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-center shadow-sm z-20">
+//         <div className="flex items-center space-x-3">
+//           <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-jade-600">
+//             <Bot className="text-white w-5 h-5" />
+//           </div>
+//           <div>
+//             <h3 className="font-bold text-slate-800 tracking-tight text-sm">HR Onboarding Assistant</h3>
+//             <div className="flex items-center space-x-2">
+//               <span className="w-1.5 h-1.5 bg-jade-500 rounded-full animate-pulse"></span>
+//               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+//                 {profile ? `${profile.fullName}` : 'No Profile'}
+//               </span>
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="flex items-center space-x-2">
+//           {/* Privacy badge */}
+//           <div className="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
+//             <ShieldAlert size={14} />
+//             <span>Private Session</span>
+//           </div>
+//           <button
+//             onClick={handleNewChat}
+//             className="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:text-emerald-600 hover:bg-slate-50 transition-all"
+//             title="Start new conversation"
+//           >
+//             <RefreshCw size={14} />
+//             <span>New Chat</span>
+//           </button>
+//         </div>
+//       </div>
+
+//       {/* Profile context banner */}
+//       {profile && (
+//         <div className="px-4 py-2 bg-emerald-50 border-b border-emerald-100 flex items-center space-x-2">
+//           <Info size={14} className="text-emerald-500 flex-shrink-0" />
+//           <p className="text-xs text-emerald-700 font-medium">
+//             Chatting as <strong>{profile.fullName}</strong> ({profile.role}, {profile.department}) — This assistant can only access your profile data.
+//           </p>
+//         </div>
+//       )}
+
+//       {!profile && (
+//         <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center space-x-2">
+//           <ShieldAlert size={14} className="text-amber-500 flex-shrink-0" />
+//           <p className="text-xs text-amber-700 font-medium">
+//             No profile loaded. Please complete your application form first to enable personalized assistance.
+//           </p>
+//         </div>
+//       )}
+
+//       {/* Messages */}
+//       <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50" ref={scrollRef}>
+//         {messages.map((msg) => (
+//           <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+//             <div className={`max-w-[85%] flex ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-3`}>
+//               {/* Avatar */}
+//               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${
+//                 msg.role === 'user' ? 'bg-slate-200 text-slate-600' :
+//                 msg.modelUsed === 'System' ? 'bg-jade-500 text-white' :
+//                 msg.modelUsed === 'Error' ? 'bg-red-500 text-white' :
+//                 'bg-emerald-600 text-white'
+//               }`}>
+//                 {msg.role === 'user' ? <User size={14} /> : <Cpu size={14} />}
+//               </div>
+
+//               {/* Bubble */}
+//               <div className="group relative">
+//                 <div className={`p-4 rounded-2xl shadow-sm border ${
+//                   msg.role === 'user'
+//                     ? 'bg-emerald-600 text-white rounded-tr-none border-emerald-600'
+//                     : 'bg-white border-slate-200 text-slate-800 rounded-tl-none'
+//                 }`}>
+//                   {msg.role === 'user' ? (
+//                     <p className="leading-relaxed whitespace-pre-wrap text-sm font-medium">{msg.content}</p>
+//                   ) : (
+//                     <MarkdownRenderer content={msg.content} className="text-sm" />
+//                   )}
+//                 </div>
+//               </div>
+//             </div>
+//           </div>
+//         ))}
+
+//         {isTyping && (
+//           <div className="flex justify-start">
+//             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-200 shadow-sm">
+//               <div className="flex space-x-2">
+//                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+//                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce delay-75"></div>
+//                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce delay-150"></div>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* Input */}
+//       <div className="p-4 bg-white border-t border-slate-100">
+//         <div className="flex items-center space-x-4 bg-slate-50 border border-slate-200 rounded-xl p-2 px-4 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all">
+//           <input
+//             value={input}
+//             onChange={(e) => setInput(e.target.value)}
+//             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+//             placeholder="Ask about your onboarding, documents, or policies..."
+//             className="flex-1 bg-transparent border-none text-slate-800 focus:ring-0 placeholder-slate-400 font-medium"
+//           />
+//           <button
+//             onClick={handleSend}
+//             disabled={!input.trim() || isTyping}
+//             className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+//           >
+//             <Send size={18} />
+//           </button>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };

@@ -7,6 +7,7 @@ import { calculateOvertime, calculateContributions } from '../utils/payroll';
 import { PUBLIC_HOLIDAYS_MY, MALAYSIAN_STATES, MOCK_LEAVE_BALANCES } from '../constants';
 import { Send, Paperclip, Bot, User, Cpu, ThumbsUp, ThumbsDown, Calculator, BriefcaseBusiness, Truck, Wallet, MessageCircle, Smartphone, Check, Briefcase, RefreshCw, AlertCircle, Slack } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ChatResponse, sendChatMessage } from '../services/api';
 
 type ToolType = 'none' | 'ot_calc' | 'epf_calc' | 'leave_status';
 
@@ -228,7 +229,7 @@ export const ChatAssistant: React.FC = () => {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001.',
+        content: `Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001. ${err.message ? ` Error: ${err.message}` : ''}`,
         modelUsed: 'System',
         timestamp: new Date(),
       };

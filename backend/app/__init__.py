@@ -36,12 +36,14 @@ def create_app():
     hr_agent.init_hr_agent(app)
 
     #Blueprints #original
-    from app.routes import chat, documents, onboarding, hr_agent as hr_agent_routes
+    from app.routes import chat, documents, onboarding, hr_agent as hr_agent_routes, auth, contract_sign
     app.register_blueprint(chat.bp)
     app.register_blueprint(documents.bp)
     app.register_blueprint(documents.onboarding_docs_bp)
     app.register_blueprint(onboarding.bp)
     app.register_blueprint(hr_agent_routes.bp)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(contract_sign.bp)
 
     # # Blueprints
     # from app.routes import chat, documents, onboarding, slack
