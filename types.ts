@@ -107,6 +107,7 @@ export interface JourneyModule {
   isRequired: boolean;
   estimatedMinutes: number;
   dependencies?: string[];
+  requiresUpload?: boolean;
 }
 
 export interface OnboardingJourneyTemplate {
@@ -152,6 +153,123 @@ export type TaskCategory =
   | "training"
   | "culture";
 
+// Missing training types that constants.tsx expects
+export type TrainingCategory = 
+  | "it_systems" 
+  | "compliance" 
+  | "orientation" 
+  | "role_specific" 
+  | "soft_skills" 
+  | "security";
+
+export interface TrainingCategoryInfo {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  description: string;
+}
+
+export type TrainingFormat = 
+  | "video" 
+  | "document" 
+  | "quiz" 
+  | "interactive" 
+  | "live_session";
+
+export interface TrainingItem {
+  id: string;
+  title: string;
+  description: string;
+  category: TrainingCategory;
+  format: TrainingFormat;
+  estimatedMinutes: number;
+  required: boolean;
+  order: number;
+  status?: "not_started" | "in_progress" | "completed";
+  completedAt?: string;
+  score?: number;
+  dueDate?: string;
+}
+
+export interface EmployeeTrainingProgress {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  role: string;
+  startDate: string;
+  overallProgress: number;
+  status: "not_started" | "in_progress" | "completed" | "overdue";
+  lastActivityDate?: string;
+  items: TrainingItem[];
+}
+
+export type TrainingCompletionTrend = {
+  month: string;
+  completed: number;
+  inProgress: number;
+  overdue: number;
+};
+
+// ============================================
+// Training Checklist Types (similar to onboarding)
+// ============================================
+
+export type TrainingChecklistStatus = "locked" | "available" | "in_progress" | "completed";
+export type TrainingChecklistCategory = 
+  | "compliance"
+  | "technical" 
+  | "soft_skills" 
+  | "products" 
+  | "tools"
+  | "security"
+  | "leadership";
+
+export interface TrainingChecklistItem {
+  id: string;
+  title: string;
+  description: string;
+  category: TrainingChecklistCategory;
+  status: TrainingChecklistStatus;
+  priority: "required" | "recommended" | "optional";
+  estimatedMinutes: number;
+  completedAt?: string;
+  startedAt?: string;
+  dueDate?: string;
+  isOverdue?: boolean;
+  format: "video" | "document" | "quiz" | "interactive" | "live_session";
+  hasQuiz?: boolean;
+  quizPassingScore?: number;
+  orderIndex?: number;
+  /** Which roles/departments this training applies to */
+  applicableTo: string[];
+}
+
+export interface TrainingChecklistProgress {
+  percentage: number;
+  completedTasks: number;
+  totalTasks: number;
+  requiredCompleted: number;
+  requiredTotal: number;
+}
+
+export interface TrainingChecklistByRole {
+  role: string;
+  department: string;
+  tasks: TrainingChecklistItem[];
+}
+
+// Category weights for progress calculation
+export const TRAINING_CATEGORY_WEIGHTS: Record<TrainingChecklistCategory, number> = {
+  compliance: 0.30,
+  technical: 0.25,
+  products: 0.20,
+  tools: 0.10,
+  soft_skills: 0.10,
+  security: 0.03,
+  leadership: 0.02,
+};
+
 export interface OnboardingTask {
   id: string;
   title: string;
@@ -161,11 +279,52 @@ export interface OnboardingTask {
   priority: "required" | "recommended" | "optional";
   estimatedMinutes: number;
   completedAt?: string;
+  startedAt?: string;
+  dueDate?: string;
+  isOverdue?: boolean;
   requiresUpload?: boolean;
   requiresSignature?: boolean;
-  dependencies?: string[];
-  /** Template identifier for tasks that open a document form (e.g. 'offer_acceptance', 'contract') */
+  /** Template identifier for tasks that open a document form */
   templateId?: "offer_acceptance" | "contract";
+  /** Task dependencies - IDs of tasks that must be completed first */
+  dependencies?: string[];
+  /** Order index for sorting */
+  orderIndex?: number;
+  /** Days from start date when this task is due */
+  dueDaysFromStart?: number;
+}
+
+export interface OnboardingTaskDefinition extends Omit<OnboardingTask, 'status' | 'completedAt' | 'startedAt' | 'dueDate' | 'isOverdue'> {
+  isActive: boolean;
+}
+
+export interface OnboardingProgress {
+  percentage: number;
+  completedTasks: number;
+  totalTasks: number;
+  requiredCompleted: number;
+  requiredTotal: number;
+  estimatedCompletionDate?: string;
+  weightedPercentage?: number;
+}
+
+export interface OnboardingBadge {
+  id: string;
+  type: 'first_task' | 'half_way' | 'completed' | 'speed_demon' | 'documentation_master' | 'culture_hero';
+  name: string;
+  description: string;
+  earnedAt: string;
+}
+
+export interface OnboardingFeedback {
+  ratingOverall: number;
+  ratingClarity: number;
+  ratingSupport: number;
+  ratingTools: number;
+  wouldRecommend: boolean;
+  feedbackText?: string;
+  suggestions?: string;
+  submittedAt: string;
 }
 
 export interface OnboardingJourney {
@@ -220,6 +379,7 @@ export type ViewState =
   | "knowledge"
   | "leave"
   | "onboarding"
+  | "onboarding_dashboard"
   | "candidate"
   | "new_employee"
   | "hr_agent"
@@ -236,7 +396,10 @@ export type ViewState =
   | "employee_onboarding"
   // Training views
   | "employee_training"   // HR view
-  | "my_training";        // Employee view
+  | "my_training"          // Employee LMS training
+  | "my_training_checklist" // Employee training checklist
+  // Identity verification
+  | "verify_identity";
 
 export interface ContractParams {
   employeeName: string;

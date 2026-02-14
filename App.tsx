@@ -43,8 +43,8 @@
 
 //   // Show login page if not authenticated
 //   if (!isAuthenticated || !user) {
-//     return <LoginPage 
-//       onLoginSuccess={() => setCurrentView('dashboard')} 
+//     return <LoginPage
+//       onLoginSuccess={() => setCurrentView('dashboard')}
 //       onNewOnboarding={() => setCurrentView('new_employee')}
 //     />;
 //   }
@@ -123,82 +123,110 @@
 
 // export default App;
 
-
-import React, { useEffect, useState } from 'react';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { LoginPage } from './components/auth/LoginPage';
-import { Layout } from './components/Layout';
-import { EmployeeLayout } from './components/employee/EmployeeLayout';
-import { Dashboard } from './components/Dashboard';
-import { DocumentGen } from './components/DocumentGen';
-import { ChatAssistant } from './components/ChatAssistant';
-import { WorkforceAnalytics } from './components/WorkforceAnalytics';
-import { ModelTraining } from './components/ModelTraining';
-import { KnowledgeBase } from './components/KnowledgeBase';
-import { LeaveManagement } from './components/LeaveManagement';
-import { Onboarding } from './components/Onboarding';
-import { CandidatePortal } from './components/CandidatePortal';
-import { NewEmployeePage } from './components/NewEmployeePage';
-import { HRCreateEmployee } from './components/onboarding/HRCreateEmployee';
-import { EmployeeDashboard } from './components/employee/EmployeeDashboard';
-import { MyOnboarding } from './components/employee/MyOnboarding';
-import { MyLeave } from './components/employee/MyLeave';
-import { MyDocuments } from './components/employee/MyDocuments';
-import { MyDocumentsViewer  } from './components/employee/MyDocumentsViewer';
-import { MyProfile } from './components/employee/MyProfile';
-import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
-import { HRAgent } from './components/HRAgent';
-import { EmployeeTrainingDashboard } from './components/EmployeeTrainingDashboard';
-import { MyTraining } from './components/employee/MyTraining';
-import { TrainingProvider } from './contexts/TrainingContext';
-import { EmployeeOfferPage } from './components/onboarding/EmployeeOfferPage';
-import { ViewState, User, UserRole } from './types';
+import React, { useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { LoginPage } from "./components/auth/LoginPage";
+import { Layout } from "./components/Layout";
+import { EmployeeLayout } from "./components/employee/EmployeeLayout";
+import { Dashboard } from "./components/Dashboard";
+import { DocumentGen } from "./components/DocumentGen";
+import { ChatAssistant } from "./components/ChatAssistant";
+import { WorkforceAnalytics } from "./components/WorkforceAnalytics";
+import { ModelTraining } from "./components/ModelTraining";
+import { KnowledgeBase } from "./components/KnowledgeBase";
+import { LeaveManagement } from "./components/LeaveManagement";
+import { Onboarding } from "./components/Onboarding";
+import { CandidatePortal } from "./components/CandidatePortal";
+import { NewEmployeePage } from "./components/NewEmployeePage";
+import { HRCreateEmployee } from "./components/onboarding/HRCreateEmployee";
+import { EmployeeDashboard } from "./components/employee/EmployeeDashboard";
+import { MyOnboarding } from "./components/employee/MyOnboarding";
+import { MyLeave } from "./components/employee/MyLeave";
+import { MyDocuments } from "./components/employee/MyDocuments";
+import { MyDocumentsViewer } from "./components/employee/MyDocumentsViewer";
+import { MyProfile } from "./components/employee/MyProfile";
+import { EmployeeChatAssistant } from "./components/EmployeeChatAssistant";
+import { HRAgent } from "./components/HRAgent";
+import { EmployeeTrainingDashboard } from "./components/EmployeeTrainingDashboard";
+import { MyTraining } from "./components/employee/MyTraining";
+import { MyTrainingChecklist } from "./components/employee/MyTrainingChecklist";
+import { TrainingProvider } from "./contexts/TrainingContext";
+import { EmployeeOfferPage } from "./components/onboarding/EmployeeOfferPage";
+import { OnboardingHRDashboard } from "./components/onboarding/OnboardingHRDashboard";
+import { VerifyIdentityPage } from "./components/onboarding/VerifyIdentityPage";
+import { ViewState, User, UserRole } from "./types";
 
 // Helper: load user profile from localStorage if exists
 function getUserFromOnboardingProfile(): User | null {
   try {
-    const savedProfile = localStorage.getItem('onboardingProfile');
+    const savedProfile = localStorage.getItem("onboardingProfile");
     if (!savedProfile) return null;
 
     const data = JSON.parse(savedProfile);
 
     // Map onboardingData to User interface
     const user: User = {
-      id: data.email || 'temp-id',
+      id: data.email || "temp-id",
       email: data.email,
-      firstName: data.fullName?.split(' ')[0] || '',
-      lastName: data.fullName?.split(' ').slice(1).join(' ') || '',
-      role: 'employee' as UserRole,
-      department: data.department || '',
-      employeeId: '', // optional: generate later
-      startDate: data.startDate || '',
+      firstName: data.fullName?.split(" ")[0] || "",
+      lastName: data.fullName?.split(" ").slice(1).join(" ") || "",
+      role: "employee" as UserRole,
+      department: data.department || "",
+      employeeId: data.employeeId || "", // use employeeId if available
+      startDate: data.startDate || "",
       onboardingComplete: true,
-      profilePicture: '',
-      nationality: data.nationality || 'Malaysian',
-      nric: data.nric || ''
+      profilePicture: "",
+      nationality: data.nationality || "Malaysian",
+      nric: data.nric || "",
     };
     return user;
   } catch (e) {
-    console.warn('Failed to load onboarding profile from localStorage', e);
+    console.warn("Failed to load onboarding profile from localStorage", e);
     return null;
   }
 }
 
 function AppContent() {
   const { user: authUser, isAuthenticated, isLoading, setUser } = useAuth();
-  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewState>("dashboard");
   const [loadingLocalUser, setLoadingLocalUser] = useState(true);
   const [offerId, setOfferId] = useState<string | null>(null);
 
+  // Parse URL parameters to handle redirects with ?view=xxx
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const view = urlParams.get("view");
+    if (view) {
+      setCurrentView(view as ViewState);
+      // Clear the URL parameter to prevent it from persisting
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   // Try to load onboardingProfile as a temporary authenticated user
   useEffect(() => {
-    const localUser = getUserFromOnboardingProfile();
-    if (localUser) {
-      setUser(localUser); // set in auth context
-      setCurrentView('dashboard');
+    // Check for offer URL pattern
+    const path = window.location.pathname;
+    const offerMatch = path.match(/^\/employee\/offer\/([a-zA-Z0-9-]+)$/);
+
+    if (offerMatch) {
+      setOfferId(offerMatch[1]);
+      setCurrentView("employee_onboarding");
+      setLoadingLocalUser(false);
+      return;
+    }
+
+    // Only load onboardingProfile if no authenticated user exists
+    // Auth context user (from actual login) takes precedence
+    if (!isAuthenticated && !authUser) {
+      const localUser = getUserFromOnboardingProfile();
+      if (localUser) {
+        setUser(localUser); // set in auth context
+        setCurrentView("dashboard");
+      }
     }
     setLoadingLocalUser(false);
-  }, [setUser]);
+  }, [setUser, isAuthenticated, authUser]);
 
   if (isLoading || loadingLocalUser) {
     return (
@@ -211,65 +239,96 @@ function AppContent() {
     );
   }
 
-  if (currentView === 'new_employee') {
-    return <NewEmployeePage onNavigate={setCurrentView} isAuthenticated={isAuthenticated} />;
+  if (currentView === "new_employee") {
+    return (
+      <NewEmployeePage
+        onNavigate={setCurrentView}
+        isAuthenticated={isAuthenticated}
+      />
+    );
   }
 
   // Show employee onboarding: offer acceptance or MyOnboarding tasks
   // This MUST come before authentication check to allow offer link access
-  if (currentView === 'employee_onboarding') {
+  if (currentView === "employee_onboarding") {
     // If we have an offer ID, show the offer acceptance page
     if (offerId) {
-      return <EmployeeOfferPage offerId={offerId} onComplete={() => {
-        setOfferId(null);
-        setCurrentView('my_onboarding');
-      }} />;
+      return (
+        <EmployeeOfferPage
+          offerId={offerId}
+          onComplete={() => {
+            setOfferId(null);
+            setCurrentView("my_onboarding");
+          }}
+        />
+      );
     }
     // Otherwise show MyOnboarding for existing employees
     return <MyOnboarding />;
   }
 
   if (!isAuthenticated || !authUser) {
-    return <LoginPage 
-      onLoginSuccess={() => setCurrentView('dashboard')} 
-      onNewOnboarding={() => setCurrentView('new_employee')}
-      onEmployeeOnboarding={(offerId?: string) => {
-        if (offerId) {
-          setOfferId(offerId);
-          setCurrentView('employee_onboarding');
-        } else {
-          // For new hires without offer ID, show a message or redirect to offer page
-          setCurrentView('employee_onboarding');
-        }
-      }}
-    />;
+    return (
+      <LoginPage
+        onLoginSuccess={() => setCurrentView("dashboard")}
+        onNewOnboarding={() => setCurrentView("new_employee")}
+        onEmployeeOnboarding={(offerId?: string) => {
+          if (offerId) {
+            setOfferId(offerId);
+            setCurrentView("employee_onboarding");
+          } else {
+            // For new hires without offer ID, show a message or redirect to offer page
+            setCurrentView("employee_onboarding");
+          }
+        }}
+        onVerifyIdentity={() => setCurrentView("verify_identity")}
+      />
+    );
+  }
+
+  // Verify Identity page (before authentication)
+  if (currentView === "verify_identity") {
+    return (
+      <VerifyIdentityPage
+        onVerified={(employeeId) => {
+          setOfferId(employeeId);
+          setCurrentView("my_onboarding");
+        }}
+        onBack={() => {
+          // Reset to trigger login page (non-authenticated state)
+          setCurrentView("dashboard");
+        }}
+      />
+    );
   }
 
   // HR Admin Portal
-  if (authUser.role === 'hr_admin') {
+  if (authUser.role === "hr_admin") {
     const renderHRView = () => {
       switch (currentView) {
-        case 'dashboard':
+        case "dashboard":
           return <Dashboard onNavigate={setCurrentView} />;
-        case 'documents':
+        case "documents":
           return <DocumentGen />;
-        case 'assistant':
+        case "assistant":
           return <ChatAssistant />;
-        case 'knowledge':
+        case "knowledge":
           return <KnowledgeBase />;
-        case 'planning':
+        case "planning":
           return <WorkforceAnalytics />;
-        case 'training':
+        case "training":
           return <ModelTraining />;
-        case 'leave':
+        case "leave":
           return <LeaveManagement />;
-        case 'onboarding':
+        case "onboarding":
           return <Onboarding />;
-        case 'candidate':
+        case "onboarding_dashboard":
+          return <OnboardingHRDashboard />;
+        case "candidate":
           return <CandidatePortal />;
-        case 'hr_agent':
+        case "hr_agent":
           return <HRAgent />;
-        case 'employee_training':
+        case "employee_training":
           return <EmployeeTrainingDashboard />;
         default:
           return <Dashboard />;
@@ -284,25 +343,26 @@ function AppContent() {
   }
 
   // Employee Portal
-  if (authUser.role === 'employee') {
+  if (authUser.role === "employee") {
     const renderEmployeeView = () => {
       switch (currentView) {
-        case 'employee_dashboard':
+        case "employee_dashboard":
           return <EmployeeDashboard onNavigate={setCurrentView} />;
-        case 'my_onboarding':
+        case "my_onboarding":
           return <MyOnboarding />;
-        case 'my_leave':
+        case "my_leave":
           return <MyLeave />;
-        case 'my_documents':
+        case "my_documents":
           return <MyDocuments />;
-          // return <MyDocumentsViewer />;
+        // return <MyDocumentsViewer />;
 
-        
-        case 'employee_chat':
+        case "employee_chat":
           return <EmployeeChatAssistant />;
-        case 'my_training':
+        case "my_training":
           return <MyTraining />;
-        case 'my_profile':
+        case "my_training_checklist":
+          return <MyTrainingChecklist />;
+        case "my_profile":
           return <MyProfile />;
         default:
           return <EmployeeDashboard onNavigate={setCurrentView} />;
@@ -330,4 +390,3 @@ function App() {
 }
 
 export default App;
-
