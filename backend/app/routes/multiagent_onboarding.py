@@ -1,17 +1,18 @@
 """
-Multi-Agent Onboarding API Routes
+Enhanced Multi-Agent Onboarding API Routes
 
-Handles the multi-agent onboarding workflow:
-- HR creates new employee offer (temporary stored)
-- Employee accepts/rejects offer
-- Acceptance triggers document automation via OnboardingAgent
-- Rejection triggers Telegram notification via AgentixAgent
-- Cross-check validation between agents
+Complete onboarding workflow:
+1. HR creates offer → stored in temp DB with status: offer_pending
+2. Employee receives offer link → reviews and responds
+3. ACCEPT → auto-generate all documents, create portal, assign training
+4. REJECT → notify HR via Telegram, create follow-up task
+5. AgentixAgent monitors pending items and sends reminders
 """
 
 import uuid
 import datetime
-from flask import Blueprint, current_app, jsonify, request
+import os
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from app.database import get_db
 from app.agents import MultiAgentOrchestrator, get_orchestrator, WorkflowType
@@ -19,6 +20,42 @@ from app.agents import MultiAgentOrchestrator, get_orchestrator, WorkflowType
 bp = Blueprint(
     "multiagent_onboarding", __name__, url_prefix="/api/multiagent/onboarding"
 )
+
+ONBOARDING_DOCUMENTS = {
+    "MY": [
+        {"id": "employment_contract", "name": "Employment Contract", "required": True},
+        {"id": "offer_letter", "name": "Offer Letter", "required": True},
+        {"id": "data_it_policy", "name": "Data & IT Policy", "required": True},
+        {"id": "employee_handbook", "name": "Employee Handbook", "required": True},
+        {"id": "leave_policy", "name": "Leave Policy", "required": True},
+        {"id": "epf_form", "name": "EPF Nomination Form", "required": True},
+        {"id": "socso_form", "name": "SOCSO Registration Form", "required": True},
+        {"id": "emergency_contact", "name": "Emergency Contact Form", "required": True},
+        {"id": "bank_details", "name": "Bank Details Form", "required": True},
+    ],
+    "SG": [
+        {"id": "employment_contract", "name": "Employment Contract", "required": True},
+        {"id": "offer_letter", "name": "Offer Letter", "required": True},
+        {"id": "data_it_policy", "name": "Data & IT Policy", "required": True},
+        {"id": "employee_handbook", "name": "Employee Handbook", "required": True},
+        {"id": "leave_policy", "name": "Leave Policy", "required": True},
+        {"id": "cpf_form", "name": "CPF Nomination Form", "required": True},
+        {"id": "emergency_contact", "name": "Emergency Contact Form", "required": True},
+        {"id": "bank_details", "name": "Bank Details Form", "required": True},
+    ],
+}
+
+ONBOARDING_FORMS = [
+    {"id": "personal_info", "name": "Personal Information", "required": True},
+    {"id": "bank_details", "name": "Bank Details", "required": True},
+    {"id": "emergency_contact", "name": "Emergency Contact", "required": True},
+    {"id": "tax_declaration", "name": "Tax Declaration", "required": True},
+    {
+        "id": "statutory_consent",
+        "name": "Statutory Contributions Consent",
+        "required": True,
+    },
+]
 
 
 @bp.route("/offer", methods=["POST"])
@@ -32,25 +69,6 @@ def create_offer():
     3. SalaryAgent validates salary/contributions
     4. Store in temporary DB (status: offer_pending)
     5. AgentixAgent sets up reminders
-
-    Request Body:
-    {
-        "employee_data": {
-            "full_name": "John Doe",
-            "email": "john@example.com",
-            "phone": "+60123456789",
-            "nric": "910101-14-1234",
-            "jurisdiction": "MY"
-        },
-        "offer_details": {
-            "position": "Software Engineer",
-            "department": "Engineering",
-            "salary": 5000,
-            "start_date": "2024-03-01",
-            "probation_months": 3,
-            "expiry_days": 7
-        }
-    }
     """
     data = request.get_json()
     if not data:
@@ -58,6 +76,13 @@ def create_offer():
 
     employee_data = data.get("employee_data", {})
     offer_details = data.get("offer_details", {})
+
+    if not employee_data.get("email"):
+        return jsonify({"error": "Employee email is required"}), 400
+    if not employee_data.get("full_name"):
+        return jsonify({"error": "Employee full name is required"}), 400
+    if not offer_details.get("position"):
+        return jsonify({"error": "Position is required"}), 400
 
     orchestrator = get_orchestrator()
     result = orchestrator.process_onboarding_offer(employee_data, offer_details)
@@ -72,12 +97,27 @@ def create_offer():
         ), 400
 
     offer_data = result.data.get("offer", {})
-    employee_id = offer_data.get("employee_id")
-    offer_id = offer_data.get("offer_id")
+    employee_id = offer_data.get("employee_id") or str(uuid.uuid4())
+    offer_id = offer_data.get("offer_id") or str(uuid.uuid4())
+    jurisdiction = employee_data.get("jurisdiction", "MY")
 
     db = get_db()
+    now = datetime.datetime.now().isoformat()
+    expiry_days = offer_details.get("expiry_days", 7)
+    expires_at = (
+        datetime.datetime.now() + datetime.timedelta(days=expiry_days)
+    ).isoformat()
 
     try:
+        existing = (
+            db.table("onboarding_states")
+            .select("id")
+            .eq("email", employee_data.get("email"))
+            .execute()
+        )
+        if existing.data:
+            return jsonify({"error": "An offer already exists for this email"}), 409
+
         db.table("onboarding_states").insert(
             {
                 "id": str(uuid.uuid4()),
@@ -86,13 +126,16 @@ def create_offer():
                 "status": "offer_pending",
                 "employee_name": employee_data.get("full_name"),
                 "email": employee_data.get("email"),
+                "phone": employee_data.get("phone", ""),
                 "position": offer_details.get("position"),
-                "department": offer_details.get("department"),
-                "salary": offer_details.get("salary"),
-                "jurisdiction": employee_data.get("jurisdiction", "MY"),
-                "offer_sent_at": datetime.datetime.now().isoformat(),
-                "offer_expires_at": offer_data.get("expires_at"),
-                "created_at": datetime.datetime.now().isoformat(),
+                "department": offer_details.get("department", ""),
+                "salary": float(offer_details.get("salary", 0)),
+                "jurisdiction": jurisdiction,
+                "start_date": offer_details.get("start_date", ""),
+                "probation_months": offer_details.get("probation_months", 3),
+                "offer_sent_at": now,
+                "offer_expires_at": expires_at,
+                "created_at": now,
             }
         ).execute()
 
@@ -101,19 +144,52 @@ def create_offer():
                 "id": employee_id,
                 "email": employee_data.get("email"),
                 "full_name": employee_data.get("full_name"),
-                "nric": employee_data.get("nric"),
-                "jurisdiction": employee_data.get("jurisdiction", "MY"),
+                "nric": employee_data.get("nric", ""),
+                "jurisdiction": jurisdiction,
                 "position": offer_details.get("position"),
-                "department": offer_details.get("department"),
+                "department": offer_details.get("department", ""),
                 "start_date": offer_details.get("start_date"),
-                "phone": employee_data.get("phone"),
+                "phone": employee_data.get("phone", ""),
                 "status": "offer_pending",
+                "created_at": now,
             }
         ).execute()
+
+        for doc in ONBOARDING_DOCUMENTS.get(jurisdiction, ONBOARDING_DOCUMENTS["MY"]):
+            db.table("onboarding_documents").insert(
+                {
+                    "id": str(uuid.uuid4()),
+                    "employee_id": employee_id,
+                    "document_name": doc["name"],
+                    "document_type": doc["id"],
+                    "required": doc["required"],
+                    "submitted": False,
+                    "created_at": now,
+                }
+            ).execute()
+
+        for form in ONBOARDING_FORMS:
+            db.table("onboarding_forms").insert(
+                {
+                    "id": str(uuid.uuid4()),
+                    "employee_id": employee_id,
+                    "form_name": form["name"],
+                    "form_type": form["id"],
+                    "required": form["required"],
+                    "completed": False,
+                    "created_at": now,
+                }
+            ).execute()
 
     except Exception as e:
         current_app.logger.error(f"Database error: {e}")
         return jsonify({"error": str(e)}), 500
+
+    orchestrator.dispatch_to_agent(
+        "agentix_agent",
+        "setup_reminders",
+        {"employee_id": employee_id, "type": "onboarding", "start_date": now},
+    )
 
     return jsonify(
         {
@@ -122,7 +198,8 @@ def create_offer():
             "employee_id": employee_id,
             "status": "offer_pending",
             "portal_url": f"/employee/offer/{offer_id}",
-            "expires_at": offer_data.get("expires_at"),
+            "employee_portal_url": f"/employee/portal/{employee_id}",
+            "expires_at": expires_at,
             "cross_checks": [
                 {"agent": c.validator_agent, "result": c.result.value, "notes": c.notes}
                 for c in result.cross_checks
@@ -132,29 +209,77 @@ def create_offer():
     ), 201
 
 
+@bp.route("/offer/<offer_id>", methods=["GET"])
+def get_offer_details(offer_id):
+    """Get offer details for employee review."""
+    db = get_db()
+
+    offer_resp = (
+        db.table("onboarding_states").select("*").eq("offer_id", offer_id).execute()
+    )
+    if not offer_resp.data:
+        return jsonify({"error": "Offer not found"}), 404
+
+    offer = offer_resp.data[0]
+    jurisdiction = offer.get("jurisdiction", "MY")
+
+    company_info = {
+        "name": "Deriv Solutions Sdn Bhd"
+        if jurisdiction == "MY"
+        else "Deriv Solutions Pte Ltd",
+        "address": "Level 6, Tower 2, Cyberjaya, Malaysia"
+        if jurisdiction == "MY"
+        else "Singapore",
+        "website": "https://deriv.com",
+        "registration": "202001234567 (Malaysia)"
+        if jurisdiction == "MY"
+        else "201812345Z (Singapore)",
+    }
+
+    benefits = {
+        "annual_leave": f"{offer.get('annual_leave_days', 14)} days",
+        "medical_coverage": "Full medical coverage for employee and dependents",
+        "statutory": "EPF, SOCSO, EIS" if jurisdiction == "MY" else "CPF, SDL",
+        "probation": f"{offer.get('probation_months', 3)} months",
+    }
+
+    return jsonify(
+        {
+            "offer_id": offer_id,
+            "employee_id": offer.get("employee_id"),
+            "employee_name": offer.get("employee_name"),
+            "email": offer.get("email"),
+            "position": offer.get("position"),
+            "department": offer.get("department"),
+            "salary": offer.get("salary"),
+            "jurisdiction": jurisdiction,
+            "start_date": offer.get("start_date"),
+            "probation_months": offer.get("probation_months", 3),
+            "expires_at": offer.get("offer_expires_at"),
+            "status": offer.get("status"),
+            "company_info": company_info,
+            "benefits": benefits,
+            "created_at": offer.get("created_at"),
+        }
+    ), 200
+
+
 @bp.route("/offer/<offer_id>/respond", methods=["POST"])
 def respond_to_offer(offer_id):
     """
     Employee accepts or rejects an offer.
 
     On ACCEPT:
-    - OnboardingAgent updates status
-    - Generates all documents (contract, policies, forms)
+    - Update status to accepted
+    - Generate all documents (contract, policies, forms)
     - TrainingAgent assigns onboarding training
     - AgentixAgent sets up reminders
-    - Creates employee portal access
+    - Create employee portal access
 
     On REJECT:
     - AgentixAgent sends Telegram alert to HR
-    - Creates follow-up task for HR manager
-    - Archives candidate data
-
-    Request Body:
-    {
-        "response": "accepted",  // or "rejected"
-        "reason": "Optional rejection reason",
-        "signature": "base64_signature_data"
-    }
+    - Create follow-up task for HR manager
+    - Archive candidate data
     """
     data = request.get_json()
     if not data:
@@ -185,6 +310,7 @@ def respond_to_offer(offer_id):
     ]:
         return jsonify({"error": f"Offer already {offer_record.get('status')}"}), 400
 
+    now = datetime.datetime.now().isoformat()
     orchestrator = get_orchestrator()
 
     if response_type == "accepted":
@@ -194,14 +320,44 @@ def respond_to_offer(offer_id):
             db.table("onboarding_states").update(
                 {
                     "status": "offer_accepted",
-                    "accepted_at": datetime.datetime.now().isoformat(),
+                    "accepted_at": now,
                     "offer_response": "accepted",
+                    "updated_at": now,
                 }
             ).eq("offer_id", offer_id).execute()
 
-            db.table("employees").update({"status": "onboarding_active"}).eq(
-                "id", employee_id
-            ).execute()
+            db.table("employees").update(
+                {
+                    "status": "onboarding_active",
+                    "updated_at": now,
+                }
+            ).eq("id", employee_id).execute()
+
+            docs_resp = (
+                db.table("onboarding_documents")
+                .select("*")
+                .eq("employee_id", employee_id)
+                .execute()
+            )
+            documents = docs_resp.data or []
+
+            forms_resp = (
+                db.table("onboarding_forms")
+                .select("*")
+                .eq("employee_id", employee_id)
+                .execute()
+            )
+            forms = forms_resp.data or []
+
+            training_response = orchestrator.dispatch_to_agent(
+                "training_agent",
+                "get_onboarding_training",
+                {
+                    "department": offer_record.get("department", ""),
+                    "position": offer_record.get("position", ""),
+                    "start_date": offer_record.get("start_date"),
+                },
+            )
 
             return jsonify(
                 {
@@ -210,10 +366,11 @@ def respond_to_offer(offer_id):
                     "employee_id": employee_id,
                     "portal_url": f"/employee/portal/{employee_id}",
                     "onboarding_checklist": f"/employee/portal/{employee_id}/checklist",
-                    "documents_generated": result.data.get("documents", {}).get(
-                        "documents", []
-                    ),
-                    "training_assigned": result.data.get("training", {}),
+                    "documents": documents,
+                    "forms": forms,
+                    "training": training_response.payload
+                    if training_response.success
+                    else {},
                     "next_steps": [
                         "Complete personal information form",
                         "Upload required documents",
@@ -232,22 +389,26 @@ def respond_to_offer(offer_id):
                 }
             ), 500
 
-    else:  # rejected
+    else:
         result = orchestrator.process_offer_rejection(offer_id, employee_id, reason)
 
         db.table("onboarding_states").update(
             {
                 "status": "offer_rejected",
-                "rejected_at": datetime.datetime.now().isoformat(),
+                "rejected_at": now,
                 "offer_response": "rejected",
                 "rejection_reason": reason,
-                "hr_notified_at": datetime.datetime.now().isoformat(),
+                "hr_notified_at": now,
+                "updated_at": now,
             }
         ).eq("offer_id", offer_id).execute()
 
-        db.table("employees").update({"status": "offer_rejected"}).eq(
-            "id", employee_id
-        ).execute()
+        db.table("employees").update(
+            {
+                "status": "offer_rejected",
+                "updated_at": now,
+            }
+        ).eq("id", employee_id).execute()
 
         return jsonify(
             {
@@ -256,49 +417,15 @@ def respond_to_offer(offer_id):
                 "employee_id": employee_id,
                 "hr_notified": True,
                 "notification_channel": "telegram",
-                "message": "HR has been notified of your decision. Thank you for your interest.",
+                "message": "HR has been notified of your decision. Thank you for your interest in Deriv.",
                 "agents_involved": result.agents_involved,
             }
         ), 200
 
 
-@bp.route("/offer/<offer_id>", methods=["GET"])
-def get_offer_details(offer_id):
-    """Get offer details for employee review."""
-    db = get_db()
-
-    offer_resp = (
-        db.table("onboarding_states").select("*").eq("offer_id", offer_id).execute()
-    )
-    if not offer_resp.data:
-        return jsonify({"error": "Offer not found"}), 404
-
-    offer = offer_resp.data[0]
-
-    return jsonify(
-        {
-            "offer_id": offer_id,
-            "employee_name": offer.get("employee_name"),
-            "position": offer.get("position"),
-            "department": offer.get("department"),
-            "salary": offer.get("salary"),
-            "jurisdiction": offer.get("jurisdiction"),
-            "expires_at": offer.get("offer_expires_at"),
-            "status": offer.get("status"),
-            "company_info": {
-                "name": "Deriv Solutions",
-                "address": "Cyberjaya, Malaysia"
-                if offer.get("jurisdiction") == "MY"
-                else "Singapore",
-                "website": "https://deriv.com",
-            },
-        }
-    ), 200
-
-
 @bp.route("/employee/<employee_id>/portal", methods=["GET"])
 def get_employee_portal(employee_id):
-    """Get employee portal data for onboarding."""
+    """Get complete employee portal data for onboarding."""
     db = get_db()
 
     emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
@@ -307,16 +434,34 @@ def get_employee_portal(employee_id):
 
     employee = emp_resp.data[0]
 
-    docs_resp = (
-        db.table("onboarding_documents")
-        .select("id, document_name, required, submitted, submitted_at")
+    state_resp = (
+        db.table("onboarding_states")
+        .select("*")
         .eq("employee_id", employee_id)
         .execute()
     )
+    onboarding_state = state_resp.data[0] if state_resp.data else {}
 
+    docs_resp = (
+        db.table("onboarding_documents")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
     documents = docs_resp.data or []
-    total = len(documents)
-    submitted = sum(1 for d in documents if d.get("submitted"))
+
+    forms_resp = (
+        db.table("onboarding_forms")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    forms = forms_resp.data or []
+
+    total_items = len(documents) + len(forms)
+    completed_items = sum(1 for d in documents if d.get("submitted")) + sum(
+        1 for f in forms if f.get("completed")
+    )
 
     return jsonify(
         {
@@ -326,50 +471,233 @@ def get_employee_portal(employee_id):
             "position": employee.get("position"),
             "department": employee.get("department"),
             "status": employee.get("status"),
+            "jurisdiction": employee.get("jurisdiction", "MY"),
+            "start_date": employee.get("start_date"),
+            "onboarding_state": onboarding_state,
             "onboarding_progress": {
-                "total": total,
-                "submitted": submitted,
-                "percentage": round(submitted / total * 100) if total > 0 else 0,
+                "total": total_items,
+                "completed": completed_items,
+                "percentage": round(completed_items / total_items * 100, 1)
+                if total_items > 0
+                else 0,
             },
             "documents": documents,
+            "forms": forms,
+            "portal_features": [
+                "document_upload",
+                "form_submission",
+                "training_modules",
+                "policy_access",
+                "leave_application",
+                "profile_management",
+            ],
+        }
+    ), 200
+
+
+@bp.route("/employee/<employee_id>/forms/<form_type>", methods=["GET", "POST"])
+def handle_form(employee_id, form_type):
+    """Get or submit an onboarding form."""
+    db = get_db()
+
+    if request.method == "GET":
+        form_resp = (
+            db.table("onboarding_forms")
+            .select("*")
+            .eq("employee_id", employee_id)
+            .eq("form_type", form_type)
+            .execute()
+        )
+        if not form_resp.data:
+            return jsonify({"error": "Form not found"}), 404
+        return jsonify({"form": form_resp.data[0]}), 200
+
+    data = request.get_json()
+    now = datetime.datetime.now().isoformat()
+
+    db.table("onboarding_forms").update(
+        {
+            "completed": True,
+            "completed_at": now,
+            "form_data": data.get("form_data", {}),
+            "updated_at": now,
+        }
+    ).eq("employee_id", employee_id).eq("form_type", form_type).execute()
+
+    return jsonify(
+        {
+            "success": True,
+            "form_type": form_type,
+            "completed": True,
+            "completed_at": now,
+        }
+    ), 200
+
+
+@bp.route("/employee/<employee_id>/documents/<doc_id>/submit", methods=["POST"])
+def submit_document(employee_id, doc_id):
+    """Submit an onboarding document."""
+    db = get_db()
+    now = datetime.datetime.now().isoformat()
+
+    data = request.get_json() or {}
+
+    db.table("onboarding_documents").update(
+        {
+            "submitted": True,
+            "submitted_at": now,
+            "file_path": data.get("file_path", ""),
+            "notes": data.get("notes", ""),
+        }
+    ).eq("id", doc_id).eq("employee_id", employee_id).execute()
+
+    docs_resp = (
+        db.table("onboarding_documents")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    documents = docs_resp.data or []
+    completed = sum(1 for d in documents if d.get("submitted"))
+    total = len(documents)
+
+    if completed == total:
+        db.table("employees").update(
+            {
+                "status": "onboarding_complete",
+                "updated_at": now,
+            }
+        ).eq("id", employee_id).execute()
+
+        db.table("onboarding_states").update(
+            {
+                "status": "onboarding_complete",
+                "onboarding_completed_at": now,
+                "updated_at": now,
+            }
+        ).eq("employee_id", employee_id).execute()
+
+    return jsonify(
+        {
+            "success": True,
+            "document_id": doc_id,
+            "submitted": True,
+            "submitted_at": now,
+            "progress": {
+                "completed": completed,
+                "total": total,
+                "percentage": round(completed / total * 100, 1) if total > 0 else 0,
+            },
         }
     ), 200
 
 
 @bp.route("/pending", methods=["GET"])
 def get_pending_onboardings():
-    """Get all pending onboarding items for AgentixAgent monitoring."""
+    """Get all pending onboarding items for AgentixAgent monitoring and HR dashboard."""
     db = get_db()
 
     pending_resp = (
         db.table("onboarding_states")
         .select("*")
         .in_(
-            "status", ["offer_created", "offer_sent", "offer_pending", "offer_accepted"]
+            "status",
+            [
+                "offer_created",
+                "offer_sent",
+                "offer_pending",
+                "offer_accepted",
+                "documents_pending",
+                "forms_pending",
+            ],
         )
+        .order("created_at", desc=True)
         .execute()
     )
 
     pending = pending_resp.data or []
+    now = datetime.datetime.now()
+
+    for p in pending:
+        if p.get("offer_expires_at"):
+            try:
+                expiry = datetime.datetime.fromisoformat(p["offer_expires_at"])
+                p["days_until_expiry"] = (expiry - now).days
+            except:
+                p["days_until_expiry"] = None
 
     expiring_soon = [
         p
         for p in pending
-        if p.get("offer_expires_at")
-        and (
-            datetime.datetime.fromisoformat(p["offer_expires_at"])
-            - datetime.datetime.now()
-        ).days
-        <= 2
+        if p.get("days_until_expiry") is not None and p.get("days_until_expiry") <= 2
+    ]
+    accepted_pending = [
+        p
+        for p in pending
+        if p.get("status") in ["offer_accepted", "documents_pending", "forms_pending"]
     ]
 
     return jsonify(
         {
             "pending_offers": pending,
             "expiring_soon": expiring_soon,
+            "accepted_pending_onboarding": accepted_pending,
             "total_pending": len(pending),
+            "summary": {
+                "offer_pending": len(
+                    [p for p in pending if p.get("status") == "offer_pending"]
+                ),
+                "offer_accepted": len(
+                    [p for p in pending if p.get("status") == "offer_accepted"]
+                ),
+                "offer_rejected": len(
+                    [p for p in pending if p.get("status") == "offer_rejected"]
+                ),
+                "onboarding_active": len(
+                    [
+                        p
+                        for p in pending
+                        if p.get("status") in ["documents_pending", "forms_pending"]
+                    ]
+                ),
+            },
         }
     ), 200
+
+
+@bp.route("/stats", methods=["GET"])
+def get_onboarding_stats():
+    """Get onboarding statistics for HR dashboard."""
+    db = get_db()
+
+    all_resp = db.table("onboarding_states").select("status").execute()
+    all_states = all_resp.data or []
+
+    stats = {
+        "total": len(all_states),
+        "offer_pending": len(
+            [s for s in all_states if s.get("status") == "offer_pending"]
+        ),
+        "offer_accepted": len(
+            [s for s in all_states if s.get("status") == "offer_accepted"]
+        ),
+        "offer_rejected": len(
+            [s for s in all_states if s.get("status") == "offer_rejected"]
+        ),
+        "onboarding_active": len(
+            [
+                s
+                for s in all_states
+                if s.get("status")
+                in ["documents_pending", "forms_pending", "training_pending"]
+            ]
+        ),
+        "onboarding_complete": len(
+            [s for s in all_states if s.get("status") == "onboarding_complete"]
+        ),
+    }
+
+    return jsonify(stats), 200
 
 
 @bp.route("/agents/info", methods=["GET"])
@@ -383,12 +711,8 @@ def get_agents_info():
 
 @bp.route("/calculate/<calculation_type>", methods=["POST"])
 def calculate_statutory(calculation_type):
-    """
-    Calculate statutory contributions using SalaryAgent with PolicyAgent cross-check.
-
-    Types: epf, socso, cpf, eis, overtime, pcb, payroll
-    """
-    data = request.get_json()
+    """Calculate statutory contributions using SalaryAgent with PolicyAgent cross-check."""
+    data = request.get_json() or {}
 
     params = {
         "salary": data.get("salary", 0),
@@ -422,7 +746,7 @@ def calculate_statutory(calculation_type):
 @bp.route("/reminders/send", methods=["POST"])
 def send_reminder():
     """Trigger AgentixAgent to send a reminder."""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     orchestrator = get_orchestrator()
 
@@ -440,7 +764,7 @@ def send_reminder():
     return jsonify(
         {
             "success": response.success,
-            "data": response.data if response.success else {},
+            "data": response.payload if response.success else {},
             "errors": response.errors,
         }
     ), 200 if response.success else 400
@@ -449,7 +773,7 @@ def send_reminder():
 @bp.route("/alerts/send", methods=["POST"])
 def send_alert():
     """Trigger AgentixAgent to send an alert to HR (Telegram, Email)."""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     orchestrator = get_orchestrator()
 
@@ -470,7 +794,7 @@ def send_alert():
     return jsonify(
         {
             "success": response.success,
-            "data": response.data if response.success else {},
+            "data": response.payload if response.success else {},
             "errors": response.errors,
         }
     ), 200 if response.success else 400
@@ -479,7 +803,7 @@ def send_alert():
 @bp.route("/training/onboarding", methods=["POST"])
 def get_onboarding_training():
     """Get onboarding training plan from TrainingAgent."""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     orchestrator = get_orchestrator()
 
@@ -496,32 +820,7 @@ def get_onboarding_training():
     return jsonify(
         {
             "success": response.success,
-            "data": response.data if response.success else {},
-            "errors": response.errors,
-        }
-    ), 200 if response.success else 400
-
-
-@bp.route("/policy/verify", methods=["POST"])
-def verify_policy_compliance():
-    """Verify compliance using PolicyAgent."""
-    data = request.get_json()
-
-    orchestrator = get_orchestrator()
-
-    response = orchestrator.dispatch_to_agent(
-        "policy_agent",
-        "verify_compliance",
-        {
-            "action_type": data.get("action_type", ""),
-            "employee_data": data.get("employee_data", {}),
-        },
-    )
-
-    return jsonify(
-        {
-            "success": response.success,
-            "data": response.data if response.success else {},
+            "data": response.payload if response.success else {},
             "errors": response.errors,
         }
     ), 200 if response.success else 400
