@@ -13,6 +13,8 @@ import {
   NewEmployeeModeSelection,
   AIOnboarding,
   OfferLetterGenerator,
+  OfferLetterDisplay,
+  OfferGenerationSuccess,
 } from "./onboarding/NewEmployeeModeSelection";
 import { Badge } from "./design-system/Badge";
 import {
@@ -67,7 +69,7 @@ interface ChatMessage {
 
 // No more mock data — employees are loaded from the backend
 
-type ViewMode = "list" | "wizard" | "form" | "ai" | "offer";
+type ViewMode = "list" | "wizard" | "form" | "ai" | "offer" | "offer_display" | "offer_success";
 
 export const Onboarding: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -98,6 +100,10 @@ export const Onboarding: React.FC = () => {
     null,
   );
   const [reportLoading, setReportLoading] = useState(false);
+  
+  // Generated offer letter state
+  const [generatedOfferData, setGeneratedOfferData] = useState<any>(null);
+  const [generatedEmployeeData, setGeneratedEmployeeData] = useState<any>(null);
 
   const handleModeSelect = (mode: "form" | "ai") => {
     setShowModeSelection(false);
@@ -923,13 +929,66 @@ export const Onboarding: React.FC = () => {
       <div className="animate-fade-in">
         <OfferLetterGenerator
           preliminaryData={preliminaryData as any}
-          onGenerate={() => {
-            setViewMode("list");
-            setPreliminaryData(null);
-            // Optionally refresh employees list
+          onGenerate={(result) => {
+            // Store the generated offer data
+            setGeneratedOfferData(result);
+            
+            // Switch to offer success view (simple link display)
+            setViewMode("offer_success");
           }}
           onCancel={() => {
             setViewMode("list");
+            setPreliminaryData(null);
+          }}
+        />
+      </div>
+    );
+  }
+  
+  // OFFER SUCCESS MODE (after generation - show simple link)
+  if (viewMode === "offer_success" && generatedOfferData) {
+    return (
+      <div className="animate-fade-in">
+        <OfferGenerationSuccess
+          offerData={generatedOfferData}
+          onDone={() => {
+            setViewMode("list");
+            setGeneratedOfferData(null);
+            setPreliminaryData(null);
+          }}
+        />
+      </div>
+    );
+  }
+  
+  // OFFER DISPLAY MODE (after generation)
+  if (viewMode === "offer_display" && generatedOfferData && generatedEmployeeData) {
+    return (
+      <div className="animate-fade-in">
+        <OfferLetterDisplay
+          offerData={generatedOfferData}
+          employeeData={generatedEmployeeData}
+          onAccept={() => {
+            // After accepting, clear data and return to list
+            setViewMode("list");
+            setGeneratedOfferData(null);
+            setGeneratedEmployeeData(null);
+            setPreliminaryData(null);
+            // Optionally refresh employees list
+            alert("Account created successfully! The employee can now log in.");
+          }}
+          onReject={() => {
+            // After rejecting, clear data and return to list
+            setViewMode("list");
+            setGeneratedOfferData(null);
+            setGeneratedEmployeeData(null);
+            setPreliminaryData(null);
+          }}
+          onCancel={() => {
+            // Go back to list
+            setViewMode("list");
+            setGeneratedOfferData(null);
+            setGeneratedEmployeeData(null);
             setPreliminaryData(null);
           }}
         />

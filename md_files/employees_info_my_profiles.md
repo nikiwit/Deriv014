@@ -98,3 +98,23 @@ emergencyContact: N/A
 emergencyContactPhone: N/A
 emergencyContactRelationship: N/A
 complianceStatus: Onboarding
+
+---
+
+## Employee 4ba33f97
+id: 4ba33f97-1206-4b25-b910-5be556a8cdc8
+firstName: mariia
+lastName: 
+email: mariia@gmail.com
+phone: N/A
+nationality: MY
+nric: 000000-00-0000
+position: IT
+department: iIT
+startDate: 2026-02-05
+bankName: CImb
+bankAccount: 00000000000
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding

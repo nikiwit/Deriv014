@@ -4,7 +4,7 @@ import React from "react";
 // Authentication Types
 // ============================================
 
-export type UserRole = "hr_admin" | "employee";
+export type UserRole = "hr_admin" | "employee" | "pending_employee";
 
 export interface User {
   id: string;
@@ -237,7 +237,9 @@ export type ViewState =
   | "employee_onboarding"
   // Training views
   | "employee_training"   // HR view
-  | "my_training";        // Employee view
+  | "my_training"         // Employee view
+  // Offer views
+  | "offer_success";      // Offer generation success
 
 export interface ContractParams {
   employeeName: string;
@@ -366,6 +368,16 @@ export interface OnboardingData {
   nationality: "Malaysian" | "Non-Malaysian";
   salary: string;
   nric?: string;
+  positionTitle?: string;
+  workLocation?: string;
+  workHours?: string;
+  leaveAnnualDays?: string;
+  leaveSickDays?: string;
+  publicHolidaysPolicy?: string;
+  dateOfBirth?: string;
+  bankName?: string;
+  bankAccountHolder?: string;
+  bankAccountNumber?: string;
 }
 
 // export interface CandidateProfile {

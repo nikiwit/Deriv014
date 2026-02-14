@@ -282,11 +282,35 @@ export const EmployeeChatAssistant: React.FC = () => {
           timestamp: new Date()
         };
         setMessages(prev => [...prev, botMsg]);
-        
-        // Update pending consent with new contract data
+
+        // Re-display the updated contract with Sign/Reject buttons
         if (data.updated_contract) {
           const userId = user?.id || '';
-          setPendingConsent({ employeeId: userId, contractData: data.updated_contract });
+          // Flatten nested structure for the consent card display
+          const contract = data.updated_contract;
+          const emp = contract.employment_details || {};
+          const personal = contract.personal_details || {};
+          const flatContract = {
+            ...contract,
+            employee_name: personal.fullName || contract.employee_name || contract.full_name,
+            email: personal.email || contract.email,
+            nationality: personal.nationality || contract.nationality,
+            nric: personal.nric || contract.nric,
+            date_of_birth: personal.date_of_birth || contract.date_of_birth,
+            position: emp.position_title || contract.position,
+            department: emp.department || contract.department,
+            start_date: emp.start_date || contract.start_date,
+            salary: emp.salary || contract.salary,
+            work_location: emp.work_location || contract.work_location,
+            work_hours: emp.work_hours || contract.work_hours,
+            annual_leave: emp.annual_leave || contract.annual_leave,
+            sick_leave: emp.sick_leave || contract.sick_leave,
+            probation_months: emp.probation_months || contract.probation_months,
+            bank_name: personal.bank_name || contract.bank_name,
+            bank_account_holder: personal.bank_account_holder || contract.bank_account_holder,
+            bank_account_number: personal.bank_account_number || contract.bank_account_number,
+          };
+          setPendingConsent({ employeeId: userId, contractData: flatContract });
         }
       } else if (data.status === 'modification_rejected') {
         // Contract modification rejected - show rejection with reasons
@@ -472,18 +496,24 @@ export const EmployeeChatAssistant: React.FC = () => {
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-3">
               <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-2">Contract Summary</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-700">
-                <span className="font-semibold">Employee</span>
-                <span>{cd.employee_name || '—'}</span>
-                <span className="font-semibold">Position</span>
-                <span>{cd.position || '—'}</span>
-                <span className="font-semibold">Department</span>
-                <span>{cd.department || '—'}</span>
-                <span className="font-semibold">Nationality</span>
-                <span>{cd.nationality || '—'}</span>
-                <span className="font-semibold">Start Date</span>
-                <span>{cd.start_date || '—'}</span>
-                <span className="font-semibold">Company</span>
-                <span>{cd.company || '—'}</span>
+                {cd.employee_name && <><span className="font-semibold">Employee</span><span>{cd.employee_name}</span></>}
+                {cd.email && <><span className="font-semibold">Email</span><span>{cd.email}</span></>}
+                {cd.nationality && <><span className="font-semibold">Nationality</span><span>{cd.nationality}</span></>}
+                {cd.nric && <><span className="font-semibold">NRIC</span><span>{cd.nric}</span></>}
+                {cd.date_of_birth && <><span className="font-semibold">Date of Birth</span><span>{cd.date_of_birth}</span></>}
+                {cd.position && <><span className="font-semibold">Position</span><span>{cd.position}</span></>}
+                {cd.department && <><span className="font-semibold">Department</span><span>{cd.department}</span></>}
+                {cd.start_date && <><span className="font-semibold">Start Date</span><span>{cd.start_date}</span></>}
+                {cd.salary && <><span className="font-semibold">Salary</span><span>{cd.salary} {cd.jurisdiction === 'MY' ? 'MYR' : 'SGD'}</span></>}
+                {cd.work_location && <><span className="font-semibold">Work Location</span><span>{cd.work_location}</span></>}
+                {cd.work_hours && <><span className="font-semibold">Work Hours</span><span>{cd.work_hours}</span></>}
+                {cd.annual_leave && <><span className="font-semibold">Annual Leave</span><span>{cd.annual_leave} days</span></>}
+                {cd.sick_leave && <><span className="font-semibold">Sick Leave</span><span>{cd.sick_leave} days</span></>}
+                {cd.probation_months && <><span className="font-semibold">Probation</span><span>{cd.probation_months} months</span></>}
+                {cd.bank_name && <><span className="font-semibold">Bank</span><span>{cd.bank_name}</span></>}
+                {cd.bank_account_holder && <><span className="font-semibold">Account Holder</span><span>{cd.bank_account_holder}</span></>}
+                {cd.bank_account_number && <><span className="font-semibold">Account No.</span><span>{cd.bank_account_number}</span></>}
+                {cd.company && <><span className="font-semibold">Company</span><span>{cd.company}</span></>}
               </div>
             </div>
             <p className="text-xs text-slate-600 mb-3">

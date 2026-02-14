@@ -219,3 +219,123 @@ export async function createAuthUser(
   if (!res.ok) throw new Error(`Create user failed: ${res.status}`);
   return res.json();
 }
+
+// ── OFFER LETTER GENERATION & ACTIONS ────────────────────
+
+export interface GenerateOfferApprovalRequest {
+  full_name: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  nric?: string;
+  position_title: string;
+  position: string;
+  department: string;
+  start_date: string;
+  salary: string;
+  nationality: string;
+  date_of_birth?: string;
+  work_location?: string;
+  work_hours?: string;
+  leave_annual_days?: number;
+  leave_sick_days?: number;
+  public_holidays_policy?: string;
+  bank_name?: string;
+  bank_account_holder?: string;
+  bank_account_number?: string;
+  jurisdiction: "MY" | "SG";
+  bonus?: string;
+  probation_months?: number;
+}
+
+export interface GenerateOfferApprovalResponse {
+  success: boolean;
+  employee_id: string;
+  offer_url: string;
+  user_id: string;
+  message: string;
+}
+
+export async function generateOfferApproval(
+  data: GenerateOfferApprovalRequest
+): Promise<GenerateOfferApprovalResponse> {
+  const res = await fetch(`${API_BASE}/onboarding-workflow/generate-offer-approval`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Generate offer approval failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface OfferLetterData {
+  success: boolean;
+  employee_id: string;
+  offer_data: {
+    full_name: string;
+    email: string;
+    position_title: string;
+    department: string;
+    start_date: string;
+    salary: string;
+    [key: string]: any;
+  };
+  actions: {
+    accept_url: string;
+    reject_url: string;
+  };
+}
+
+export async function getOfferLetter(employeeId: string): Promise<OfferLetterData> {
+  const res = await fetch(`${API_BASE}/offer/${employeeId}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Get offer letter failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface AcceptOfferResponse {
+  success: boolean;
+  message: string;
+  employee_id: string;
+  updated_role: string;
+}
+
+export async function acceptOfferLetter(employeeId: string): Promise<AcceptOfferResponse> {
+  const res = await fetch(`${API_BASE}/offer/${employeeId}/accept`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Accept offer failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface RejectOfferResponse {
+  success: boolean;
+  message: string;
+  employee_id: string;
+  dispute_id: string;
+}
+
+export async function rejectOfferLetter(
+  employeeId: string,
+  reason?: string
+): Promise<RejectOfferResponse> {
+  const res = await fetch(`${API_BASE}/offer/${employeeId}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason || "Not specified" }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Reject offer failed: ${res.status}`);
+  }
+  return res.json();
+}

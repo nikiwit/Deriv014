@@ -153,6 +153,7 @@ import { DocumentReminders } from './components/DocumentReminders';
 import { MyTraining } from './components/employee/MyTraining';
 import { TrainingProvider } from './contexts/TrainingContext';
 import { EmployeeOfferPage } from './components/onboarding/EmployeeOfferPage';
+import { StandaloneOfferView } from './components/employee/StandaloneOfferView';
 import { ViewState, User, UserRole } from './types';
 
 // Helper: load user profile from localStorage if exists
@@ -191,6 +192,17 @@ function AppContent() {
   const [loadingLocalUser, setLoadingLocalUser] = useState(true);
   const [offerId, setOfferId] = useState<string | null>(null);
 
+  // Check if URL is for standalone offer view (/offer/:employeeId)
+  // This MUST happen before authentication checks
+  useEffect(() => {
+    const path = window.location.pathname;
+    const offerMatch = path.match(/^\/offer\/([a-f0-9-]+)$/i);
+    if (offerMatch) {
+      // URL is for standalone offer view, do NOT check authentication
+      return;
+    }
+  }, []);
+
   // Try to load onboardingProfile as a temporary authenticated user
   useEffect(() => {
     const localUser = getUserFromOnboardingProfile();
@@ -200,6 +212,14 @@ function AppContent() {
     }
     setLoadingLocalUser(false);
   }, [setUser]);
+
+  // Check for standalone offer view BEFORE any authentication logic
+  const path = window.location.pathname;
+  const offerMatch = path.match(/^\/offer\/([a-f0-9-]+)$/i);
+  if (offerMatch) {
+    const employeeId = offerMatch[1];
+    return <StandaloneOfferView />;
+  }
 
   if (isLoading || loadingLocalUser) {
     return (
