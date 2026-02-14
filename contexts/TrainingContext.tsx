@@ -38,6 +38,29 @@ const FINANCE_TRAINING_ITEMS: Omit<TrainingItem, 'id' | 'status' | 'completedAt'
   { title: 'Physical Security & Clean Desk Policy', description: 'Badge access, visitor policies, and securing financial documents',                  category: 'security',      format: 'video',       estimatedMinutes: 10, required: false, order: 3 },
 ];
 
+// Helper functions for backend data conversion
+function calculateProgress(items: TrainingItem[]): number {
+  if (!items || items.length === 0) return 0;
+  const completedCount = items.filter(t => t.status === 'completed').length;
+  return Math.round((completedCount / items.length) * 100);
+}
+
+function determineStatus(items: TrainingItem[]): 'not_started' | 'in_progress' | 'completed' | 'overdue' {
+  if (!items || items.length === 0) return 'not_started';
+
+  const completedCount = items.filter(t => t.status === 'completed').length;
+
+  if (completedCount === 0) return 'not_started';
+  if (completedCount === items.length) return 'completed';
+
+  // Check if any items are overdue
+  const hasOverdue = items.some(t =>
+    t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()
+  );
+
+  return hasOverdue ? 'overdue' : 'in_progress';
+}
+
 // Department-to-training mapping (for future expansion)
 function getTrainingItemsForDepartment(department: string): Omit<TrainingItem, 'id' | 'status' | 'completedAt' | 'score'>[] {
   const dept = department.toLowerCase();
@@ -132,6 +155,58 @@ function buildInitialState(): Record<string, EmployeeTrainingProgress> {
 
 export const TrainingProvider: React.FC<TrainingProviderProps> = ({ children }) => {
   const [progressMap, setProgressMap] = useState<Record<string, EmployeeTrainingProgress>>(buildInitialState);
+  const [loadedFromBackend, setLoadedFromBackend] = useState(false);
+
+  // Fetch training data from backend on mount
+  useEffect(() => {
+    const fetchTrainingFromBackend = async () => {
+      try {
+        // Get current user from auth session
+        const authSession = localStorage.getItem('derivhr_session');
+        if (!authSession) return;
+
+        const session = JSON.parse(authSession);
+        const userId = session?.user?.id;
+
+        if (!userId) return;
+
+        // Fetch training from backend
+        const response = await fetch(`http://localhost:5001/api/training/progress/${userId}`);
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.status === 'ok' && data.training_data) {
+            // Convert backend format to frontend format
+            const employeeId = session.user.employeeId || userId;
+            const trainingProgress: EmployeeTrainingProgress = {
+              employeeId: employeeId,
+              employeeName: `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim(),
+              department: session.user.department || '',
+              role: session.user.positionTitle || '',
+              startDate: session.user.startDate || '',
+              items: data.training_data,
+              overallProgress: calculateProgress(data.training_data),
+              status: determineStatus(data.training_data),
+              lastActivityDate: data.last_synced_at || data.assigned_at
+            };
+
+            setProgressMap(prev => ({
+              ...prev,
+              [employeeId]: trainingProgress
+            }));
+
+            setLoadedFromBackend(true);
+            console.log('✓ Training loaded from backend:', data.template, data.training_data.length, 'items');
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load training from backend, using mock data:', error);
+      }
+    };
+
+    fetchTrainingFromBackend();
+  }, []);
 
   // Persist to localStorage on every change
   useEffect(() => {
@@ -186,7 +261,7 @@ export const TrainingProvider: React.FC<TrainingProviderProps> = ({ children }) 
         t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()
       );
 
-      return {
+      const updatedProgress = {
         ...prev,
         [employeeId]: {
           ...emp,
@@ -196,8 +271,40 @@ export const TrainingProvider: React.FC<TrainingProviderProps> = ({ children }) 
           lastActivityDate: new Date().toISOString(),
         },
       };
+
+      // Sync to backend
+      syncToBackend(employeeId, updatedItems);
+
+      return updatedProgress;
     });
   }, []);
+
+  // Sync training progress to backend
+  const syncToBackend = async (employeeId: string, items: TrainingItem[]) => {
+    try {
+      // Get user ID from auth session
+      const authSession = localStorage.getItem('derivhr_session');
+      if (!authSession) return;
+
+      const session = JSON.parse(authSession);
+      const userId = session?.user?.id;
+
+      if (!userId) return;
+
+      await fetch('http://localhost:5001/api/training/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: userId,
+          training_data: items
+        })
+      });
+
+      console.log('✓ Training progress synced to backend');
+    } catch (error) {
+      console.warn('Failed to sync training to backend:', error);
+    }
+  };
 
   const value: TrainingContextType = {
     getEmployeeProgress,

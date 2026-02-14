@@ -232,3 +232,17 @@ CREATE INDEX IF NOT EXISTS idx_employee_documents_expiry ON employee_documents(e
 CREATE INDEX IF NOT EXISTS idx_employee_documents_employee ON employee_documents(employee_id);
 CREATE INDEX IF NOT EXISTS idx_employee_documents_status ON employee_documents(status);
 
+-- Training Assignments
+CREATE TABLE IF NOT EXISTS training_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES users(id),
+    training_template TEXT NOT NULL,           -- 'finance', 'engineering', 'default'
+    training_data JSONB NOT NULL,              -- Array of training items with status, progress, etc.
+    assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_synced_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_assignments_employee ON training_assignments(employee_id);
+
