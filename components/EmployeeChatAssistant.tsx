@@ -13,40 +13,29 @@ interface PendingConsent {
   contractData: any;  // structured contract data from backend
 }
 
-async function storeContractJson(employeeId: string, contractData: any): Promise<{ status: string }> {
+async function signAndStoreContract(
+  employeeId: string,
+  contractData: any,
+  sessionId?: string
+): Promise<any> {
   try {
-    const res = await fetch('/api/store_contract_json', {
+    const res = await fetch('/api/employee-chat/sign-contract', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employee_id: employeeId, contract_data: contractData })
-    });
-    if (!res.ok) return { status: 'error' };
-    return await res.json();
-  } catch {
-    return { status: 'error' };
-  }
-}
-
-async function signContractViaBackend(employeeId: string, sessionId: string): Promise<any> {
-  try {
-    const res = await fetch("/api/sign_contract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         employee_id: employeeId,
-        requester_id: employeeId,
+        contract_data: contractData,
         session_id: sessionId,
-        collected_data: {}
       })
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(err || `HTTP ${res.status}`);
+    const data = await res.json();
+    if (!res.ok && !data.status) {
+      throw new Error(data.error || data.response || `HTTP ${res.status}`);
     }
-    return await res.json();
+    return data;
   } catch (err) {
     console.error("sign contract error", err);
-    return { status: "error", error: String(err) };
+    return { status: "error", response: String(err) };
   }
 }
 
@@ -133,24 +122,29 @@ export const EmployeeChatAssistant: React.FC = () => {
     const { employeeId, contractData } = pendingConsent;
     setPendingConsent(null);
 
-    // Call the existing sign_contract pipeline to finalize
-    const userId = employeeId;
-    const signResult = await signContractViaBackend(userId, `web_${userId}`);
+    const sessionId = user?.id ? `web_${user.id}` : undefined;
+    const signResult = await signAndStoreContract(employeeId, contractData, sessionId);
 
-    if (signResult?.recommended_action === 'allow_sign' || signResult?.status === 'ok') {
-      // Also store the contract JSON
-      await storeContractJson(userId, contractData);
+    if (signResult?.status === 'ok') {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: `Your contract has been signed successfully!\n\n**Signed at:** ${new Date().toLocaleString()}\n\nYou can access a copy from **My Documents** in the sidebar.`,
+        content: signResult.response || `Your contract has been signed successfully!\n\n**Signed at:** ${new Date().toLocaleString()}\n\nYou can access a copy from **My Documents** in the sidebar.`,
         modelUsed: 'System',
         timestamp: new Date()
       }]);
-      // Deactivate negotiation mode
+      setIsContractNegotiation(false);
+    } else if (signResult?.status === 'already_signed') {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: signResult.response || 'You have already signed your contract.',
+        modelUsed: 'System',
+        timestamp: new Date()
+      }]);
       setIsContractNegotiation(false);
     } else {
-      const reason = signResult?.message || signResult?.error || 'Could not complete signing at this time.';
+      const reason = signResult?.response || signResult?.error || 'Could not complete signing at this time.';
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
@@ -240,8 +234,19 @@ export const EmployeeChatAssistant: React.FC = () => {
 
       const data = await res.json();
 
+      // Handle already_signed → inform user, no buttons
+      if (data.status === 'already_signed') {
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          modelUsed: 'contract_agent',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, botMsg]);
+        setIsContractNegotiation(false);
       // Handle contract_ready → show contract in chat + Sign/Reject buttons
-      if (data.status === 'contract_ready' && data.action === 'show_contract') {
+      } else if (data.status === 'contract_ready' && data.action === 'show_contract') {
         const botMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -294,6 +299,26 @@ export const EmployeeChatAssistant: React.FC = () => {
         };
         setMessages(prev => [...prev, botMsg]);
         // Keep existing pending consent (don't update contract data)
+      } else if (data.intent === 'contract_off_topic') {
+        // Off-topic message during contract negotiation
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          modelUsed: 'contract_agent',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, botMsg]);
+      } else if (data.intent === 'contract_context') {
+        // Contract-relevant question answered from contract data (no RAG)
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          modelUsed: 'contract_agent',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, botMsg]);
       } else {
         // Normal response (predefined, RAG, missing_fields prompt, etc.)
         const botMsg: Message = {
