@@ -6,7 +6,8 @@ based on keyword matching, pattern recognition, and complexity analysis.
 """
 
 import re
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 from .prompts import AgentType
 
 
@@ -23,7 +24,7 @@ class IntentClassifier:
     # Keyword patterns for each agent type
     PATTERNS = {
         AgentType.POLICY_RESEARCH: [
-            r'\b(policy|policies|handbook|guideline|rule|procedure|regulation)\b',
+            r"\b(policy|policies|handbook|guideline|rule|procedure|regulation)\b",
             r"\b(what does|what is|explain|clarify|interpret|meaning)\b.*\b(policy|section|clause|article)\b",
             r"\b(entitled|entitlement|eligible|eligibility|qualify|qualified)\b",
             r"\b(compare|difference|vs|versus|between)\b.*\b(MY|SG|Malaysia|Singapore)\b",
@@ -51,7 +52,6 @@ class IntentClassifier:
         ],
         AgentType.EMPLOYEE_SUPPORT: [
             r"\b(leave|annual leave|sick leave|maternity|paternity|MC|medical certificate)\b",
-            r"\b(onboarding|first day|orientation|new hire|new joiner|induction)\b",
             r"\b(apply|application|request|submit)\b.*\b(leave|time off|vacation)\b",
             r"\b(balance|remaining|how many days|days left)\b",
             r"\b(who|where|when|how)\b.*\b(HR|manager|team|contact)\b",
@@ -61,7 +61,37 @@ class IntentClassifier:
             r"\b(work from home|WFH|remote|flexible|hybrid)\b",
             r"\b(public holiday|PH|off day|rest day)\b",
         ],
-
+        AgentType.ONBOARDING: [
+            r"\b(onboarding|on-boarding)\b",
+            r"\b(new hire|new hire|new joiner|new employee)\b",
+            r"\b(first day|first week|first month)\b",
+            r"\b(orientation|induction|welcome)\b",
+            r"\b(start date|start date|joining date)\b",
+            r"\b(set up|setup|install)(\b.*\b)(it|equipment|laptop|access|email|account)\b",
+            r"\b(complete task|finish task|task list|checklist)\b",
+            r"\b(probation|probationary period)\b",
+            r"\b(handbook|company policy|employee handbook)\b",
+        ],
+        AgentType.TRAINING: [
+            r"\b(training|train|course|module|learn)\b",
+            r"\b(complete training|finish course|pass test|take quiz)\b",
+            r"\b(training progress|course status|module status)\b",
+            r"\b(mandatory training|required course|compulsory training)\b",
+            r"\b(skill|skill)(\b.*\b)(development|improve|learn|training)\b",
+            r"\b(certification|certified|certificate)\b",
+            r"\b(video|webinar|workshop|e-learning)\b",
+            r"\b(quiz|test|assessment|exam)\b",
+        ],
+        AgentType.NEW_EMPLOYEE: [
+            r"\b(new employee|new hire|new starter|new joiner)\b",
+            r"\b(just joined|just started|first day|first week)\b",
+            r"\b(welcome aboard|welcome to team|welcome to company)\b",
+            r"\b(company culture|team culture|how we work)\b",
+            r"\b(meet team|meet manager|meet my team)\b",
+            r"\b(it setup|it access|equipment|laptop|phone)\b",
+            r"\b(orientation|onboarding|first day tips)\b",
+            r"\b(what to expect|first day agenda|what do i do)\b",
+        ],
         # New intents added below
         AgentType.PROFILE_QUERY: [
             r"\b(profile|my profile|view profile|update profile|edit profile)\b",
@@ -69,21 +99,18 @@ class IntentClassifier:
             r"\b(show me my (profile|details|information))\b",
             r"\b(upload profile picture|profile photo)\b",
         ],
-
         AgentType.REQUEST_HR_TALK: [
             r"\b(talk to (hr|human resources)|speak to (hr|human resources)|contact hr)\b",
             r"\b(schedule|book|arrange)\b.*\b(meeting|call)\b.*\b(hr|human resources)\b",
             r"\b(need to (talk|speak) to someone|request meeting)\b",
             r"\b(urgent|escalat(e|ion)|raise to (hr|manager))\b",
         ],
-
         AgentType.SMALL_TALK: [
             r"\b(hi|hello|hey|good morning|good afternoon|good evening)\b",
             r"\b(thanks|thank you|ty|cheers)\b",
             r"\b(how are you|what's up|sup|how's it going)\b",
             r"\b(joke|fun|bored)\b",
         ],
-
         AgentType.BOT_CAPABILITIES: [
             r"\b(what can you do|your capabilities|how can you help|help me with)\b",
             r"\b(list of features|features|capabilities|limitations)\b",
@@ -94,43 +121,64 @@ class IntentClassifier:
 
     # Keywords that indicate complexity (prefer specialized agents)
     COMPLEXITY_KEYWORDS = [
-        'section', 'act', 'law', 'legal', 'court', 'tribunal',
-        'termination', 'dismissal', 'constructive', 'dispute',
-        'investigation', 'misconduct', 'harassment', 'grievance',
-        'audit', 'penalty', 'violation', 'breach',
+        "section",
+        "act",
+        "law",
+        "legal",
+        "court",
+        "tribunal",
+        "termination",
+        "dismissal",
+        "constructive",
+        "dispute",
+        "investigation",
+        "misconduct",
+        "harassment",
+        "grievance",
+        "audit",
+        "penalty",
+        "violation",
+        "breach",
     ]
 
     # High-priority routing keywords (override pattern matching)
     PRIORITY_ROUTING = {
         # Immediate compliance routing
-        'epf': AgentType.COMPLIANCE,
-        'socso': AgentType.COMPLIANCE,
-        'cpf': AgentType.COMPLIANCE,
-        'eis': AgentType.COMPLIANCE,
-        'pcb': AgentType.COMPLIANCE,
-        'tax': AgentType.COMPLIANCE,
-
+        "epf": AgentType.COMPLIANCE,
+        "socso": AgentType.COMPLIANCE,
+        "cpf": AgentType.COMPLIANCE,
+        "eis": AgentType.COMPLIANCE,
+        "pcb": AgentType.COMPLIANCE,
+        "tax": AgentType.COMPLIANCE,
         # Immediate document routing
-        'contract': AgentType.DOCUMENT,
-        'offer letter': AgentType.DOCUMENT,
-        'generate': AgentType.DOCUMENT,
-
+        "contract": AgentType.DOCUMENT,
+        "offer letter": AgentType.DOCUMENT,
+        "generate": AgentType.DOCUMENT,
         # Immediate policy routing
-        'employment act': AgentType.POLICY_RESEARCH,
-        'section 60': AgentType.POLICY_RESEARCH,
-
+        "employment act": AgentType.POLICY_RESEARCH,
+        "section 60": AgentType.POLICY_RESEARCH,
         # Immediate profile / HR talk routing
-        'profile': AgentType.PROFILE_QUERY,
-        'my profile': AgentType.PROFILE_QUERY,
-        'talk to hr': AgentType.REQUEST_HR_TALK,
-        'speak to hr': AgentType.REQUEST_HR_TALK,
+        "profile": AgentType.PROFILE_QUERY,
+        "my profile": AgentType.PROFILE_QUERY,
+        "talk to hr": AgentType.REQUEST_HR_TALK,
+        "speak to hr": AgentType.REQUEST_HR_TALK,
+        # Immediate onboarding routing
+        "onboarding": AgentType.ONBOARDING,
+        "new hire": AgentType.ONBOARDING,
+        "first day": AgentType.NEW_EMPLOYEE,
+        # Immediate training routing
+        "training": AgentType.TRAINING,
+        "course": AgentType.TRAINING,
+        "module": AgentType.TRAINING,
+        # Immediate new employee routing
+        "welcome": AgentType.NEW_EMPLOYEE,
+        "new employee": AgentType.NEW_EMPLOYEE,
+        "orientation": AgentType.NEW_EMPLOYEE,
     }
 
     @classmethod
     def classify(
-        cls,
-        query: str,
-        jurisdiction: Optional[str] = None
+        cls, query: str, jurisdiction: Optional[str] = None
     ) -> Tuple[AgentType, float]:
         """
         Classify query intent and return the most appropriate agent.
@@ -183,11 +231,7 @@ class IntentClassifier:
         return best_agent, confidence
 
     @classmethod
-    def get_routing_reason(
-        cls,
-        agent_type: AgentType,
-        confidence: float
-    ) -> str:
+    def get_routing_reason(cls, agent_type: AgentType, confidence: float) -> str:
         """
         Generate a human-readable explanation for the routing decision.
 
@@ -199,9 +243,7 @@ class IntentClassifier:
             A string explaining the routing decision
         """
         confidence_level = (
-            "high" if confidence >= 0.8 else
-            "medium" if confidence >= 0.6 else
-            "low"
+            "high" if confidence >= 0.8 else "medium" if confidence >= 0.6 else "low"
         )
 
         reasons = {
@@ -214,6 +256,9 @@ class IntentClassifier:
             AgentType.REQUEST_HR_TALK: "Request to schedule or escalate to an HR representative",
             AgentType.SMALL_TALK: "Casual / social interaction detected",
             AgentType.BOT_CAPABILITIES: "Questions about bot features, scope, or limitations",
+            AgentType.ONBOARDING: "Onboarding guidance or new hire onboarding steps",
+            AgentType.TRAINING: "Training questions, course progress, or learning modules",
+            AgentType.NEW_EMPLOYEE: "New employee welcome, first day guidance, or company culture questions",
         }
 
         return f"Routed to {agent_type.value} ({confidence_level} confidence): {reasons.get(agent_type, 'Unknown')}"
@@ -232,21 +277,40 @@ class IntentClassifier:
         query_lower = query.lower()
 
         my_indicators = [
-            'malaysia', 'malaysian', 'my', 'epf', 'kwsp', 'socso', 'perkeso',
-            'eis', 'ringgit', 'rm', 'ea 1955', 'employment act 1955'
+            "malaysia",
+            "malaysian",
+            "my",
+            "epf",
+            "kwsp",
+            "socso",
+            "perkeso",
+            "eis",
+            "ringgit",
+            "rm",
+            "ea 1955",
+            "employment act 1955",
         ]
 
         sg_indicators = [
-            'singapore', 'singaporean', 'sg', 'cpf', 'sdl', 'mom',
-            'employment pass', 's pass', 'sgd', 'ea cap 91', 'cap. 91'
+            "singapore",
+            "singaporean",
+            "sg",
+            "cpf",
+            "sdl",
+            "mom",
+            "employment pass",
+            "s pass",
+            "sgd",
+            "ea cap 91",
+            "cap. 91",
         ]
 
         my_count = sum(1 for indicator in my_indicators if indicator in query_lower)
         sg_count = sum(1 for indicator in sg_indicators if indicator in query_lower)
 
         if my_count > sg_count:
-            return 'MY'
+            return "MY"
         elif sg_count > my_count:
-            return 'SG'
+            return "SG"
 
         return None

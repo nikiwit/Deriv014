@@ -5,9 +5,10 @@ Routes queries to appropriate sub-agents and manages the multi-agent workflow.
 Integrates with the existing RAG system for context-aware responses.
 """
 
-from typing import Dict, List, Tuple, Optional, Any
-from .prompts import AgentType, get_agent_prompt
+from typing import Any, Dict, List, Optional, Tuple
+
 from .intent import IntentClassifier
+from .prompts import AgentType, get_agent_prompt
 
 
 class AgentOrchestrator:
@@ -38,17 +39,14 @@ class AgentOrchestrator:
         """
         if session_id not in self._session_contexts:
             self._session_contexts[session_id] = {
-                'agent_history': [],
-                'jurisdiction': None,
-                'last_agent': None,
+                "agent_history": [],
+                "jurisdiction": None,
+                "last_agent": None,
             }
         return self._session_contexts[session_id]
 
     def route_query(
-        self,
-        session_id: str,
-        query: str,
-        jurisdiction: Optional[str] = None
+        self, session_id: str, query: str, jurisdiction: Optional[str] = None
     ) -> Tuple[AgentType, float, str]:
         """
         Route a query to the appropriate agent.
@@ -73,12 +71,14 @@ class AgentOrchestrator:
 
         # Update session context
         context = self.get_session_context(session_id)
-        context['last_agent'] = agent_type
-        context['jurisdiction'] = jurisdiction or context.get('jurisdiction')
-        context['agent_history'].append({
-            'agent': agent_type.value,
-            'confidence': confidence,
-        })
+        context["last_agent"] = agent_type
+        context["jurisdiction"] = jurisdiction or context.get("jurisdiction")
+        context["agent_history"].append(
+            {
+                "agent": agent_type.value,
+                "confidence": confidence,
+            }
+        )
 
         return agent_type, confidence, reason
 
@@ -86,7 +86,7 @@ class AgentOrchestrator:
         self,
         agent_type: AgentType,
         jurisdiction: Optional[str] = None,
-        employee_context: Optional[Dict] = None
+        employee_context: Optional[Dict] = None,
     ) -> str:
         """
         Get the enhanced system prompt for an agent.
@@ -107,7 +107,7 @@ class AgentOrchestrator:
         query: str,
         rag_engine: Any,
         jurisdiction: Optional[str] = None,
-        employee_context: Optional[Dict] = None
+        employee_context: Optional[Dict] = None,
     ) -> Dict:
         """
         Process a query through the agent system.
@@ -130,14 +130,12 @@ class AgentOrchestrator:
         # Get enhanced prompt
         system_prompt = self.get_enhanced_prompt(
             agent_type,
-            jurisdiction or self.get_session_context(session_id).get('jurisdiction'),
-            employee_context
+            jurisdiction or self.get_session_context(session_id).get("jurisdiction"),
+            employee_context,
         )
 
         # Build enhanced query with agent context
-        enhanced_query = self._build_enhanced_query(
-            query, agent_type, system_prompt
-        )
+        enhanced_query = self._build_enhanced_query(query, agent_type, system_prompt)
 
         # Query RAG engine
         try:
@@ -149,23 +147,22 @@ class AgentOrchestrator:
             sources = []
 
         # Detect jurisdiction from sources if not already known
-        detected_jurisdiction = jurisdiction or self._detect_jurisdiction_from_sources(sources)
+        detected_jurisdiction = jurisdiction or self._detect_jurisdiction_from_sources(
+            sources
+        )
 
         return {
-            'response': response_text,
-            'sources': sources,
-            'agent_used': agent_type.value,
-            'confidence': confidence,
-            'jurisdiction': detected_jurisdiction,
-            'routing_reason': routing_reason,
-            'session_id': session_id,
+            "response": response_text,
+            "sources": sources,
+            "agent_used": agent_type.value,
+            "confidence": confidence,
+            "jurisdiction": detected_jurisdiction,
+            "routing_reason": routing_reason,
+            "session_id": session_id,
         }
 
     def _build_enhanced_query(
-        self,
-        query: str,
-        agent_type: AgentType,
-        system_prompt: str
+        self, query: str, agent_type: AgentType, system_prompt: str
     ) -> str:
         """
         Build an enhanced query with agent context.
@@ -184,10 +181,13 @@ class AgentOrchestrator:
             AgentType.COMPLIANCE: "Compliance & Statutory Specialist",
             AgentType.DOCUMENT: "Document & Forms Specialist",
             AgentType.EMPLOYEE_SUPPORT: "Employee Support Specialist",
+            AgentType.ONBOARDING: "Onboarding Specialist",
+            AgentType.TRAINING: "Training Specialist",
+            AgentType.NEW_EMPLOYEE: "New Hire Guide",
         }
 
         return f"""
-[AGENT: {agent_labels.get(agent_type, 'HR Assistant')}]
+[AGENT: {agent_labels.get(agent_type, "HR Assistant")}]
 
 {system_prompt}
 
@@ -217,15 +217,15 @@ INSTRUCTIONS:
         """
         sources = []
 
-        if hasattr(response, 'source_nodes'):
+        if hasattr(response, "source_nodes"):
             for node in response.source_nodes:
                 source = {
-                    'file': node.metadata.get('file_name', 'Unknown'),
-                    'jurisdiction': self._extract_jurisdiction_from_filename(
-                        node.metadata.get('file_name', '')
+                    "file": node.metadata.get("file_name", "Unknown"),
+                    "jurisdiction": self._extract_jurisdiction_from_filename(
+                        node.metadata.get("file_name", "")
                     ),
-                    'score': getattr(node, 'score', None),
-                    'snippet': node.text[:200] if hasattr(node, 'text') else '',
+                    "score": getattr(node, "score", None),
+                    "snippet": node.text[:200] if hasattr(node, "text") else "",
                 }
                 sources.append(source)
 
@@ -243,17 +243,14 @@ INSTRUCTIONS:
         """
         filename_lower = filename.lower()
 
-        if '_my_' in filename_lower or '_my.' in filename_lower:
-            return 'MY'
-        elif '_sg_' in filename_lower or '_sg.' in filename_lower:
-            return 'SG'
+        if "_my_" in filename_lower or "_my." in filename_lower:
+            return "MY"
+        elif "_sg_" in filename_lower or "_sg." in filename_lower:
+            return "SG"
 
-        return 'ALL'
+        return "ALL"
 
-    def _detect_jurisdiction_from_sources(
-        self,
-        sources: List[Dict]
-    ) -> Optional[str]:
+    def _detect_jurisdiction_from_sources(self, sources: List[Dict]) -> Optional[str]:
         """
         Detect jurisdiction from source documents.
 
@@ -263,16 +260,16 @@ INSTRUCTIONS:
         Returns:
             'MY', 'SG', 'BOTH', or None
         """
-        jurisdictions = set(s.get('jurisdiction') for s in sources)
-        jurisdictions.discard('ALL')
+        jurisdictions = set(s.get("jurisdiction") for s in sources)
+        jurisdictions.discard("ALL")
         jurisdictions.discard(None)
 
-        if 'MY' in jurisdictions and 'SG' in jurisdictions:
-            return 'BOTH'
-        elif 'MY' in jurisdictions:
-            return 'MY'
-        elif 'SG' in jurisdictions:
-            return 'SG'
+        if "MY" in jurisdictions and "SG" in jurisdictions:
+            return "BOTH"
+        elif "MY" in jurisdictions:
+            return "MY"
+        elif "SG" in jurisdictions:
+            return "SG"
 
         return None
 
@@ -298,64 +295,103 @@ INSTRUCTIONS:
         """
         info = {
             AgentType.MAIN_HR: {
-                'name': 'Chief HR Intelligence Officer',
-                'role': 'Orchestrator & Expert',
-                'capabilities': [
-                    'Multi-jurisdictional expertise (MY/SG)',
-                    'Employment law interpretation',
-                    'Statutory knowledge',
-                    'Query routing',
+                "name": "Chief HR Intelligence Officer",
+                "role": "Orchestrator & Expert",
+                "capabilities": [
+                    "Multi-jurisdictional expertise (MY/SG)",
+                    "Employment law interpretation",
+                    "Statutory knowledge",
+                    "Query routing",
                 ],
-                'icon': 'Bot',
-                'color': 'derivhr',
+                "icon": "Bot",
+                "color": "derivhr",
             },
             AgentType.POLICY_RESEARCH: {
-                'name': 'Policy Research Specialist',
-                'role': 'Deep Policy Analysis',
-                'capabilities': [
-                    'Policy interpretation',
-                    'Cross-document analysis',
-                    'MY vs SG comparison',
-                    'Gap identification',
+                "name": "Policy Research Specialist",
+                "role": "Deep Policy Analysis",
+                "capabilities": [
+                    "Policy interpretation",
+                    "Cross-document analysis",
+                    "MY vs SG comparison",
+                    "Gap identification",
                 ],
-                'icon': 'BookOpen',
-                'color': 'blue',
+                "icon": "BookOpen",
+                "color": "blue",
             },
             AgentType.COMPLIANCE: {
-                'name': 'Compliance Officer',
-                'role': 'Statutory & Regulatory',
-                'capabilities': [
-                    'EPF/SOCSO/CPF calculations',
-                    'Overtime calculations',
-                    'Visa status checks',
-                    'Risk assessment',
+                "name": "Compliance Officer",
+                "role": "Statutory & Regulatory",
+                "capabilities": [
+                    "EPF/SOCSO/CPF calculations",
+                    "Overtime calculations",
+                    "Visa status checks",
+                    "Risk assessment",
                 ],
-                'icon': 'ShieldCheck',
-                'color': 'amber',
+                "icon": "ShieldCheck",
+                "color": "amber",
             },
             AgentType.DOCUMENT: {
-                'name': 'Document Specialist',
-                'role': 'Forms & Contracts',
-                'capabilities': [
-                    'Contract generation',
-                    'Document checklists',
-                    'Form guidance',
-                    'Submission tracking',
+                "name": "Document Specialist",
+                "role": "Forms & Contracts",
+                "capabilities": [
+                    "Contract generation",
+                    "Document checklists",
+                    "Form guidance",
+                    "Submission tracking",
                 ],
-                'icon': 'FileText',
-                'color': 'violet',
+                "icon": "FileText",
+                "color": "violet",
             },
             AgentType.EMPLOYEE_SUPPORT: {
-                'name': 'Employee Support',
-                'role': 'Day-to-Day Assistance',
-                'capabilities': [
-                    'Leave queries',
-                    'Onboarding assistance',
-                    'Benefits explanation',
-                    'General HR support',
+                "name": "Employee Support",
+                "role": "Day-to-Day Assistance",
+                "capabilities": [
+                    "Leave queries",
+                    "Onboarding assistance",
+                    "Benefits explanation",
+                    "General HR support",
                 ],
-                'icon': 'HeartHandshake',
-                'color': 'emerald',
+                "icon": "HeartHandshake",
+                "color": "emerald",
+            },
+            AgentType.ONBOARDING: {
+                "name": "Onboarding Specialist",
+                "role": "New Hire Onboarding Guide",
+                "capabilities": [
+                    "Guide through onboarding steps",
+                    "Track onboarding progress",
+                    "Explain required documents",
+                    "Provide task checklists",
+                    "Answer onboarding questions",
+                ],
+                "icon": "UserPlus",
+                "color": "indigo",
+            },
+            AgentType.TRAINING: {
+                "name": "Training Specialist",
+                "role": "Learning & Development Guide",
+                "capabilities": [
+                    "Explain training modules",
+                    "Track training progress",
+                    "Provide learning tips",
+                    "Mandatory vs. optional training",
+                    "Answer training questions",
+                ],
+                "icon": "GraduationCap",
+                "color": "purple",
+            },
+            AgentType.NEW_EMPLOYEE: {
+                "name": "New Hire Guide",
+                "role": "First Day Welcome & Support",
+                "capabilities": [
+                    "Welcome new employees",
+                    "Explain company culture",
+                    "Guide through first day tasks",
+                    "Answer new hire questions",
+                    "Team introduction support",
+                ],
+                "icon": "Sparkles",
+                "color": "amber",
             },
         }
 
