@@ -12,6 +12,11 @@ _BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+import logging 
+
+logger = logging.getLogger(__name__)
+
+
 
 
 
@@ -338,32 +343,49 @@ def store_contract_json():
 
 @bp.route("/employee-docs-status/<employee_id>", methods=["GET"])
 def employee_docs_status(employee_id):
-    """Check which onboarding document files exist in TEMP_DIR for a given employee."""
+    """
+    Check which onboarding document files exist in TEMP_DIR for a given employee.
+    Properly resolves temp_data directory relative to backend root.
+    """
     def _check(path: Path) -> dict:
-        if path.exists():
+        if path.exists() and path.is_file():
             try:
                 d = json.loads(path.read_text(encoding="utf-8"))
-                return {"exists": True, "signed_at": d.get("consent_confirmed_at") or d.get("completedAt")}
-            except Exception:
-                return {"exists": True, "signed_at": None}
-        return {"exists": False, "signed_at": None}
+                return {
+                    "exists": True, 
+                    "signed_at": d.get("consent_confirmed_at") or d.get("completedAt") or d.get("created_at"),
+                    "status": d.get("status", "unknown")
+                }
+            except Exception as e:
+                current_app.logger.warning(f"Error reading {path}: {e}")
+                return {"exists": True, "signed_at": None, "status": "error"}
+        return {"exists": False, "signed_at": None, "status": "not_found"}
 
     app_status = _check(TEMP_DIR / f"{employee_id}_app_comprehensive.json")
     if not app_status["exists"]:
         app_status = _check(TEMP_DIR / f"{employee_id}.json")
 
-    return jsonify({
+    response = {
         "application": app_status,
-        "offer":       _check(TEMP_DIR / f"{employee_id}_offer_acceptance.json"),
-        "contract":    _check(TEMP_DIR / f"{employee_id}_contract.json"),
-    })
+        "offer": _check(TEMP_DIR / f"{employee_id}_offer_acceptance.json"),
+        "contract": _check(TEMP_DIR / f"{employee_id}_contract.json"),
+        "temp_dir": str(TEMP_DIR),  # For debugging
+    }
+    
+    current_app.logger.info(f"Doc status for {employee_id}: {response}")
+    return jsonify(response)
 
 
 @bp.route("/download-contract-json/<employee_id>", methods=["GET"])
 def download_contract_json(employee_id):
     """Serve the signed contract JSON file from TEMP_DIR as a download."""
     from flask import send_file
+    _BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    
     path = TEMP_DIR / f"{employee_id}_contract.json"
+    logger.info(path)
     if not path.exists():
         return jsonify({"status": "error", "message": "Signed contract not found"}), 404
     return send_file(
@@ -372,3 +394,134 @@ def download_contract_json(employee_id):
         download_name=f"contract_{employee_id}.json",
         mimetype="application/json"
     )
+
+
+
+@bp.route("/download-contract-pdf/<employee_id>", methods=["GET"])
+def download_contract_pdf(employee_id):
+    """Serve the signed contract JSON file from TEMP_DIR as a download."""
+    from flask import send_file
+    _BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    
+    path = TEMP_DIR / f"{employee_id}_contract.pdf"
+    logger.info(path)
+    if not path.exists():
+        return jsonify({"status": "error", "message": "Signed contract not found"}), 404
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=f"contract_{employee_id}.pdf",
+        mimetype="application/pdf"
+    )
+
+
+@bp.route("/get-contract-preview/<employee_id>", methods=["GET"])
+def get_contract_preview(employee_id):
+    """
+    Get contract preview data by combining contract.schema.json template with user data from Supabase.
+    Returns populated contract data for preview before signing.
+    """
+    try:
+        _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+        TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
+        TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        # Load contract schema
+        schema_path = _BASE_DIR / "docs" / "contract.schema.json"
+        logger.info(schema_path)
+        if not schema_path.exists():
+            return jsonify({"status": "error", "message": "Contract schema not found"}), 404
+        
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+        
+        # Fetch user data from Supabase
+        db = get_db()
+        user_result = db.table("users").select("*").eq("id", employee_id).execute()
+        
+        if not user_result.data:
+            return jsonify({"status": "error", "message": "User not found"}), 404
+        
+        user = user_result.data[0]
+        
+        # Build full name
+        full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        if not full_name:
+            full_name = user.get('full_name', '')
+        
+        # Determine jurisdiction
+        nationality = (user.get("nationality") or "").lower()
+        jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality else "MY"
+        
+        # Import jurisdiction defaults
+        from app.document_generator import _get_jurisdiction_defaults
+        defaults = _get_jurisdiction_defaults(jurisdiction)
+        
+        # Populate contract data from user + schema
+        contract_data = {
+            # Personal Details
+            "fullName": full_name,
+            "nric": user.get("nric", ""),
+            "nationality": user.get("nationality", ""),
+            "dateOfBirth": user.get("date_of_birth", ""),
+            
+            # Banking
+            "bankName": user.get("bank_name", ""),
+            "accountHolder": user.get("bank_account_holder") or full_name,
+            "accountNumber": user.get("bank_account_number", ""),
+            
+            # Employment
+            "position": user.get("position_title") or user.get("role", ""),
+            "department": user.get("department", ""),
+            "startDate": user.get("start_date", ""),
+            "employmentType": "Full-Time Permanent",
+            
+            # Company & Jurisdiction
+            "company": defaults["company_name"],
+            "jurisdiction": jurisdiction,
+            "companyReg": defaults["company_reg"],
+            "companyAddress": defaults["company_address"],
+            
+            # Terms
+            "probationMonths": defaults["probation_months"],
+            "workHours": defaults["work_hours"],
+            "overtimeRate": defaults["overtime_rate"],
+            "noticePeriod": defaults["notice_period"],
+            "governingLaw": defaults["governing_law"],
+            
+            # Leave
+            "leaveAnnual": defaults["leave_annual"],
+            "leaveSick": defaults["leave_sick"],
+            "leaveHospitalization": defaults["leave_hospitalization"],
+            "leaveMaternity": defaults["leave_maternity"],
+            "leavePaternity": defaults["leave_paternity"],
+            
+            # Contributions & Benefits
+            "statutoryContributions": defaults["statutory_contributions"],
+            "medicalCoverage": defaults["medical_coverage"],
+            "currency": defaults["currency"],
+            
+            # Schema reference
+            "schema": schema,
+            
+            # Status
+            "status": "preview",
+            "previewedAt": datetime.now(timezone.utc).isoformat()
+        }
+        
+        return jsonify({
+            "status": "ok",
+            "contractData": contract_data,
+            "canSign": all([
+                full_name,
+                user.get("nric"),
+                user.get("nationality"),
+                user.get("bank_name"),
+                user.get("bank_account_number"),
+            ])
+        })
+        
+    except Exception as e:
+        current_app.logger.exception("Error in get_contract_preview")
+        return jsonify({"status": "error", "message": str(e)}), 500

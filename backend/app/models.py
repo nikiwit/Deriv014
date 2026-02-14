@@ -232,3 +232,66 @@ class OnboardingChecklist:
         if self.total_items == 0:
             return 0.0
         return round((self.completed_items / self.total_items) * 100, 1)
+
+
+class DocumentType(Enum):
+    CONTRACT = "contract"
+    PASSPORT = "passport"
+    VISA = "visa"
+    EMPLOYMENT_PASS = "employment_pass"
+    WORK_PERMIT = "work_permit"
+
+
+class DocumentExpiryStatus(Enum):
+    VALID = "valid"
+    EXPIRING_30 = "expiring_30"
+    EXPIRING_60 = "expiring_60"
+    EXPIRING_90 = "expiring_90"
+    EXPIRED = "expired"
+
+
+@dataclass
+class EmployeeDocument:
+    id: str
+    employee_id: str
+    document_type: str
+    expiry_date: str
+    document_number: str = ""
+    issue_date: str = ""
+    status: str = "valid"
+    jurisdiction: str = ""
+    issuing_authority: str = ""
+    notes: str = ""
+    renewed_at: Optional[str] = None
+    previous_document_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EmployeeDocument":
+        required = ["employee_id", "document_type", "expiry_date"]
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            raise ValueError(f"Missing required fields: {', '.join(missing)}")
+
+        doc_type = data.get("document_type", "")
+        valid_types = [t.value for t in DocumentType]
+        if doc_type not in valid_types:
+            raise ValueError(f"Invalid document_type. Must be one of: {valid_types}")
+
+        return cls(
+            id=data.get("id", ""),
+            employee_id=data["employee_id"],
+            document_type=doc_type,
+            document_number=data.get("document_number", ""),
+            issue_date=data.get("issue_date", ""),
+            expiry_date=data["expiry_date"],
+            status=data.get("status", "valid"),
+            jurisdiction=data.get("jurisdiction", ""),
+            issuing_authority=data.get("issuing_authority", ""),
+            notes=data.get("notes", ""),
+            renewed_at=data.get("renewed_at"),
+            previous_document_id=data.get("previous_document_id"),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+        )
