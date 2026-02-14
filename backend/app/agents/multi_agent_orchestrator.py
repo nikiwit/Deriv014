@@ -206,7 +206,7 @@ class MultiAgentOrchestrator:
             "agentix_agent",
             "setup_reminders",
             {
-                "employee_id": response.data.get("offer", {}).get("employee_id"),
+                "employee_id": response.payload.get("offer", {}).get("employee_id"),
                 "type": "onboarding",
             },
             context,
@@ -216,7 +216,7 @@ class MultiAgentOrchestrator:
         return WorkflowResult(
             success=len(errors) == 0,
             workflow_type=WorkflowType.ONBOARDING,
-            data=response.data,
+            data=response.payload,
             cross_checks=cross_checks,
             errors=errors,
             warnings=warnings,
@@ -275,7 +275,7 @@ class MultiAgentOrchestrator:
         agents_involved.append("onboarding_agent")
 
         if doc_response.success:
-            context.set("documents", doc_response.data.get("documents", []))
+            context.set("documents", doc_response.payload.get("documents", []))
 
         training_response = self.dispatch_to_agent(
             "training_agent",
@@ -286,7 +286,7 @@ class MultiAgentOrchestrator:
         agents_involved.append("training_agent")
 
         if training_response.success:
-            context.set("training_schedule", training_response.data)
+            context.set("training_schedule", training_response.payload)
 
         reminder_response = self.dispatch_to_agent(
             "agentix_agent",
@@ -304,10 +304,12 @@ class MultiAgentOrchestrator:
             success=len(errors) == 0,
             workflow_type=WorkflowType.OFFER_ACCEPTANCE,
             data={
-                "acceptance": response.data,
-                "documents": doc_response.data if doc_response.success else {},
-                "training": training_response.data if training_response.success else {},
-                "reminders": reminder_response.data
+                "acceptance": response.payload,
+                "documents": doc_response.payload if doc_response.success else {},
+                "training": training_response.payload
+                if training_response.success
+                else {},
+                "reminders": reminder_response.payload
                 if reminder_response.success
                 else {},
                 "employee_portal_url": f"/employee/portal/{employee_id}",
@@ -368,8 +370,8 @@ class MultiAgentOrchestrator:
             success=len(errors) == 0,
             workflow_type=WorkflowType.OFFER_REJECTION,
             data={
-                "rejection": response.data if response.success else {},
-                "alert": alert_response.data if alert_response.success else {},
+                "rejection": response.payload if response.success else {},
+                "alert": alert_response.payload if alert_response.success else {},
                 "hr_notified": True,
             },
             errors=errors,
@@ -408,7 +410,7 @@ class MultiAgentOrchestrator:
         return WorkflowResult(
             success=response.success and len(errors) == 0,
             workflow_type=WorkflowType.CALCULATION,
-            data=response.data if response.success else {},
+            data=response.payload if response.success else {},
             cross_checks=cross_checks,
             errors=errors + response.errors,
             agents_involved=agents_involved,
@@ -461,7 +463,7 @@ class MultiAgentOrchestrator:
         return WorkflowResult(
             success=response.success,
             workflow_type=WorkflowType.QUERY,
-            data=response.data if response.success else {},
+            data=response.payload if response.success else {},
             errors=response.errors,
             agents_involved=[target_agent],
         )
@@ -474,7 +476,7 @@ class MultiAgentOrchestrator:
             {"task_types": ["onboarding", "documents", "training"]},
         )
 
-        return response.data if response.success else {}
+        return response.payload if response.success else {}
 
     def run_daily_checks(self) -> Dict[str, Any]:
         """Run daily checks for pending items and send reminders."""

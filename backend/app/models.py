@@ -34,8 +34,10 @@ class ContractParams:
     start_date: str = ""
     salary: float = 0.0
     nric: str = ""
+    passport_no: str = ""
     employee_address: str = ""
     employee_id: str = ""
+    document_type: str = "employment_contract"
 
     @classmethod
     def from_dict(cls, data: dict) -> "ContractParams":
@@ -52,8 +54,10 @@ class ContractParams:
             start_date=data.get("start_date") or date.today().isoformat(),
             salary=float(data["salary"]) if data.get("salary") else 0.0,
             nric=data.get("nric", ""),
+            passport_no=data.get("passport_no", ""),
             employee_address=data.get("employee_address", ""),
             employee_id=data.get("employee_id", ""),
+            document_type=data.get("document_type", "employment_contract"),
         )
 
 

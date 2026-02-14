@@ -824,3 +824,182 @@ def get_onboarding_training():
             "errors": response.errors,
         }
     ), 200 if response.success else 400
+
+
+@bp.route("/employee/<employee_id>/tasks", methods=["GET"])
+def get_employee_tasks(employee_id):
+    """Get onboarding task progress for an employee."""
+    db = get_db()
+
+    # Get employee
+    emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
+    if not emp_resp.data:
+        return jsonify({"error": "Employee not found"}), 404
+
+    # Get task progress from onboarding_states
+    state_resp = (
+        db.table("onboarding_states")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    onboarding_state = state_resp.data[0] if state_resp.data else {}
+
+    # Build tasks list
+    doc_tasks = [
+        {
+            "id": "doc_identity",
+            "title": "Upload Identity Document",
+            "status": "completed"
+            if onboarding_state.get("documents_generated_at")
+            else "available",
+        },
+        {
+            "id": "doc_offer",
+            "title": "Accept Offer Letter",
+            "status": "completed"
+            if onboarding_state.get("offer_response") == "accepted"
+            else "available",
+        },
+        {
+            "id": "doc_contract",
+            "title": "Sign Employment Contract",
+            "status": "available",
+        },
+        {
+            "id": "doc_tax",
+            "title": "Complete Tax Forms (EA/PCB)",
+            "status": "available",
+        },
+        {"id": "doc_bank", "title": "Submit Bank Details", "status": "available"},
+    ]
+
+    comp_tasks = [
+        {
+            "id": "comp_pdpa",
+            "title": "Acknowledge Data Protection Policy",
+            "status": "available",
+        },
+        {
+            "id": "comp_harassment",
+            "title": "Complete Anti-Harassment Training",
+            "status": "available",
+        },
+        {
+            "id": "comp_safety",
+            "title": "Health & Safety Briefing",
+            "status": "available",
+        },
+    ]
+
+    it_tasks = [
+        {
+            "id": "it_policy",
+            "title": "Accept IT Acceptable Use Policy",
+            "status": "available",
+        },
+        {
+            "id": "it_2fa",
+            "title": "Setup Two-Factor Authentication",
+            "status": "available",
+        },
+        {"id": "it_email", "title": "Configure Email & Slack", "status": "available"},
+    ]
+
+    train_tasks = [
+        {
+            "id": "train_overview",
+            "title": "Watch Company Overview Video",
+            "status": "available",
+        },
+        {
+            "id": "train_role",
+            "title": "Complete Role-Specific Training",
+            "status": "available",
+        },
+    ]
+
+    culture_tasks = [
+        {
+            "id": "culture_slack",
+            "title": "Join Interest Groups on Slack",
+            "status": "available",
+        },
+        {
+            "id": "culture_buddy",
+            "title": "Schedule Coffee Chat with Mentor",
+            "status": "available",
+        },
+        {
+            "id": "culture_profile",
+            "title": "Complete Your Profile",
+            "status": "available",
+        },
+    ]
+
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "tasks": {
+                "documentation": doc_tasks,
+                "compliance": comp_tasks,
+                "it_setup": it_tasks,
+                "training": train_tasks,
+                "culture": culture_tasks,
+            },
+        }
+    ), 200
+
+
+@bp.route("/employee/<employee_id>/tasks/<task_id>", methods=["POST"])
+def update_employee_task(employee_id, task_id):
+    """Update a specific onboarding task."""
+    data = request.get_json() or {}
+    new_status = data.get("status", "completed")
+
+    db = get_db()
+
+    # Get employee
+    emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
+    if not emp_resp.data:
+        return jsonify({"error": "Employee not found"}), 404
+
+    # Map task_id to database field
+    task_mapping = {
+        "doc_identity": "documents_generated_at",
+        "doc_offer": "offer_response",
+        "doc_contract": "forms_completed_at",
+        "comp_pdpa": "forms_completed_at",
+        "comp_harassment": "training_assigned_at",
+        "comp_safety": "training_assigned_at",
+        "it_policy": "forms_completed_at",
+        "it_2fa": "forms_completed_at",
+        "it_email": "forms_completed_at",
+        "train_overview": "training_assigned_at",
+        "train_role": "training_assigned_at",
+    }
+
+    field = task_mapping.get(task_id)
+    if not field:
+        return jsonify({"error": "Unknown task"}), 400
+
+    # Update onboarding state
+    update_data = {}
+    if new_status == "completed":
+        from datetime import datetime
+
+        update_data[field] = datetime.now().isoformat()
+
+    if update_data:
+        db.table("onboarding_states").update(update_data).eq(
+            "employee_id", employee_id
+        ).execute()
+
+    return jsonify(
+        {
+            "success": True,
+            "task_id": task_id,
+            "status": new_status,
+        }
+    ), 200

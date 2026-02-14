@@ -246,16 +246,18 @@ def init_app(app):
 
         except Exception as e:
             logger.exception("Gemini initialization or index build failed: %s", e)
-            raise RuntimeError(
-                "Both OpenAI and Gemini attempts failed. See logs for details. "
-                "If you have a working API key for either provider, ensure it's in app.config "
-                "as OPENAI_API_KEY or GEMINI_API_KEY and the corresponding connector is installed."
-            ) from e
+            # Don't crash the app - just disable AI features
+            logger.warning(
+                "AI features will be disabled. App will continue without RAG."
+            )
+            app.config["RAG_ENABLED"] = False
+            return
 
-    raise RuntimeError(
-        "RAG initialization failed: no working OPENAI_API_KEY and no GEMINI_API_KEY fallback succeeded. "
-        "Check your keys and connectors. See logs for details."
+    # Don't crash - just disable AI features
+    logger.warning(
+        "RAG initialization skipped - no valid API keys. App will continue without AI features."
     )
+    app.config["RAG_ENABLED"] = False
 
 
 def _is_auth_error(exc: Exception) -> bool:

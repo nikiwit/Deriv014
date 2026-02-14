@@ -23,7 +23,7 @@ export function resetRagSession(): void {
 }
 
 async function queryBackendRAG(
-  message: string
+  message: string,
 ): Promise<{ response: string; sources: any[]; session_id: string }> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -69,14 +69,18 @@ export const addToKnowledgeBase = (fileName: string, type: string) => {
 export const getRAGContext = (): string => {
   if (knowledgeBaseMemory.length === 0) return "";
   return `\n\nRELEVANT KNOWLEDGE BASE CONTEXT (RAG):\n${knowledgeBaseMemory.join(
-    "\n"
+    "\n",
   )}\nUse this context to answer user queries if relevant.\n`;
 };
 
 // ---------------------
 // Intent detection (M1, M2, M3) + Router
 // ---------------------
-export type Intent = "M1_POLICY_ENFORCE" | "M2_COMPLIANCE_MONITOR" | "M3_REGULATORY_FORECAST" | "DEFAULT";
+export type Intent =
+  | "M1_POLICY_ENFORCE"
+  | "M2_COMPLIANCE_MONITOR"
+  | "M3_REGULATORY_FORECAST"
+  | "DEFAULT";
 
 export const determineIntent = (query: string): Intent => {
   const normalize = (s: string) =>
@@ -123,41 +127,89 @@ export const determineIntent = (query: string): Intent => {
     /\b(policy|handbook|document|doc|section|clause)\b.*\b(explain|summarize|interpret|clarify)\b/,
     /\b(policy question\b|\binconsistent answer\b|\bpolicy clarification\b)/,
   ];
-  if (explainPolicyPatterns.some((rx) => rx.test(q))) return "M1_POLICY_ENFORCE";
+  if (explainPolicyPatterns.some((rx) => rx.test(q)))
+    return "M1_POLICY_ENFORCE";
 
   const m1Signals = [
-    "policy", "entitle", "entitlement", "leave", "benefit",
-    "policy question", "inconsistent answer", "eligibility",
-    "entitled to", "what am i entitled", "clarify policy",
-    "policy clarification", "handbook", "section", "clause",
+    "policy",
+    "entitle",
+    "entitlement",
+    "leave",
+    "benefit",
+    "policy question",
+    "inconsistent answer",
+    "eligibility",
+    "entitled to",
+    "what am i entitled",
+    "clarify policy",
+    "policy clarification",
+    "handbook",
+    "section",
+    "clause",
   ];
   if (m1Signals.some((s) => q.includes(s))) return "M1_POLICY_ENFORCE";
 
   const m2Signals = [
-    "missing", "bank", "tax", "epf", "socso", "compliance gap",
-    "verify", "onboarding", "candidate submission", "validate",
-    "validate bank", "validate tax", "missing doc", "missing document",
-    "documents required", "background check", "identity verification",
+    "missing",
+    "bank",
+    "tax",
+    "epf",
+    "socso",
+    "compliance gap",
+    "verify",
+    "onboarding",
+    "candidate submission",
+    "validate",
+    "validate bank",
+    "validate tax",
+    "missing doc",
+    "missing document",
+    "documents required",
+    "background check",
+    "identity verification",
     "validate nric",
   ];
   if (m2Signals.some((s) => q.includes(s))) return "M2_COMPLIANCE_MONITOR";
 
   const m3Signals = [
-    "visa", "immigration", "expiry", "renewal", "fraud", "suspicious",
-    "exposure", "regulatory", "ai act", "pay transparency", "visa expiry",
-    "immigration status", "work permit", "employment pass", "rejected",
-    "reject", "denied",
+    "visa",
+    "immigration",
+    "expiry",
+    "renewal",
+    "fraud",
+    "suspicious",
+    "exposure",
+    "regulatory",
+    "ai act",
+    "pay transparency",
+    "visa expiry",
+    "immigration status",
+    "work permit",
+    "employment pass",
+    "rejected",
+    "reject",
+    "denied",
   ];
   if (m3Signals.some((s) => q.includes(s))) return "M3_REGULATORY_FORECAST";
 
   if (q.length < 40) return "DEFAULT";
 
   const reasoningVerbs = [
-    "analyze", "evaluate", "compare", "justify", "assess",
-    "explain why", "break down", "step by step", "pros and cons",
-    "forecast", "predict", "flag",
+    "analyze",
+    "evaluate",
+    "compare",
+    "justify",
+    "assess",
+    "explain why",
+    "break down",
+    "step by step",
+    "pros and cons",
+    "forecast",
+    "predict",
+    "flag",
   ];
-  if (reasoningVerbs.some((v) => q.includes(v))) return "M3_REGULATORY_FORECAST";
+  if (reasoningVerbs.some((v) => q.includes(v)))
+    return "M3_REGULATORY_FORECAST";
 
   return "DEFAULT";
 };
@@ -166,12 +218,22 @@ export const determineModelRouting = (query: string): "local" | "premium" => {
   const intent = determineIntent(query);
 
   if (intent === "M1_POLICY_ENFORCE") return "local";
-  if (intent === "M2_COMPLIANCE_MONITOR" || intent === "M3_REGULATORY_FORECAST") return "premium";
+  if (intent === "M2_COMPLIANCE_MONITOR" || intent === "M3_REGULATORY_FORECAST")
+    return "premium";
 
   const q = query.trim().toLowerCase();
   if (q.length < 40) return "local";
 
-  const reasoningVerbs = ["analyze", "evaluate", "compare", "assess", "explain", "forecast", "predict", "flag"];
+  const reasoningVerbs = [
+    "analyze",
+    "evaluate",
+    "compare",
+    "assess",
+    "explain",
+    "forecast",
+    "predict",
+    "flag",
+  ];
   if (reasoningVerbs.some((v) => q.includes(v))) return "premium";
 
   return "local";
@@ -180,11 +242,16 @@ export const determineModelRouting = (query: string): "local" | "premium" => {
 // ---------------------
 // Utilities
 // ---------------------
-export async function loadProfilesFromTxt(path = "./docs/profiles.txt"): Promise<string[]> {
+export async function loadProfilesFromTxt(
+  path = "./docs/profiles.txt",
+): Promise<string[]> {
   try {
     const res = await fetch(path);
     const raw = await res.text();
-    const blocks = raw.split(/\n-{3,}\n|(?:\r?\n){2,}/).map((b) => b.trim()).filter(Boolean);
+    const blocks = raw
+      .split(/\n-{3,}\n|(?:\r?\n){2,}/)
+      .map((b) => b.trim())
+      .filter(Boolean);
     return blocks;
   } catch (err) {
     console.warn(`Could not read profiles from ${path}:`, err);
@@ -200,7 +267,13 @@ function canonicalPolicyAnswer(query: string, ragContext: string): string {
   const lower = query.toLowerCase();
   const matches = knowledgeBaseMemory.filter((line) => {
     const l = line.toLowerCase();
-    return ["remote work", "2-factor", "learning allowance", "mental health", "remote"].some((k) => l.includes(k) && lower.includes(k));
+    return [
+      "remote work",
+      "2-factor",
+      "learning allowance",
+      "mental health",
+      "remote",
+    ].some((k) => l.includes(k) && lower.includes(k));
   });
 
   if (matches.length) {
@@ -210,15 +283,23 @@ function canonicalPolicyAnswer(query: string, ragContext: string): string {
   return `Canonical policy response (full KB):\n\n${knowledgeBaseMemory.join("\n\n")}`;
 }
 
-function detectComplianceGapsFromCandidate(candidate: CandidateProfile): string[] {
+function detectComplianceGapsFromCandidate(
+  candidate: CandidateProfile,
+): string[] {
   const gaps: string[] = [];
-  if (!candidate.bankAccount || candidate.bankAccount.length < 8) gaps.push("Bank account: missing or seems too short");
+  if (!candidate.bankAccount || candidate.bankAccount.length < 8)
+    gaps.push("Bank account: missing or seems too short");
   if (!candidate.taxId) gaps.push("Tax ID: missing");
   if (!candidate.epf) gaps.push("EPF: missing");
-  if (!candidate.nric && candidate.nationality === "Malaysian") gaps.push("NRIC: missing for Malaysian national");
+  if (!candidate.nric && candidate.nationality === "Malaysian")
+    gaps.push("NRIC: missing for Malaysian national");
   if (!candidate.nationality) gaps.push("Nationality: missing");
   if (!candidate.emergencyContact) gaps.push("Emergency contact: missing");
-  if (candidate.emergencyContact && candidate.emergencyContact === candidate.name) gaps.push("Emergency contact identical to candidate");
+  if (
+    candidate.emergencyContact &&
+    candidate.emergencyContact === candidate.name
+  )
+    gaps.push("Emergency contact identical to candidate");
   return gaps;
 }
 
@@ -231,147 +312,183 @@ function detectComplianceGapsFromCandidate(candidate: CandidateProfile): string[
  * Routes queries to backend RAG for HR knowledge base responses.
  */
 export const generateWithRetry = async (
-    content: any, 
-    geminiConfig?: { preferredModels?: string[], model?: string, config?: any },
-    openRouterConfig?: { preferredModels?: string[] }
+  content: any,
+  geminiConfig?: { preferredModels?: string[]; model?: string; config?: any },
+  openRouterConfig?: { preferredModels?: string[] },
 ): Promise<{ text: string; modelUsed: string }> => {
-    // Extract user query from content
-    let userQuery = "";
-    if (typeof content === 'string') {
-        userQuery = content;
-    } else if (Array.isArray(content)) {
-        const lastUserMsg = content.filter((c: any) => c.role === 'user').pop();
-        if (lastUserMsg && lastUserMsg.parts && lastUserMsg.parts[0]) {
-            userQuery = lastUserMsg.parts[0].text;
-        }
+  // Extract user query from content
+  let userQuery = "";
+  if (typeof content === "string") {
+    userQuery = content;
+  } else if (Array.isArray(content)) {
+    const lastUserMsg = content.filter((c: any) => c.role === "user").pop();
+    if (lastUserMsg && lastUserMsg.parts && lastUserMsg.parts[0]) {
+      userQuery = lastUserMsg.parts[0].text;
     }
-    
-    if (!userQuery) {
-        throw new Error("No user query found in content");
-    }
-    
-    // Try 1: Backend RAG
+  }
+
+  if (!userQuery) {
+    throw new Error("No user query found in content");
+  }
+
+  // Try 1: Backend RAG
+  try {
+    const ragResult = await queryBackendRAG(userQuery);
+    const sourceCitation = ragResult.sources?.length
+      ? `\n\n_Sources: ${ragResult.sources.map((s: any) => `${s.file} (${s.jurisdiction})`).join(", ")}_`
+      : "";
+    return {
+      text: (ragResult.response || "") + sourceCitation,
+      modelUsed: "RAG-Backend",
+    };
+  } catch (ragErr) {
+    console.warn("Backend RAG failed, falling back to OpenRouter:", ragErr);
+  }
+
+  // Try 2: OpenRouter API
+  // @ts-ignore - Vite injects env vars at build time
+  const openRouterKey = import.meta.env?.VITE_OPENROUTER_API_KEY;
+
+  if (openRouterKey) {
     try {
-        const ragResult = await queryBackendRAG(userQuery);
-        const sourceCitation = ragResult.sources?.length
-            ? `\n\n_Sources: ${ragResult.sources.map((s: any) => `${s.file} (${s.jurisdiction})`).join(", ")}_`
-            : "";
-        return {
-            text: (ragResult.response || "") + sourceCitation,
-            modelUsed: "RAG-Backend"
-        };
-    } catch (ragErr) {
-        console.warn("Backend RAG failed, falling back to OpenRouter:", ragErr);
+      const model =
+        openRouterConfig?.preferredModels?.[0] || "deepseek/deepseek-chat";
+      const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openRouterKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer":
+              typeof window !== "undefined"
+                ? window.location.origin
+                : "http://localhost",
+            "X-Title": "DerivHR",
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: "You are a helpful HR assistant for DerivHR.",
+              },
+              { role: "user", content: userQuery },
+            ],
+            temperature: 0.7,
+            max_tokens: 2000,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text =
+        data.choices?.[0]?.message?.content || "No response from OpenRouter";
+
+      return {
+        text,
+        modelUsed: `OpenRouter-${model}`,
+      };
+    } catch (orErr) {
+      console.warn("OpenRouter API failed, falling back to Gemini:", orErr);
     }
-    
-    // Try 2: OpenRouter API
-    // @ts-ignore - Vite injects env vars at build time
-    const openRouterKey = import.meta.env?.VITE_OPENROUTER_API_KEY;
-    
-    if (openRouterKey) {
-        try {
-            const model = openRouterConfig?.preferredModels?.[0] || "deepseek/deepseek-chat";
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${openRouterKey}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
-                    "X-Title": "DerivHR"
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        { role: "system", content: "You are a helpful HR assistant for DerivHR." },
-                        { role: "user", content: userQuery }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: 2000
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`OpenRouter API error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const text = data.choices?.[0]?.message?.content || "No response from OpenRouter";
-            
-            return {
-                text,
-                modelUsed: `OpenRouter-${model}`
-            };
-        } catch (orErr) {
-            console.warn("OpenRouter API failed, falling back to Gemini:", orErr);
-        }
+  }
+
+  // Try 3: Gemini API
+  // @ts-ignore - Vite injects env vars at build time
+  const geminiKey =
+    import.meta.env?.VITE_GEMINI_API_KEY ||
+    // @ts-ignore
+    import.meta.env?.GEMINI_API_KEY ||
+    // @ts-ignore
+    import.meta.env?.API_KEY;
+
+  if (geminiKey) {
+    try {
+      const model = geminiConfig?.model || "gemini-1.5-flash";
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: userQuery }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 2000,
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "No response from Gemini";
+
+      return {
+        text,
+        modelUsed: `Gemini-${model}`,
+      };
+    } catch (gemErr) {
+      console.error("Gemini API failed:", gemErr);
     }
-    
-    // Try 3: Gemini API
-    // @ts-ignore - Vite injects env vars at build time
-    const geminiKey = import.meta.env?.VITE_GEMINI_API_KEY || 
-                      // @ts-ignore
-                      import.meta.env?.GEMINI_API_KEY ||
-                      // @ts-ignore
-                      import.meta.env?.API_KEY;
-    
-    if (geminiKey) {
-        try {
-            const model = geminiConfig?.model || "gemini-1.5-flash";
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{ text: userQuery }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: 2000
-                        }
-                    })
-                }
-            );
-            
-            if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from Gemini";
-            
-            return {
-                text,
-                modelUsed: `Gemini-${model}`
-            };
-        } catch (gemErr) {
-            console.error("Gemini API failed:", gemErr);
-        }
-    }
-    
-    throw new Error("All AI services failed. Please check your API keys and internet connection.");
-}
+  }
+
+  throw new Error(
+    "All AI services failed. Please check your API keys and internet connection.",
+  );
+};
 
 /**
  * Specialized chat function for the Employee Assistant.
  */
 export const chatWithEmployeeAgent = async (
   query: string,
-  systemPrompt: string
+  systemPrompt: string,
 ): Promise<{ response: string; modelUsed: string }> => {
   try {
     let context = systemPrompt;
-    if (query.toLowerCase().includes('job') || query.toLowerCase().includes('role') || query.toLowerCase().includes('benefit')) {
-      context += "\n\nREFER TO JOB DESCRIPTION (JD) STANDARDS:\n- Full Stack Developer: RM 5.5k-8.5k, Hybrid (3/2), Engineering Lead reporting.\n- DevOps: RM 6.5k-10k, Hybrid (2/3).\n- Benefits: RM 50k Medical, RM 1.5k L&D, 2-month Bonus cap.";
+    if (
+      query.toLowerCase().includes("job") ||
+      query.toLowerCase().includes("role") ||
+      query.toLowerCase().includes("benefit")
+    ) {
+      context +=
+        "\n\nREFER TO JOB DESCRIPTION (JD) STANDARDS:\n- Full Stack Developer: RM 5.5k-8.5k, Hybrid (3/2), Engineering Lead reporting.\n- DevOps: RM 6.5k-10k, Hybrid (2/3).\n- Benefits: RM 50k Medical, RM 1.5k L&D, 2-month Bonus cap.";
     }
 
     const { text } = await generateWithRetry(
       `${context}\n\nUser Question: ${query}\n\nAnswer concisely.`,
-      { preferredModels: ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"] },
-      { preferredModels: ["deepseek/deepseek-chat", "google/nemotron-3-8b-base"] }
+      {
+        preferredModels: [
+          "gemini-2.5-pro",
+          "gemini-1.5-pro",
+          "gemini-2.5-flash",
+          "gemini-2.0-flash",
+          "gemini-1.5-flash",
+        ],
+      },
+      {
+        preferredModels: [
+          "deepseek/deepseek-chat",
+          "google/nemotron-3-8b-base",
+        ],
+      },
     );
     return { response: text, modelUsed: "Employee Agent" };
   } catch (error) {
@@ -385,7 +502,7 @@ export const chatWithEmployeeAgent = async (
 // ---------------------
 export const chatWithAgent = async (
   query: string,
-  agent: AgentConfig
+  agent: AgentConfig,
 ): Promise<{ response: string; modelUsed: string }> => {
   let systemInstruction = agent.systemPrompt || "You are a helpful assistant.";
   systemInstruction += getRAGContext();
@@ -395,7 +512,10 @@ export const chatWithAgent = async (
 
   try {
     // Local-first: query backend RAG
-    if (agent.modelPreference === "local" || (routing === "local" && agent.modelPreference !== "premium")) {
+    if (
+      agent.modelPreference === "local" ||
+      (routing === "local" && agent.modelPreference !== "premium")
+    ) {
       try {
         const ragResult = await queryBackendRAG(query);
         const sourceCitation = ragResult.sources?.length
@@ -403,7 +523,7 @@ export const chatWithAgent = async (
           : "";
         return {
           response: (ragResult.response || "") + sourceCitation,
-          modelUsed: "RAG-Local"
+          modelUsed: "RAG-Local",
         };
       } catch (err) {
         console.warn("Backend RAG unavailable, falling back to OpenAI:", err);
@@ -479,7 +599,7 @@ INSTRUCTIONS:
     console.error("Agent Chat Error:", error);
     return {
       response: `Error connecting to the intelligence engine: ${String(error)}`,
-      modelUsed: "Error"
+      modelUsed: "Error",
     };
   }
 };
@@ -487,7 +607,9 @@ INSTRUCTIONS:
 // ---------------------
 // Contract Generation
 // ---------------------
-export const generateComplexContract = async (details: string): Promise<string> => {
+export const generateComplexContract = async (
+  details: string,
+): Promise<string> => {
   try {
     const { text } = await generateWithRetry(`
 You are an advanced Global Legal AI Expert specializing in International Employment Law.
@@ -511,7 +633,9 @@ STRICT REQUIREMENTS:
 // ---------------------
 // Strategic Insights
 // ---------------------
-export const generateStrategicInsights = async (marketData: string): Promise<string> => {
+export const generateStrategicInsights = async (
+  marketData: string,
+): Promise<string> => {
   try {
     const { text } = await generateWithRetry(`
 Analyze the following workforce data and provided market trends in the context of the Global Job Market (with APAC/US/EU focus):
@@ -586,7 +710,9 @@ function validateOnboardingData(data: OnboardingData) {
   return { ok: errors.length === 0, errors };
 }
 
-export const analyzeOnboarding = async (data: OnboardingData): Promise<string> => {
+export const analyzeOnboarding = async (
+  data: OnboardingData,
+): Promise<string> => {
   try {
     const { ok, errors } = validateOnboardingData(data);
     if (!ok) {
@@ -647,7 +773,10 @@ STRICT FORMATTING:
     const { text } = await generateWithRetry(prompt);
     return text;
   } catch (error) {
-    if (error instanceof Error && error.message?.startsWith("Validation failed")) {
+    if (
+      error instanceof Error &&
+      error.message?.startsWith("Validation failed")
+    ) {
       throw error;
     }
     console.error("analyzeOnboarding error:", error);
@@ -658,49 +787,37 @@ STRICT FORMATTING:
 // ---------------------
 // Resume Parsing (Vision)
 // ---------------------
-export const parseResume = async (file: File): Promise<Partial<OnboardingData>> => {
+export const parseResume = async (
+  file: File,
+): Promise<Partial<OnboardingData>> => {
+  const formData = new FormData();
+  formData.append("file", file);
+
   try {
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
+    // Call the backend proxy which holds the secure API key
+    const res = await fetch("/api/onboarding/parse-resume", {
+      method: "POST",
+      body: formData,
     });
 
-    const prompt = `
-Extract the following candidate information from this resume.
-Return the result as a raw JSON object (no markdown code blocks) with these keys:
-- fullName (string)
-- email (string)
-- role (string, infer the most likely job title applied for or current title)
-- department (string, infer a likely department e.g. Engineering, Sales, Marketing)
-- nric (string, if Malaysian NRIC format is found)
-- nationality (string, 'Malaysian' or 'Non-Malaysian' - infer from address/NRIC/Universities)
-- salary (string, only if explicitly mentioned, else empty string)
-
-If a field cannot be found, leave it as an empty string.
-Image data: ${base64Data.substring(0, 100)}...
-    `;
-
-    const { text } = await generateWithRetry(prompt);
-    const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    try {
-      return JSON.parse(jsonStr);
-    } catch (e) {
-      console.warn("Failed to parse resume JSON:", jsonStr);
-      return {};
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || `Server error: ${res.status}`);
     }
+
+    return await res.json();
   } catch (error) {
-    console.error("Error parsing resume:", error);
-    throw new Error("Failed to extract data from resume.");
+    console.error("Resume parsing error:", error);
+    throw error;
   }
 };
 
 // ---------------------
 // Candidate Submission Review
 // ---------------------
-export const reviewCandidateSubmission = async (data: CandidateProfile): Promise<string> => {
+export const reviewCandidateSubmission = async (
+  data: CandidateProfile,
+): Promise<string> => {
   try {
     const gaps = detectComplianceGapsFromCandidate(data);
     if (gaps.length) {

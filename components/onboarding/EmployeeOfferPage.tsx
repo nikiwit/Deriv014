@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { SignaturePad } from '../design-system/SignaturePad';
 
-const API_BASE = 'http://localhost:5001';
+const API_BASE = ''; // Use relative path - proxied by Vite to backend
 
 interface OfferDetails {
   offer_id: string;
@@ -80,7 +80,7 @@ interface EmployeePortal {
   }>;
 }
 
-export const EmployeeOfferPage: React.FC<{ offerId: string }> = ({ offerId }) => {
+export const EmployeeOfferPage: React.FC<{ offerId: string; onComplete?: () => void }> = ({ offerId, onComplete }) => {
   const [offer, setOffer] = useState<OfferDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
@@ -102,6 +102,12 @@ export const EmployeeOfferPage: React.FC<{ offerId: string }> = ({ offerId }) =>
       if (response.ok) {
         const data = await response.json();
         setOffer(data);
+        
+        // Check if offer is already accepted - auto-fetch portal
+        if (data.status === 'offer_accepted' && data.employee_id) {
+          fetchPortal(data.employee_id);
+          setResponse('accepted');
+        }
       } else {
         setError('Offer not found or expired');
       }
@@ -133,8 +139,12 @@ export const EmployeeOfferPage: React.FC<{ offerId: string }> = ({ offerId }) =>
       if (response.ok) {
         const data = await response.json();
         setResponse(responseType);
-        if (responseType === 'accepted' && data.portal_url) {
-          fetchPortal(data.employee_id);
+        if (responseType === 'accepted') {
+          if (data.portal_url) {
+            fetchPortal(data.employee_id);
+          }
+          // Call onComplete callback after successful acceptance
+          onComplete?.();
         }
       } else {
         const error = await response.json();
@@ -184,6 +194,33 @@ export const EmployeeOfferPage: React.FC<{ offerId: string }> = ({ offerId }) =>
   }
 
   if (!offer) return null;
+
+  // Show "Continue Onboarding" if offer is already accepted
+  if (offer.status === 'offer_accepted') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 size={32} className="text-green-600" />
+          </div>
+          <h1 className="text-xl font-black text-slate-900 mb-2">Offer Already Accepted!</h1>
+          <p className="text-slate-500 mb-6">You have already accepted this offer. Continue with your onboarding process.</p>
+          <button
+            onClick={() => {
+              if (offer.employee_id) {
+                fetchPortal(offer.employee_id);
+                setResponse('accepted');
+              }
+              onComplete?.();
+            }}
+            className="w-full py-3 px-6 bg-gradient-to-r from-derivhr-500 to-derivhr-400 text-white font-bold rounded-xl hover:from-derivhr-600 hover:to-derivhr-500 transition-all"
+          >
+            Continue Onboarding Process →
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (response === 'accepted' && portal) {
     return <EmployeeOnboardingPortal portal={portal} />;

@@ -1,17 +1,18 @@
 import os
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 from xhtml2pdf import pisa
-from pathlib import Path
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def generate_contract(params, template_dir, output_dir):
-    """Generate employment contract PDF from structured data.
+    """Generate document (contract/offer letter) from structured data.
 
     Args:
         params: ContractParams dataclass
@@ -22,14 +23,28 @@ def generate_contract(params, template_dir, output_dir):
         (document_id, file_path)
     """
     env = Environment(loader=FileSystemLoader(template_dir))
-    template_name = f"contract_{params.jurisdiction.lower()}.html"
+
+    if params.document_type == "offer_letter":
+        template_name = "offer_letter_simple.html"
+    else:
+        template_name = f"contract_{params.jurisdiction.lower()}.html"
+
     template = env.get_template(template_name)
 
     defaults = _get_jurisdiction_defaults(params.jurisdiction)
 
+    # Use NRIC or Passport No or both combined if needed
+    nric_display = params.nric
+    if params.passport_no:
+        if nric_display:
+            nric_display += f" / {params.passport_no}"
+        else:
+            nric_display = params.passport_no
+
     html_content = template.render(
         employee_name=params.employee_name,
-        nric=params.nric,
+        nric=nric_display,
+        passport_no=params.passport_no,
         employee_address=params.employee_address,
         position=params.position,
         department=params.department,
@@ -48,7 +63,7 @@ def generate_contract(params, template_dir, output_dir):
     #     pisa.CreatePDF(html_content, dest=f)
 
     # return doc_id, file_path
-    
+
     import json
     from pathlib import Path
 

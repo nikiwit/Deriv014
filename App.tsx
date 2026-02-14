@@ -151,6 +151,7 @@ import { HRAgent } from './components/HRAgent';
 import { EmployeeTrainingDashboard } from './components/EmployeeTrainingDashboard';
 import { MyTraining } from './components/employee/MyTraining';
 import { TrainingProvider } from './contexts/TrainingContext';
+import { EmployeeOfferPage } from './components/onboarding/EmployeeOfferPage';
 import { ViewState, User, UserRole } from './types';
 
 // Helper: load user profile from localStorage if exists
@@ -187,6 +188,7 @@ function AppContent() {
   const { user: authUser, isAuthenticated, isLoading, setUser } = useAuth();
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [loadingLocalUser, setLoadingLocalUser] = useState(true);
+  const [offerId, setOfferId] = useState<string | null>(null);
 
   // Try to load onboardingProfile as a temporary authenticated user
   useEffect(() => {
@@ -213,17 +215,34 @@ function AppContent() {
     return <NewEmployeePage onNavigate={setCurrentView} isAuthenticated={isAuthenticated} />;
   }
 
+  // Show employee onboarding: offer acceptance or MyOnboarding tasks
+  // This MUST come before authentication check to allow offer link access
+  if (currentView === 'employee_onboarding') {
+    // If we have an offer ID, show the offer acceptance page
+    if (offerId) {
+      return <EmployeeOfferPage offerId={offerId} onComplete={() => {
+        setOfferId(null);
+        setCurrentView('my_onboarding');
+      }} />;
+    }
+    // Otherwise show MyOnboarding for existing employees
+    return <MyOnboarding />;
+  }
+
   if (!isAuthenticated || !authUser) {
     return <LoginPage 
       onLoginSuccess={() => setCurrentView('dashboard')} 
       onNewOnboarding={() => setCurrentView('new_employee')}
-      onEmployeeOnboarding={() => setCurrentView('employee_onboarding')}
+      onEmployeeOnboarding={(offerId?: string) => {
+        if (offerId) {
+          setOfferId(offerId);
+          setCurrentView('employee_onboarding');
+        } else {
+          // For new hires without offer ID, show a message or redirect to offer page
+          setCurrentView('employee_onboarding');
+        }
+      }}
     />;
-  }
-
-  // Show employee onboarding if selected (HR Create Employee)
-  if (currentView === 'employee_onboarding') {
-    return <HRCreateEmployee />;
   }
 
   // HR Admin Portal

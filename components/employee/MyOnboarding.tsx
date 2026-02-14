@@ -29,16 +29,19 @@ const categoryConfig: Record<TaskCategory, { label: string; icon: React.ReactNod
   culture: { label: 'Culture', icon: <Heart size={18} />, color: 'bg-pink-500' },
 };
 
+const API_BASE = '';
+
 export const MyOnboarding: React.FC = () => {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   // Initialize tasks from template with status
   const [tasks, setTasks] = useState<OnboardingTask[]>(() =>
     DEFAULT_ONBOARDING_TASKS.map((t, idx) => ({
       ...t,
       id: `task_${idx}`,
-      status: idx < 3 ? 'completed' : idx === 3 ? 'available' : 'locked' as TaskStatus,
-      completedAt: idx < 3 ? new Date().toISOString() : undefined,
+      status: 'available' as TaskStatus,
+      completedAt: undefined,
     }))
   );
 
@@ -47,6 +50,47 @@ export const MyOnboarding: React.FC = () => {
   const [templateLoading, setTemplateLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
+
+  // Fetch tasks from backend on mount
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!user?.employeeId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/multiagent/onboarding/employee/${user.employeeId}/tasks`);
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Map backend tasks to frontend tasks
+          setTasks(prev => prev.map(task => {
+            // Find matching task in backend data
+            for (const category of Object.values(data.tasks) as any[][]) {
+              const backendTask = category.find((t: any) => 
+                t.title.toLowerCase().includes(task.title.toLowerCase().split(' ')[0])
+              );
+              if (backendTask) {
+                return {
+                  ...task,
+                  status: backendTask.status as TaskStatus,
+                  completedAt: backendTask.status === 'completed' ? new Date().toISOString() : undefined,
+                };
+              }
+            }
+            return task;
+          }));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch tasks from backend:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, [user?.employeeId]);
 
   // Determine jurisdiction from user nationality (default MY)
   const jurisdiction = user?.department?.toLowerCase().includes('singapore') ? 'sg' : 'my';
@@ -101,12 +145,13 @@ export const MyOnboarding: React.FC = () => {
   const progress = Math.round((completedCount / tasks.length) * 100);
   const totalMinutes = tasks.filter(t => t.status !== 'completed').reduce((sum, t) => sum + t.estimatedMinutes, 0);
 
-  const handleCompleteTask = (taskId: string) => {
+  const handleCompleteTask = async (taskId: string) => {
     if (selectedTask?.requiresSignature && !signature) {
       alert('Please provide your digital signature to proceed.');
       return;
     }
 
+    // Update local state first
     setTasks(prev => {
       const updated = prev.map(t => {
         if (t.id === taskId) {
@@ -123,6 +168,43 @@ export const MyOnboarding: React.FC = () => {
 
       return updated;
     });
+
+    // Save to backend
+    if (user?.employeeId) {
+      try {
+        const task = tasks.find(t => t.id === taskId);
+        const taskIdMap: Record<string, string> = {
+          'task_0': 'doc_identity',
+          'task_1': 'doc_offer',
+          'task_2': 'doc_contract',
+          'task_3': 'doc_tax',
+          'task_4': 'doc_bank',
+          'task_5': 'it_policy',
+          'task_6': 'it_2fa',
+          'task_7': 'it_email',
+          'task_8': 'comp_harassment',
+          'task_9': 'comp_pdpa',
+          'task_10': 'comp_safety',
+          'task_11': 'train_overview',
+          'task_12': 'train_role',
+          'task_13': 'culture_slack',
+          'task_14': 'culture_buddy',
+          'task_15': 'culture_profile',
+        };
+        
+        const backendTaskId = taskIdMap[taskId];
+        if (backendTaskId) {
+          await fetch(`${API_BASE}/api/multiagent/onboarding/employee/${user.employeeId}/tasks/${backendTaskId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'completed' }),
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to save task to backend:', err);
+      }
+    }
+
     setSelectedTask(null);
   };
 
@@ -131,6 +213,17 @@ export const MyOnboarding: React.FC = () => {
     acc[task.category].push(task);
     return acc;
   }, {} as Record<TaskCategory, OnboardingTask[]>);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-derivhr-500 mx-auto mb-4" size={40} />
+          <p className="text-slate-500 font-medium">Loading your onboarding tasks...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (user?.onboardingComplete) {
     return (
