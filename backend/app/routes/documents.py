@@ -87,10 +87,12 @@ def generate():
 def list_documents():
     """List all generated documents."""
     db = get_db()
-    docs = db.execute(
-        "SELECT id, document_type, jurisdiction, employee_name, created_at "
-        "FROM generated_documents ORDER BY created_at DESC"
-    ).fetchall()
+    
+    response = db.table("generated_documents").select(
+        "id, document_type, jurisdiction, employee_name, created_at"
+    ).order("created_at", desc=True).execute()
+    
+    docs = response.data
 
     return jsonify({
         "documents": [
@@ -111,21 +113,22 @@ def list_documents():
 def get_document(doc_id):
     """Get document metadata."""
     db = get_db()
-    doc = db.execute(
-        "SELECT id, document_type, jurisdiction, employee_name, parameters, created_at "
-        "FROM generated_documents WHERE id = ?",
-        (doc_id,),
-    ).fetchone()
-
-    if not doc:
+    
+    response = db.table("generated_documents").select(
+        "id, document_type, jurisdiction, employee_name, parameters, created_at"
+    ).eq("id", doc_id).execute()
+    
+    if not response.data:
         return jsonify({"error": "Document not found"}), 404
+        
+    doc = response.data[0]
 
     return jsonify({
         "id": doc["id"],
         "document_type": doc["document_type"],
         "jurisdiction": doc["jurisdiction"],
         "employee_name": doc["employee_name"],
-        "parameters": json.loads(doc["parameters"]),
+        "parameters": json.loads(doc["parameters"]) if doc.get("parameters") else {},
         "created_at": doc["created_at"],
         "download_url": f"/api/documents/{doc['id']}/download",
     })
@@ -135,13 +138,18 @@ def get_document(doc_id):
 def download_document(doc_id):
     """Download a generated PDF."""
     db = get_db()
-    doc = db.execute(
-        "SELECT file_path, employee_name, jurisdiction FROM generated_documents WHERE id = ?",
-        (doc_id,),
-    ).fetchone()
-
-    if not doc or not doc["file_path"]:
+    
+    response = db.table("generated_documents").select(
+        "file_path, employee_name, jurisdiction"
+    ).eq("id", doc_id).execute()
+    
+    if not response.data:
         return jsonify({"error": "Document not found"}), 404
+        
+    doc = response.data[0]
+
+    if not doc or not doc.get("file_path"):
+        return jsonify({"error": "Document file path missing"}), 404
 
     return send_file(
         doc["file_path"],

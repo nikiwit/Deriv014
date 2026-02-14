@@ -2,7 +2,7 @@ import uuid
 
 from flask import Blueprint, jsonify, request
 
-from app.supabase_client import get_supabase
+from app.database import get_db
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -11,7 +11,7 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 def list_users():
     """List users, optionally filtered by role."""
     role = request.args.get("role")
-    sb = get_supabase()
+    sb = get_db()
 
     query = sb.table("users").select("*").order("created_at")
     if role:
@@ -24,7 +24,7 @@ def list_users():
 @bp.route("/users/<user_id>", methods=["GET"])
 def get_user(user_id):
     """Get a single user by ID."""
-    sb = get_supabase()
+    sb = get_db()
     result = sb.table("users").select("*").eq("id", user_id).execute()
 
     if not result.data:
@@ -48,7 +48,7 @@ def create_user():
     if data["role"] not in ("hr_admin", "employee"):
         return jsonify({"error": "Role must be 'hr_admin' or 'employee'"}), 400
 
-    sb = get_supabase()
+    sb = get_db()
 
     # Check if email already exists
     existing = sb.table("users").select("id").eq("email", data["email"]).execute()
@@ -75,7 +75,7 @@ def create_user():
 @bp.route("/users/<user_id>/employees", methods=["GET"])
 def get_hr_employees(user_id):
     """Get all employees assigned to an HR manager."""
-    sb = get_supabase()
+    sb = get_db()
 
     # Verify user is HR admin
     user = sb.table("users").select("role").eq("id", user_id).execute()
@@ -112,7 +112,7 @@ def create_assignment():
     if not hr_user_id or not employee_user_id:
         return jsonify({"error": "hr_user_id and employee_user_id are required"}), 400
 
-    sb = get_supabase()
+    sb = get_db()
 
     # Check for existing assignment
     existing = (

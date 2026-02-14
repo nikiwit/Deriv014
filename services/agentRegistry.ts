@@ -13,7 +13,17 @@
 export type LegacyAgentId = 'HR' | 'Finance' | 'Logistics';
 
 // New specialized HR agent IDs
-export type HRAgentId = 'MAIN_HR' | 'POLICY_RESEARCH' | 'COMPLIANCE' | 'DOCUMENT' | 'EMPLOYEE_SUPPORT';
+export type HRAgentId = 
+  | 'MAIN_HR' 
+  | 'POLICY_RESEARCH' 
+  | 'COMPLIANCE' 
+  | 'DOCUMENT' 
+  | 'EMPLOYEE_SUPPORT'
+  | 'POLICY_AGENT'
+  | 'SALARY_AGENT'
+  | 'TRAINING_AGENT'
+  | 'ONBOARDING_AGENT'
+  | 'AGENTIX_AGENT';
 
 // Combined agent ID type
 export type AgentId = LegacyAgentId | HRAgentId;
@@ -145,6 +155,112 @@ Always cite specific statutes and jurisdictions [MY] or [SG]. Use markdown forma
     themeColor: 'emerald',
     icon: 'HeartHandshake'
   },
+
+  POLICY_AGENT: {
+    id: 'POLICY_AGENT',
+    name: 'Policy Specialist',
+    role: 'Policy & Compliance',
+    description: 'Policy interpretation, compliance verification, jurisdiction comparison',
+    systemPrompt: `You are a Policy Specialist for DerivHR. Provide:
+- Policy interpretation with citations
+- MY vs SG jurisdiction comparison
+- Compliance verification
+- Risk assessment`,
+    capabilities: [
+      'Policy interpretation',
+      'Compliance verification',
+      'Jurisdiction comparison',
+      'Cross-check validation'
+    ],
+    modelPreference: 'premium',
+    themeColor: 'blue',
+    icon: 'BookOpen'
+  },
+
+  SALARY_AGENT: {
+    id: 'SALARY_AGENT',
+    name: 'Salary & Statutory Specialist',
+    role: 'Compensation & Contributions',
+    description: 'EPF/SOCSO/CPF calculations, payroll, statutory contributions',
+    systemPrompt: `You are a Salary & Statutory Specialist. Provide:
+- EPF/SOCSO/CPF calculations
+- Overtime calculations
+- Tax deductions
+- Payroll processing`,
+    capabilities: [
+      'EPF/SOCSO/CPF calculations',
+      'Overtime calculations',
+      'PCB/Tax deductions',
+      'Payroll processing'
+    ],
+    allowedTools: ['epf_calc', 'socso_calc', 'cpf_calc', 'ot_calc', 'pcb_calc'],
+    modelPreference: 'hybrid',
+    themeColor: 'amber',
+    icon: 'Calculator'
+  },
+
+  TRAINING_AGENT: {
+    id: 'TRAINING_AGENT',
+    name: 'Training & Development',
+    role: 'Learning & Development',
+    description: 'Training recommendations, certifications, onboarding training',
+    systemPrompt: `You are a Training & Development Specialist. Provide:
+- Training recommendations
+- Certification tracking
+- Onboarding training plans
+- Skill gap analysis`,
+    capabilities: [
+      'Training recommendations',
+      'Certification tracking',
+      'Onboarding training',
+      'Skill gap analysis'
+    ],
+    modelPreference: 'local',
+    themeColor: 'purple',
+    icon: 'GraduationCap'
+  },
+
+  ONBOARDING_AGENT: {
+    id: 'ONBOARDING_AGENT',
+    name: 'Onboarding Specialist',
+    role: 'Onboarding Workflow',
+    description: 'Offer management, document automation, employee portal setup',
+    systemPrompt: `You are an Onboarding Specialist. Handle:
+- Offer letter generation
+- Document automation
+- Acceptance/rejection workflow
+- Employee portal setup`,
+    capabilities: [
+      'Offer management',
+      'Document automation',
+      'Acceptance handling',
+      'Portal setup'
+    ],
+    modelPreference: 'hybrid',
+    themeColor: 'indigo',
+    icon: 'UserPlus'
+  },
+
+  AGENTIX_AGENT: {
+    id: 'AGENTIX_AGENT',
+    name: 'Agentix - Reminder System',
+    role: 'Reminders & Alerts',
+    description: 'Pending task detection, automated reminders, Telegram alerts',
+    systemPrompt: `You are Agentix, the Reminder & Alert System. Handle:
+- Pending task detection
+- Automated reminders
+- Escalation management
+- HR notifications via Telegram`,
+    capabilities: [
+      'Pending task detection',
+      'Automated reminders',
+      'Escalation management',
+      'Telegram notifications'
+    ],
+    modelPreference: 'local',
+    themeColor: 'rose',
+    icon: 'Bell'
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,6 +343,11 @@ export const AGENT_DISPLAY_NAMES: Record<HRAgentId, string> = {
   COMPLIANCE: 'Compliance',
   DOCUMENT: 'Documents',
   EMPLOYEE_SUPPORT: 'Support',
+  POLICY_AGENT: 'Policy',
+  SALARY_AGENT: 'Salary',
+  TRAINING_AGENT: 'Training',
+  ONBOARDING_AGENT: 'Onboarding',
+  AGENTIX_AGENT: 'Agentix',
 };
 
 // Agent colors for badges
@@ -236,4 +357,9 @@ export const AGENT_BADGE_COLORS: Record<HRAgentId, { bg: string; text: string }>
   COMPLIANCE: { bg: 'bg-amber-100', text: 'text-amber-700' },
   DOCUMENT: { bg: 'bg-violet-100', text: 'text-violet-700' },
   EMPLOYEE_SUPPORT: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  POLICY_AGENT: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  SALARY_AGENT: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  TRAINING_AGENT: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  ONBOARDING_AGENT: { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  AGENTIX_AGENT: { bg: 'bg-rose-100', text: 'text-rose-700' },
 };

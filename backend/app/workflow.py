@@ -507,12 +507,13 @@ class OnboardingWorkflow:
         """Store generated documents in database"""
         try:
             for doc in documents:
-                self.db.execute(
-                    """INSERT INTO generated_documents 
-                    (id, employee_id, document_type, file_path, created_at, status)
-                    VALUES (?, ?, ?, ?, ?, ?)""",
-                    (doc.id, employee_id, doc.document_type, doc.file_path, doc.created_at, doc.status)
-                )
-            self.db.commit()
+                self.db.table("generated_documents").insert({
+                    "id": doc.id,
+                    "employee_id": employee_id,
+                    "document_type": doc.document_type,
+                    "file_path": doc.file_path,
+                    "created_at": doc.created_at,
+                    "status": doc.status
+                }).execute()
         except Exception as e:
             print(f"Error storing documents: {e}")

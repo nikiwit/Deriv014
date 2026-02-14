@@ -14,6 +14,7 @@ DerivHR is an AI-powered Human Resources management platform designed to streaml
 -   **Workforce Analytics**: AI-driven insights into hiring velocity, skill gaps, and strategic workforce planning.
 -   **E-Leave Management**: Track leave balances, apply for leave, and manage approvals with built-in statutory compliance.
 -   **HR Chat Assistant**: An AI assistant providing instant support for employee queries, policy information, and document status.
+-   **Multi-Agent System**: Specialized AI agents for contract management, onboarding workflows, policy compliance, salary administration, and training coordination.
 -   **Resilient AI Backend**: Multi-level fallback strategy (OpenRouter, Gemini) for API calls, ensuring high availability and resilience against rate limits.
 -   **Modern Minimalist UI/UX**: Professional, clean, and intuitive user interface built with React and TailwindCSS, adhering to strong readability and accessibility standards.
 
@@ -71,33 +72,26 @@ The backend server will typically run on `http://localhost:5001`.
 cd ..
 
 # Install Node.js dependencies
->>>>>>> Stashed changes
 npm install
-
-### 2. Set up the backend
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate    # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+### 4. Configure Environment Variables
 
 Create **`backend/.env`**:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key
+GEMINI_API_KEY=your_google_gemini_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
-Create **`.env`** in the project root (for frontend AI features):
+Create **`.env`** in the project root (for frontend):
 
 ```env
-OPENAI_API_KEY=your_openai_api_key
+VITE_GEMINI_API_KEY=your_google_gemini_api_key
+VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
-### 4. Start the application
+### 5. Start the Application
 
 You need **two terminals** running simultaneously:
 
@@ -105,7 +99,7 @@ You need **two terminals** running simultaneously:
 
 ```bash
 cd backend
-source .venv/bin/activate
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
 python run.py
 ```
 
@@ -114,24 +108,13 @@ The backend starts on **http://localhost:5001**. On first run it builds the vect
 **Terminal 2 — Frontend (Vite)**
 
 ```bash
-# Create a .env file in the project root with your API keys:
-# .env content example:
-# API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
-# GEMINI_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY
-# OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
-# VITE_OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
-#
-# Replace YOUR_..._API_KEY with your actual keys.
-# Ensure your .env file is in .gitignore for security.
-
-# Start the Vite frontend development server
+# From project root
 npm run dev
 ```
-The frontend application will typically run on `http://localhost:3000`.
 
 The frontend starts on **http://localhost:3001**. Vite proxies all `/api` requests to the Flask backend automatically.
 
-### 5. Open the app
+### 6. Open the App
 
 Navigate to **http://localhost:3001** in your browser.
 

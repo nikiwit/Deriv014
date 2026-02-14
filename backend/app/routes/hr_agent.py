@@ -154,33 +154,28 @@ def generate_contract_from_jd():
         
         # Save to database
         db = get_db()
-        db.execute(
-            """INSERT INTO generated_documents 
-            (id, document_type, jurisdiction, employee_name, parameters, file_path)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                doc_id,
-                "employment_contract_from_jd",
-                contract_params.jurisdiction,
-                contract_params.employee_name,
-                json.dumps({
-                    "contract_params": {
-                        "employee_name": contract_params.employee_name,
-                        "position": contract_params.position,
-                        "department": contract_params.department,
-                        "jurisdiction": contract_params.jurisdiction,
-                        "start_date": contract_params.start_date,
-                        "salary": contract_params.salary,
-                        "nric": contract_params.nric,
-                        "employee_address": contract_params.employee_address
-                    },
-                    "jd_source": data["jd_source"],
-                    "jd_data": data["jd_data"]
-                }),
-                file_path
-            )
-        )
-        db.commit()
+        
+        db.table("generated_documents").insert({
+            "id": doc_id,
+            "document_type": "employment_contract_from_jd",
+            "jurisdiction": contract_params.jurisdiction,
+            "employee_name": contract_params.employee_name,
+            "parameters": json.dumps({
+                "contract_params": {
+                    "employee_name": contract_params.employee_name,
+                    "position": contract_params.position,
+                    "department": contract_params.department,
+                    "jurisdiction": contract_params.jurisdiction,
+                    "start_date": contract_params.start_date,
+                    "salary": contract_params.salary,
+                    "nric": contract_params.nric,
+                    "employee_address": contract_params.employee_address
+                },
+                "jd_source": data["jd_source"],
+                "jd_data": data["jd_data"]
+            }),
+            "file_path": file_path
+        }).execute()
         
         return jsonify({
             "id": doc_id,

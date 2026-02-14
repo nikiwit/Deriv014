@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from flask import Blueprint, request, jsonify, current_app
 from app import rag
-from app.supabase_client import get_supabase
+from app.database import get_db
 
 bp = Blueprint("contract_sign", __name__, url_prefix="/api")
 
@@ -12,12 +12,12 @@ _BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-supabase = get_supabase()
+
 
 
 def _get_row(table: str, column: str, value: str):
     """Safe single-row fetch — returns dict or None, never raises on empty."""
-    result = supabase.table(table).select("*").eq(column, value).execute()
+    result = get_db().table(table).select("*").eq(column, value).execute()
     rows = result.data if result.data else []
     return rows[0] if rows else None
 
@@ -154,7 +154,7 @@ def sign_contract_pipeline():
 
     try:
         # ── Stage 1: Fetch employee profile ──────────────────────────────────
-        r_user = supabase.table("users").select("id, first_name, last_name, email, role, department, employee_id, position_title, nationality").eq("id", employee_id).execute()
+        r_user = get_db().table("users").select("id, first_name, last_name, email, role, department, employee_id, position_title, nationality").eq("id", employee_id).execute()
         
         user_rows = r_user.data if r_user.data else []
         if not user_rows:
@@ -180,7 +180,7 @@ def sign_contract_pipeline():
                 profile[field] = collected_data[field]
 
         # ── Stage 2: Fetch employee's contract(s) ─────────────────────────────
-        r_contract = supabase.table("contracts") \
+        r_contract = get_db().table("contracts") \
             .select("*") \
             .eq("employee_id", employee_id) \
             .eq("status", "pending_signature") \
@@ -192,7 +192,7 @@ def sign_contract_pipeline():
         
         if not contract_rows:
             # Check if already signed
-            r_signed = supabase.table("contracts") \
+            r_signed = get_db().table("contracts") \
                 .select("*") \
                 .eq("employee_id", employee_id) \
                 .in_("status", ["active", "signed"]) \
@@ -243,7 +243,7 @@ def sign_contract_pipeline():
         
         if not hr_signed_at:
             # Get HR manager assigned to this employee
-            r_assignment = supabase.table("hr_employee_assignments") \
+            r_assignment = get_db().table("hr_employee_assignments") \
                 .select("hr_user_id") \
                 .eq("employee_id", employee_id) \
                 .execute()
@@ -284,13 +284,13 @@ def sign_contract_pipeline():
                 "updated_at": now_iso
             }
             
-            supabase.table("contracts") \
+            get_db().table("contracts") \
                 .update(update_data) \
                 .eq("id", contract_id) \
                 .execute()
 
             # Optional: Update user's onboarding status
-            supabase.table("users") \
+            get_db().table("users") \
                 .update({"onboarding_complete": True}) \
                 .eq("id", employee_id) \
                 .execute()
