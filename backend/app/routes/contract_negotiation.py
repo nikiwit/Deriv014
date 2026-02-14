@@ -64,6 +64,8 @@ def handle_contract_negotiation(
     
     # 1. Parse the modification request using LLM/RAG
     modification = _parse_modification_request(message, session_id)
+    logger.info(f"ORIGINAL message is: {message}")
+    logger.info(f"Modifications are: {modification}")
     
     # 2. Load current contract
     if not contract_json_path.exists():
@@ -155,7 +157,8 @@ def _parse_modification_request(message: str, session_id: str) -> Dict[str, Any]
     if re.search(r'\b(salary|pay|compensation|wage)\b', message_lower):
         modification["field"] = "salary"
         # Extract number (handle various formats: 5000, 5,000, $5000, RM5000)
-        numbers = re.findall(r'[\$RM]*\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)', message)
+        numbers = re.findall(r'\d+(?:,\d{3})*(?:\.\d+)?', message)
+        logger.info(f'Number found are: {numbers}')
         if numbers:
             # Remove commas from number
             modification["new_value"] = numbers[0].replace(',', '')
@@ -485,41 +488,94 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
     # ── Stage 1: RAG policy document lookup ──────────────────────
     rag_issues = []
     rag_recommendations = []
+    rag_found_info = False
+    
     try:
+        # Enhanced RAG query with multiple search strategies
+        
+        # 1. Field-specific keyword search queries
+        field_keywords = {
+            "salary": ["minimum wage", "salary band", "compensation policy", "pay scale", "remuneration"],
+            "annual_leave": ["annual leave", "vacation days", "leave entitlement", "holiday allowance"],
+            "sick_leave": ["sick leave", "medical leave", "illness absence", "MC days"],
+            "start_date": ["notice period", "onboarding timeline", "employment start", "probation start"],
+            "probation_months": ["probation period", "probationary term", "trial period"],
+            "work_hours": ["working hours", "work schedule", "office hours", "overtime policy"],
+            "work_location": ["work location", "office location", "remote work", "workplace policy"],
+        }
+        
+        keywords = field_keywords.get(field, [field.replace("_", " ")])
+        keywords_str = ", ".join(keywords)
+        
+        # 2. Enhanced RAG prompt with specific instructions
         rag_query = (
-            f"Check company policy and employment law compliance for modifying "
-            f"the '{field}' field to '{new_value}' in a {jurisdiction} employment contract. "
-            f"Is this change allowed? Are there any restrictions, limits, or approval "
-            f"requirements? Cite relevant policy sections or statutory references."
+            f"COMPLIANCE CHECK for {jurisdiction} employment contract:\n\n"
+            f"Field being modified: {field}\n"
+            f"Proposed new value: {new_value}\n"
+            f"Keywords to search: {keywords_str}\n\n"
+            f"Please search your policy documents and employment law knowledge for:\n"
+            f"1. Is modifying '{field}' to '{new_value}' compliant with {jurisdiction} employment laws?\n"
+            f"2. What are the statutory minimum/maximum limits for this field?\n"
+            f"3. Are there any company policy restrictions or approval requirements?\n"
+            f"4. Cite specific policy sections, Employment Act clauses, or statutory references.\n\n"
+            f"If you cannot find relevant information, explicitly state 'NO INFORMATION FOUND' at the start of your response."
         )
+        
         rag_response, rag_sources = rag.query(
             f"compliance_check_{field}", rag_query
         )
 
         if rag_response:
-            # Check for denial / restriction language in RAG response
+            # Check if RAG explicitly states no information found
             import re as _re
-            denial_patterns = [
-                r'\bnot\s+(?:allowed|permitted|compliant|acceptable)\b',
-                r'\bprohibited\b',
-                r'\bviolat(?:es?|ion)\b',
-                r'\bexceeds?\s+(?:the\s+)?(?:maximum|limit|cap)\b',
-                r'\bbelow\s+(?:the\s+)?minimum\b',
-                r'\brequires?\s+(?:HR|management|director)\s+approval\b',
+            
+            no_info_patterns = [
+                r'\bno\s+information\s+found\b',
+                r'\bcannot\s+find\s+(?:any\s+)?(?:relevant\s+)?information\b',
+                r'\bno\s+(?:relevant\s+)?(?:policy|document|reference)\s+found\b',
+                r'\bunable\s+to\s+locate\b',
+                r'\bno\s+data\s+available\b',
             ]
-            for pattern in denial_patterns:
+            
+            for pattern in no_info_patterns:
                 if _re.search(pattern, rag_response, _re.IGNORECASE):
-                    rag_issues.append(f"Policy check: {rag_response[:300]}")
+                    rag_issues.append(f"No policy information found for '{field}' modification. Manual HR review required.")
+                    rag_found_info = False
                     break
+            else:
+                rag_found_info = True
+            
+            # Check for denial / restriction language in RAG response
+            if rag_found_info:
+                denial_patterns = [
+                    r'\bnot\s+(?:allowed|permitted|compliant|acceptable)\b',
+                    r'\bprohibited\b',
+                    r'\bviolat(?:es?|ion)\b',
+                    r'\bexceeds?\s+(?:the\s+)?(?:maximum|limit|cap)\b',
+                    r'\bbelow\s+(?:the\s+)?minimum\b',
+                    r'\brequires?\s+(?:HR|management|director)\s+approval\b',
+                    r'\bnon-compliant\b',
+                    r'\binvalid\b',
+                ]
+                for pattern in denial_patterns:
+                    if _re.search(pattern, rag_response, _re.IGNORECASE):
+                        rag_issues.append(f"Policy check: {rag_response[:300]}")
+                        break
 
-            # Extract recommendations from RAG
-            if "recommend" in rag_response.lower() or "suggest" in rag_response.lower():
-                rag_recommendations.append(rag_response[:300])
+                # Extract recommendations from RAG
+                if "recommend" in rag_response.lower() or "suggest" in rag_response.lower():
+                    rag_recommendations.append(rag_response[:300])
+        else:
+            # Empty RAG response means no information found
+            rag_found_info = False
+            rag_issues.append(f"No policy documentation found for '{field}'. Manual verification required.")
 
     except Exception as e:
-        # RAG failure is non-blocking — fall through to policy agent
+        # RAG failure - treat as no information found
         import logging
         logging.getLogger(__name__).warning(f"RAG compliance check failed: {e}")
+        rag_found_info = False
+        rag_issues.append(f"Policy check unavailable for '{field}'. Manual HR review required.")
 
     # ── Stage 2: Policy agent structural validation ──────────────
     try:
@@ -539,10 +595,13 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
         existing_recs = compliance_data.get("recommendations", [])
         compliance_data["recommendations"] = existing_recs + rag_recommendations
 
-        # If RAG found issues, mark as non-compliant
-        if rag_issues:
+        # If RAG found issues OR no information was found, mark as non-compliant
+        if rag_issues or not rag_found_info:
             compliance_data["compliant"] = False
-            compliance_data["risk_level"] = "high"
+            if not rag_found_info:
+                compliance_data["risk_level"] = "medium"  # Medium risk when no info (requires manual review)
+            else:
+                compliance_data["risk_level"] = "high"  # High risk when policy violation found
 
         # Add field-specific validation
         if field == "salary":
@@ -597,8 +656,13 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
     except Exception as e:
         # Fallback if policy agent fails
         all_issues = rag_issues + [f"Compliance check failed: {str(e)}"]
+        
+        # If no RAG info was found, add that to issues
+        if not rag_found_info and not any("No policy" in issue for issue in all_issues):
+            all_issues.append("No policy information available for this field. Manual HR approval required.")
+        
         return {
-            "compliant": False,
+            "compliant": False,  # Always non-compliant when check fails or no info found
             "issues": all_issues,
             "risk_level": "high",
             "recommendations": rag_recommendations + ["Please contact HR for manual review"]
@@ -734,94 +798,95 @@ def _generate_approval_response(modification: dict, updated_contract: dict) -> s
     field = modification.get("field", "contract")
     new_value = modification.get("new_value", "")
     
-    field_display = field.replace('_', ' ').title()
+    field_display = (field or "contract").replace('_', ' ').title()
     
-    # Extract values from nested structure
-    employment_details = updated_contract.get("employment_details", {})
-    personal_details = updated_contract.get("personal_details", {})
+    # Support both legacy (employment_details/personal_details) and new schema (employee/job/company)
+    employment_details = updated_contract.get("employment_details", {}) or {}
+    personal_details = updated_contract.get("personal_details", {}) or {}
+    employee_sec = updated_contract.get("employee", {}) or {}
+    job_sec = updated_contract.get("job", {}) or {}
+    company_sec = updated_contract.get("company", {}) or {}
+    leave_policy = job_sec.get("leave_policy", {}) or {}
     
     # Build updated contract summary
     summary_items = []
 
     # ── Personal Details ──
     employee_name = (
-        updated_contract.get("employee_name") or
-        personal_details.get("fullName") or
-        updated_contract.get("full_name")
+        employee_sec.get("fullName")
+        or personal_details.get("fullName")
+        or updated_contract.get("employee_name")
+        or updated_contract.get("full_name")
+        or ""
     )
     if employee_name:
         summary_items.append(f"- **Employee:** {employee_name}")
 
-    email = personal_details.get("email") or updated_contract.get("email")
-    if email:
-        summary_items.append(f"- **Email:** {email}")
-
-    nationality = personal_details.get("nationality") or updated_contract.get("nationality")
-    if nationality:
-        summary_items.append(f"- **Nationality:** {nationality}")
-
-    nric = personal_details.get("nric") or updated_contract.get("nric")
-    if nric:
-        summary_items.append(f"- **NRIC:** {nric}")
-
-    dob = personal_details.get("date_of_birth") or updated_contract.get("date_of_birth")
-    if dob:
-        summary_items.append(f"- **Date of Birth:** {dob}")
-
     # ── Employment Details ──
-    position = employment_details.get("position_title") or updated_contract.get("position")
+    position = (
+        job_sec.get("job_name")
+        or employment_details.get("position_title")
+        or updated_contract.get("position")
+        or ""
+    )
     if position:
         summary_items.append(f"- **Position:** {position}")
 
-    department = employment_details.get("department") or updated_contract.get("department")
+    department = (
+        job_sec.get("department")
+        or employment_details.get("department")
+        or updated_contract.get("department")
+        or ""
+    )
     if department:
         summary_items.append(f"- **Department:** {department}")
 
-    start_date = employment_details.get("start_date") or updated_contract.get("start_date")
+    start_date = (
+        employee_sec.get("startDate")
+        or employment_details.get("start_date")
+        or updated_contract.get("start_date")
+        or ""
+    )
     if start_date:
         summary_items.append(f"- **Start Date:** {start_date}")
 
-    salary = employment_details.get("salary") or updated_contract.get("salary")
+    salary = (
+        employee_sec.get("offered_salary")
+        or employment_details.get("salary")
+        or updated_contract.get("salary")
+        or ""
+    )
     if salary:
         currency = "RM" if updated_contract.get("jurisdiction") == "MY" else "SGD"
         summary_items.append(f"- **Salary:** {currency} {salary}")
 
-    work_location = employment_details.get("work_location") or updated_contract.get("work_location")
-    if work_location:
-        summary_items.append(f"- **Work Location:** {work_location}")
-
-    work_hours = employment_details.get("work_hours") or updated_contract.get("work_hours")
-    if work_hours:
-        summary_items.append(f"- **Work Hours:** {work_hours}")
-
-    annual_leave = employment_details.get("annual_leave")
+    annual_leave = (
+        leave_policy.get("annual_leave_days")
+        or employment_details.get("annual_leave")
+        or ""
+    )
     if annual_leave:
         summary_items.append(f"- **Annual Leave:** {annual_leave} days")
 
-    sick_leave = employment_details.get("sick_leave")
+    sick_leave = (
+        leave_policy.get("sick_leave_days")
+        or employment_details.get("sick_leave")
+        or ""
+    )
     if sick_leave:
         summary_items.append(f"- **Sick Leave:** {sick_leave} days")
 
-    probation = employment_details.get("probation_months")
+    probation = (
+        job_sec.get("probation_period_months")
+        or employment_details.get("probation_months")
+        or ""
+    )
     if probation:
         summary_items.append(f"- **Probation Period:** {probation} months")
 
-    # ── Banking Details ──
-    bank_name = personal_details.get("bank_name") or updated_contract.get("bank_name")
-    if bank_name:
-        summary_items.append(f"- **Bank:** {bank_name}")
-
-    bank_holder = personal_details.get("bank_account_holder") or updated_contract.get("bank_account_holder")
-    if bank_holder:
-        summary_items.append(f"- **Account Holder:** {bank_holder}")
-
-    bank_account = personal_details.get("bank_account_number") or updated_contract.get("bank_account_number")
-    if bank_account:
-        summary_items.append(f"- **Account Number:** {bank_account}")
-
     summary_md = "\n".join(summary_items) if summary_items else "_(No details available)_"
     
-    return f"""## Contract Modification Approved ✅
+    return f"""## Contract Modification Approved
 
 Your requested change has been approved and applied to your contract.
 
@@ -840,8 +905,8 @@ You can continue to request changes or proceed to sign your contract by saying *
 
 def _generate_rejection_response(modification: dict, compliance_result: dict) -> str:
     """Generate markdown response for rejected modification."""
-    field = modification.get("field", "contract")
-    new_value = modification.get("new_value", "")
+    field = modification.get("field", "contract") or "contract"
+    new_value = modification.get("new_value", "") or ""
     issues = compliance_result.get("issues", ["Policy violation detected"])
     risk = compliance_result.get("risk_level", "high")
     recommendations = compliance_result.get("recommendations", ["Please contact HR for alternative options."])

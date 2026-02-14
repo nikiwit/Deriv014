@@ -469,11 +469,11 @@ def update_checklist_item(employee_id, doc_id):
 
 @bp.route("/employees", methods=["GET"])
 def list_employees():
-    """List all employees with onboarding progress."""
+    """List all employees with onboarding progress, including pending employees."""
     try:
         db = get_db()
 
-        # Fetch all employees
+        # Fetch all employees from employees table
         emp_resp = (
             db.table("employees")
             .select(
@@ -483,31 +483,67 @@ def list_employees():
             .execute()
         )
 
-        employees = emp_resp.data
-        if not employees:
-            return jsonify({"employees": []})
-
-        # Fetch all doc stats (optimize: could be improved with a view or RPC)
-        # For now, fetch all docs for these employees? Or just iterate if N is small.
-        # Let's try to fetch all docs relevant to these employees.
+        employees = emp_resp.data or []
         emp_ids = [e["id"] for e in employees]
-        # Supabase 'in' filter
-        docs_resp = (
-            db.table("onboarding_documents")
-            .select("employee_id, submitted")
-            .in_("employee_id", emp_ids)
-            .execute()
-        )
 
-        # Aggregate
-        stats = {}  # emp_id -> {total: 0, submitted: 0}
-        for d in docs_resp.data:
-            eid = d["employee_id"]
-            if eid not in stats:
-                stats[eid] = {"total": 0, "submitted": 0}
-            stats[eid]["total"] += 1
-            if d["submitted"]:
-                stats[eid]["submitted"] += 1
+        # Fetch onboarding doc stats
+        stats = {}
+        if emp_ids:
+            docs_resp = (
+                db.table("onboarding_documents")
+                .select("employee_id, submitted")
+                .in_("employee_id", emp_ids)
+                .execute()
+            )
+            for d in docs_resp.data:
+                eid = d["employee_id"]
+                if eid not in stats:
+                    stats[eid] = {"total": 0, "submitted": 0}
+                stats[eid]["total"] += 1
+                if d["submitted"]:
+                    stats[eid]["submitted"] += 1
+
+        # Fetch user roles for employees (if they exist in users table)
+        user_roles = {}
+        try:
+            if emp_ids:
+                users_resp = db.table("users").select("id, role").in_("id", emp_ids).execute()
+                for user in users_resp.data:
+                    user_roles[user["id"]] = user.get("role", "employee")
+        except:
+            pass
+
+        # Also fetch pending_employee users from users table (not yet in employees table)
+        pending_users = []
+        try:
+            pending_resp = (
+                db.table("users")
+                .select("id, email, first_name, last_name, role, department, employee_id, created_at, nationality, start_date")
+                .eq("role", "pending_employee")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            for pu in (pending_resp.data or []):
+                uid = pu.get("employee_id") or pu["id"]
+                # Skip if already in employees table
+                if uid in emp_ids:
+                    continue
+                full_name = f"{pu.get('first_name', '')} {pu.get('last_name', '')}".strip()
+                if not full_name:
+                    full_name = pu.get("email", "Unnamed")
+                pending_users.append({
+                    "id": uid,
+                    "email": pu.get("email", ""),
+                    "full_name": full_name,
+                    "jurisdiction": pu.get("nationality", "MY") if pu.get("nationality") in ("MY", "SG") else "MY",
+                    "position": "",
+                    "department": pu.get("department", ""),
+                    "status": "pending",
+                    "created_at": pu.get("created_at", ""),
+                    "role": "pending_employee",
+                })
+        except:
+            pass
 
         result = []
         for emp in employees:
@@ -517,13 +553,20 @@ def list_employees():
                 {
                     **emp,
                     "progress": f"{s['submitted']}/{s['total']}",
+                    "role": user_roles.get(eid, "employee"),
                 }
             )
+
+        # Add pending employees
+        for pu in pending_users:
+            result.append({
+                **pu,
+                "progress": "0/0",
+            })
 
         return jsonify({"employees": result})
     except Exception as e:
         current_app.logger.error(f"List employees failed: {e}")
-        # Return empty list on error to prevent frontend crash
         return jsonify({"employees": []})
 
 

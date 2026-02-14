@@ -1,4 +1,5 @@
 import os
+import logging
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify
@@ -16,6 +17,24 @@ def create_app():
     from app.config import Config
 
     app.config.from_object(Config)
+
+    # Configure logging
+    log_level = getattr(logging, app.config.get('LOG_LEVEL', 'INFO').upper())
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()  # Output to console
+        ]
+    )
+    
+    # Set Flask app logger level
+    app.logger.setLevel(log_level)
+    
+    # Also set logging for werkzeug (Flask's WSGI server)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)  # Keep werkzeug quieter
+    
+    app.logger.info(f"Logging initialized at level: {logging.getLevelName(log_level)}")
 
     # Ensure instance directory exists
     os.makedirs(app.instance_path, exist_ok=True)

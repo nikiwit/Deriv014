@@ -1,392 +1,460 @@
 {
-  "company": {
-    "name": "Deriv Solutions Sdn Bhd",
-    "jurisdiction": "MY",
-    "currency": "MYR"
-  },
-  "jobs": [
+  "companies": [
     {
-      "job_code": "FSD-001",
-      "job_name": "Full Stack Developer",
-      "department": "Engineering",
-      "employment_type": "Full-time",
-      "role_summary": "Develop and maintain scalable web applications using modern front-end and back-end frameworks.",
-      "reporting_to": "Engineering Team Lead",
-      "work_model": {
-        "type": "Hybrid",
-        "office_days_per_week": 3,
-        "remote_days_per_week": 2
-      },
-      "responsibilities": [
-        "Build responsive front-end interfaces using React or Vue.js",
-        "Develop RESTful APIs using Node.js or Python",
-        "Collaborate with UX designers and product managers",
-        "Write clean, maintainable, well-documented code",
-        "Participate in code reviews and agile ceremonies"
-      ],
-      "qualifications": {
-        "education": "Bachelor's degree in Computer Science or related field",
-        "experience_years_min": 2,
-        "technical_skills": [
-          "JavaScript",
-          "HTML/CSS",
-          "Node.js or Python",
-          "Git",
-          "Docker",
-          "AWS or Azure"
-        ],
-        "languages_required": [
-          "English",
-          "Bahasa Malaysia"
-        ]
-      },
-      "compensation": {
-        "salary_band_min": 5500,
-        "salary_band_max": 8500,
-        "salary_frequency": "monthly",
-        "bonus_policy": {
-          "type": "Performance Bonus",
-          "max_months": 2
+      "name": "Deriv Solutions Sdn Bhd",
+      "jurisdiction": "MY",
+      "currency": "MYR",
+      "jobs": [
+        {
+          "job_code": "FSD-001",
+          "job_name": "Full Stack Developer",
+          "department": "Engineering",
+          "employment_type": "Full-time",
+          "role_summary": "Develop and maintain scalable web applications using modern front-end and back-end frameworks.",
+          "reporting_to": "Engineering Team Lead",
+          "work_model": {
+            "type": "Hybrid",
+            "office_days_per_week": 3,
+            "remote_days_per_week": 2
+          },
+          "responsibilities": [
+            "Build responsive front-end interfaces using React or Vue.js",
+            "Develop RESTful APIs using Node.js or Python",
+            "Collaborate with UX designers and product managers",
+            "Write clean, maintainable, well-documented code",
+            "Participate in code reviews and agile ceremonies"
+          ],
+          "qualifications": {
+            "education": "Bachelor's degree in Computer Science or related field",
+            "experience_years_min": 2,
+            "technical_skills": [
+              "JavaScript",
+              "HTML/CSS",
+              "Node.js or Python",
+              "Git",
+              "Docker",
+              "AWS or Azure"
+            ],
+            "certifications_preferred": null,
+            "languages_required": [
+              "English",
+              "Bahasa Malaysia"
+            ]
+          },
+          "compensation": {
+            "salary_band_min": 5500,
+            "salary_band_max": 8500,
+            "salary": 7000,
+            "salary_frequency": "monthly",
+            "annual_wage_supplement_months": null,
+            "bonus_policy": {
+              "type": "Performance Bonus",
+              "max_months": 2
+            },
+            "stock_options": null
+          },
+          "benefits": {
+            "retirement": {
+              "epf": {
+                "employer_percent": 13,
+                "employee_percent": 11
+              },
+              "cpf": null
+            },
+            "statutory": {
+              "socso": true,
+              "eis": true
+            },
+            "medical_insurance": {
+              "annual_limit": 50000,
+              "includes_dependents": true,
+              "outpatient_included": false
+            },
+            "dental_coverage_per_year": null,
+            "wellness_allowance_per_year": null,
+            "learning_allowance_per_year": 1500,
+            "professional_development_budget_per_year": null,
+            "flexible_hours": true
+          },
+          "leave_policy": {
+            "annual_leave_days": 14,
+            "sick_leave_days": 14
+          },
+          "probation_period_months": 3,
+          "career_path": [
+            "Junior Developer",
+            "Full Stack Developer",
+            "Senior Developer",
+            "Tech Lead"
+          ],
+          "status": "active"
+        },
+        {
+          "job_code": "DEVOPS-001",
+          "job_name": "DevOps Engineer",
+          "department": "Engineering",
+          "employment_type": "Full-time",
+          "role_summary": "Manage CI/CD pipelines, infrastructure automation, and cloud reliability for scalable systems.",
+          "reporting_to": "Engineering Team Lead",
+          "work_model": {
+            "type": "Hybrid",
+            "office_days_per_week": 2,
+            "remote_days_per_week": 3
+          },
+          "responsibilities": [
+            "Maintain CI/CD pipelines",
+            "Manage cloud infrastructure (AWS/Azure)",
+            "Implement infrastructure as code",
+            "Monitor system performance and reliability",
+            "Ensure security and compliance standards"
+          ],
+          "qualifications": {
+            "education": "Bachelor's degree in Computer Science, Engineering or related field",
+            "experience_years_min": 2,
+            "technical_skills": [
+              "Docker",
+              "Kubernetes",
+              "CI/CD tools",
+              "AWS or Azure",
+              "Infrastructure as Code"
+            ],
+            "certifications_preferred": null,
+            "languages_required": [
+              "English",
+              "Bahasa Malaysia"
+            ]
+          },
+          "compensation": {
+            "salary_band_min": 6500,
+            "salary_band_max": 10000,
+            "salary_frequency": "monthly",
+            "annual_wage_supplement_months": null,
+            "bonus_policy": {
+              "type": "Performance Bonus",
+              "max_months": 2
+            },
+            "stock_options": null
+          },
+          "benefits": {
+            "retirement": {
+              "epf": {
+                "employer_percent": 13,
+                "employee_percent": 11
+              },
+              "cpf": null
+            },
+            "statutory": {
+              "socso": true,
+              "eis": true
+            },
+            "medical_insurance": {
+              "annual_limit": 50000,
+              "includes_dependents": true,
+              "outpatient_included": false
+            },
+            "dental_coverage_per_year": null,
+            "wellness_allowance_per_year": null,
+            "learning_allowance_per_year": 1500,
+            "professional_development_budget_per_year": null,
+            "flexible_hours": true
+          },
+          "leave_policy": {
+            "annual_leave_days": 14,
+            "sick_leave_days": 14
+          },
+          "probation_period_months": 3,
+          "career_path": [
+            "DevOps Engineer",
+            "Senior DevOps Engineer",
+            "Cloud Architect"
+          ],
+          "status": "active"
         }
-      },
-      "benefits": {
-        "epf": {
-          "employer_percent": 13,
-          "employee_percent": 11
-        },
-        "socso": true,
-        "eis": true,
-        "medical_insurance": {
-          "annual_limit": 50000,
-          "includes_dependents": true
-        },
-        "learning_allowance_per_year": 1500,
-        "flexible_hours": true
-      },
-      "leave_policy": {
-        "annual_leave_days": 14,
-        "sick_leave_days": 14
-      },
-      "probation_period_months": 3,
-      "career_path": [
-        "Junior Developer",
-        "Full Stack Developer",
-        "Senior Developer",
-        "Tech Lead"
-      ],
-      "status": "active"
+      ]
     },
     {
-      "job_code": "DEVOPS-001",
-      "job_name": "DevOps Engineer",
-      "department": "Engineering",
-      "employment_type": "Full-time",
-      "role_summary": "Manage CI/CD pipelines, infrastructure automation, and cloud reliability for scalable systems.",
-      "reporting_to": "Engineering Team Lead",
-      "work_model": {
-        "type": "Hybrid",
-        "office_days_per_week": 2,
-        "remote_days_per_week": 3
-      },
-      "responsibilities": [
-        "Maintain CI/CD pipelines",
-        "Manage cloud infrastructure (AWS/Azure)",
-        "Implement infrastructure as code",
-        "Monitor system performance and reliability",
-        "Ensure security and compliance standards"
-      ],
-      "qualifications": {
-        "education": "Bachelor's degree in Computer Science, Engineering or related field",
-        "experience_years_min": 2,
-        "technical_skills": [
-          "Docker",
-          "Kubernetes",
-          "CI/CD tools",
-          "AWS or Azure",
-          "Infrastructure as Code"
-        ],
-        "languages_required": [
-          "English",
-          "Bahasa Malaysia"
-        ]
-      },
-      "compensation": {
-        "salary_band_min": 6500,
-        "salary_band_max": 10000,
-        "salary_frequency": "monthly",
-        "bonus_policy": {
-          "type": "Performance Bonus",
-          "max_months": 2
+      "name": "Deriv Solutions Pte Ltd",
+      "jurisdiction": "SG",
+      "currency": "SGD",
+      "jobs": [
+        {
+          "job_code": "CSE-SG-001",
+          "job_name": "Cloud Solutions Engineer",
+          "department": "Engineering",
+          "employment_type": "Full-time",
+          "role_summary": "Design and implement scalable cloud infrastructure solutions for enterprise clients across Singapore and the region.",
+          "reporting_to": "Engineering Manager",
+          "work_model": {
+            "type": "Hybrid",
+            "office_days_per_week": 2,
+            "remote_days_per_week": 3
+          },
+          "responsibilities": [
+            "Architect cloud solutions on AWS, Azure, and Google Cloud Platform",
+            "Lead enterprise cloud migration projects",
+            "Implement DevOps practices and CI/CD pipelines",
+            "Provide technical consultation and solution design",
+            "Collaborate with Malaysia team on cross-border initiatives",
+            "Mentor junior engineers and conduct knowledge sharing sessions"
+          ],
+          "qualifications": {
+            "education": "Bachelor's degree in Computer Science, Engineering or related field",
+            "experience_years_min": 3,
+            "technical_skills": [
+              "AWS",
+              "Azure",
+              "Google Cloud Platform",
+              "Terraform",
+              "CloudFormation",
+              "CI/CD",
+              "Infrastructure as Code"
+            ],
+            "certifications_preferred": [
+              "AWS Solutions Architect",
+              "Azure Administrator",
+              "Equivalent cloud certifications"
+            ],
+            "languages_required": [
+              "English"
+            ]
+          },
+          "compensation": {
+            "salary_band_min": 6000,
+            "salary_band_max": 9000,
+            "salary_frequency": "monthly",
+            "annual_wage_supplement_months": 2,
+            "bonus_policy": {
+              "type": "Performance Bonus",
+              "max_months": 3
+            },
+            "stock_options": {
+              "eligible_after_months": 12,
+              "scheme": "Deriv Group Stock Options"
+            }
+          },
+          "benefits": {
+            "retirement": {
+              "epf": null,
+              "cpf": {
+                "employer_percent": 17,
+                "employee_percent": 20,
+                "applies_to": "Ordinary Wages"
+              }
+            },
+            "statutory": {
+              "socso": null,
+              "eis": null
+            },
+            "medical_insurance": {
+              "annual_limit": 80000,
+              "includes_dependents": true,
+              "outpatient_included": true
+            },
+            "dental_coverage_per_year": 500,
+            "wellness_allowance_per_year": 500,
+            "learning_allowance_per_year": null,
+            "professional_development_budget_per_year": 2500,
+            "flexible_hours": true
+          },
+          "leave_policy": {
+            "annual_leave_days": 14,
+            "sick_leave_days": 14
+          },
+          "probation_period_months": 3,
+          "career_path": [
+            "Cloud Engineer",
+            "Senior Cloud Engineer",
+            "Cloud Architect",
+            "Principal Architect"
+          ],
+          "status": "active"
+        },
+        {
+          "job_code": "FSD-SG-002",
+          "job_name": "Full Stack Developer",
+          "department": "Engineering",
+          "employment_type": "Full-time",
+          "role_summary": "Develop and maintain scalable web applications and APIs for cloud-based enterprise solutions.",
+          "reporting_to": "Engineering Team Lead",
+          "work_model": {
+            "type": "Hybrid",
+            "office_days_per_week": 3,
+            "remote_days_per_week": 2
+          },
+          "responsibilities": [
+            "Build responsive front-end interfaces using React or Vue.js",
+            "Develop RESTful APIs using Node.js or Python",
+            "Integrate applications with AWS Lambda and Azure Functions",
+            "Collaborate with UX designers and cloud architects",
+            "Write clean, maintainable, well-documented code",
+            "Participate in agile development and code reviews"
+          ],
+          "qualifications": {
+            "education": "Bachelor's degree in Computer Science or related field",
+            "experience_years_min": 2,
+            "technical_skills": [
+              "JavaScript",
+              "TypeScript",
+              "HTML/CSS",
+              "Node.js",
+              "Python",
+              "AWS",
+              "Azure",
+              "Docker",
+              "Kubernetes",
+              "Microservices"
+            ],
+            "certifications_preferred": null,
+            "languages_required": [
+              "English"
+            ]
+          },
+          "compensation": {
+            "salary_band_min": 5000,
+            "salary_band_max": 7500,
+            "salary_frequency": "monthly",
+            "annual_wage_supplement_months": 2,
+            "bonus_policy": {
+              "type": "Performance Bonus",
+              "max_months": 2
+            },
+            "stock_options": null
+          },
+          "benefits": {
+            "retirement": {
+              "epf": null,
+              "cpf": {
+                "employer_percent": 17,
+                "employee_percent": 20,
+                "applies_to": "Ordinary Wages"
+              }
+            },
+            "statutory": {
+              "socso": null,
+              "eis": null
+            },
+            "medical_insurance": {
+              "annual_limit": 80000,
+              "includes_dependents": true,
+              "outpatient_included": true
+            },
+            "dental_coverage_per_year": 500,
+            "wellness_allowance_per_year": 500,
+            "learning_allowance_per_year": null,
+            "professional_development_budget_per_year": 2500,
+            "flexible_hours": true
+          },
+          "leave_policy": {
+            "annual_leave_days": 14,
+            "sick_leave_days": 14
+          },
+          "probation_period_months": 3,
+          "career_path": [
+            "Junior Developer",
+            "Full Stack Developer",
+            "Senior Developer",
+            "Tech Lead"
+          ],
+          "status": "active"
+        },
+        {
+          "job_code": "DEVOPS-SG-003",
+          "job_name": "DevOps Engineer",
+          "department": "Engineering",
+          "employment_type": "Full-time",
+          "role_summary": "Manage CI/CD pipelines, cloud infrastructure automation, and system reliability for enterprise-grade cloud platforms.",
+          "reporting_to": "Engineering Manager",
+          "work_model": {
+            "type": "Hybrid",
+            "office_days_per_week": 2,
+            "remote_days_per_week": 3
+          },
+          "responsibilities": [
+            "Maintain and optimize CI/CD pipelines",
+            "Automate infrastructure using Infrastructure as Code",
+            "Manage Kubernetes clusters and containerized workloads",
+            "Monitor system reliability and performance",
+            "Implement security best practices in cloud environments"
+          ],
+          "qualifications": {
+            "education": "Bachelor's degree in Computer Science, Engineering or related field",
+            "experience_years_min": 2,
+            "technical_skills": [
+              "Docker",
+              "Kubernetes",
+              "Terraform",
+              "CI/CD",
+              "AWS or Azure",
+              "Monitoring and Observability tools"
+            ],
+            "certifications_preferred": null,
+            "languages_required": [
+              "English"
+            ]
+          },
+          "compensation": {
+            "salary_band_min": 5500,
+            "salary_band_max": 8500,
+            "salary": 7000,
+
+            "salary_frequency": "monthly",
+            "annual_wage_supplement_months": 2,
+            "bonus_policy": {
+              "type": "Performance Bonus",
+              "max_months": 2
+            },
+            "stock_options": null
+          },
+          "benefits": {
+            "retirement": {
+              "epf": null,
+              "cpf": {
+                "employer_percent": 17,
+                "employee_percent": 20,
+                "applies_to": "Ordinary Wages"
+              }
+            },
+            "statutory": {
+              "socso": null,
+              "eis": null
+            },
+            "medical_insurance": {
+              "annual_limit": 80000,
+              "includes_dependents": true,
+              "outpatient_included": true
+            },
+            "dental_coverage_per_year": 500,
+            "wellness_allowance_per_year": 500,
+            "learning_allowance_per_year": null,
+            "professional_development_budget_per_year": 2500,
+            "flexible_hours": true
+          },
+          "leave_policy": {
+            "annual_leave_days": 14,
+            "sick_leave_days": 14
+          },
+          "probation_period_months": 3,
+          "career_path": [
+            "DevOps Engineer",
+            "Senior DevOps Engineer",
+            "DevOps Architect",
+            "SRE Lead"
+          ],
+          "status": "active"
         }
-      },
-      "benefits": {
-        "epf": {
-          "employer_percent": 13,
-          "employee_percent": 11
-        },
-        "socso": true,
-        "eis": true,
-        "medical_insurance": {
-          "annual_limit": 50000,
-          "includes_dependents": true
-        },
-        "learning_allowance_per_year": 1500,
-        "flexible_hours": true
-      },
-      "leave_policy": {
-        "annual_leave_days": 14,
-        "sick_leave_days": 14
-      },
-      "probation_period_months": 3,
-      "career_path": [
-        "DevOps Engineer",
-        "Senior DevOps Engineer",
-        "Cloud Architect"
-      ],
-      "status": "active"
+      ]
     }
   ],
   "metadata": {
-    "version": "1.0",
+    "version": "1.1",
     "last_updated": "2026-02-15",
-    "generated_for": "HR onboarding and offer automation"
+    "generated_for": "HR onboarding and offer automation",
+    "schema_notes": [
+      "Unified schema supporting multi-jurisdiction compensation and benefits",
+      "annual_wage_supplement_months: 2 months = 14-month package (base salary + AWS)",
+      "retirement: EPF for MY, CPF for SG (mutually exclusive)",
+      "statutory: SOCSO/EIS applicable only in Malaysia",
+      "All optional fields explicitly set to null when not applicable for consistency"
+    ]
   }
-}
-{
-  "company": {
-    "name": "Deriv Solutions Pte Ltd",
-    "jurisdiction": "SG",
-    "currency": "SGD"
-  },
-  "jobs": [
-    {
-      "job_code": "CSE-SG-001",
-      "job_name": "Cloud Solutions Engineer",
-      "department": "Engineering",
-      "employment_type": "Full-time",
-      "role_summary": "Design and implement scalable cloud infrastructure solutions for enterprise clients across Singapore and the region.",
-      "reporting_to": "Engineering Manager (Singapore)",
-      "work_model": {
-        "type": "Hybrid",
-        "office_days_per_week": 2,
-        "remote_days_per_week": 3
-      },
-      "responsibilities": [
-        "Architect cloud solutions on AWS, Azure, and Google Cloud Platform",
-        "Lead enterprise cloud migration projects",
-        "Implement DevOps practices and CI/CD pipelines",
-        "Provide technical consultation and solution design",
-        "Collaborate with Malaysia team on cross-border initiatives",
-        "Mentor junior engineers and conduct knowledge sharing sessions"
-      ],
-      "qualifications": {
-        "education": "Bachelor's degree in Computer Science, Engineering or related field",
-        "experience_years_min": 3,
-        "technical_skills": [
-          "AWS",
-          "Azure",
-          "Google Cloud Platform",
-          "Terraform",
-          "CloudFormation",
-          "CI/CD",
-          "Infrastructure as Code"
-        ],
-        "certifications_preferred": [
-          "AWS Solutions Architect",
-          "Azure Administrator",
-          "Equivalent cloud certifications"
-        ],
-        "languages_required": [
-          "English"
-        ]
-      },
-      "compensation": {
-        "salary_band_min": 6000,
-        "salary_band_max": 9000,
-        "salary_frequency": "monthly",
-        "package_structure": "14-month package including AWS",
-        "bonus_policy": {
-          "type": "Performance Bonus",
-          "max_months": 3
-        },
-        "stock_options": {
-          "eligible_after_months": 12,
-          "scheme": "Deriv Group Stock Options"
-        }
-      },
-      "benefits": {
-        "cpf": {
-          "employer_percent": 17,
-          "employee_percent": 20,
-          "applies_to": "Ordinary Wages"
-        },
-        "medical_insurance": {
-          "annual_limit": 80000,
-          "outpatient_included": true
-        },
-        "dental_coverage_per_year": 500,
-        "wellness_allowance_per_year": 500,
-        "professional_development_budget_per_year": 2500
-      },
-      "leave_policy": {
-        "annual_leave_days": 14,
-        "sick_leave_days": 14
-      },
-      "probation_period_months": 3,
-      "career_path": [
-        "Cloud Engineer",
-        "Senior Cloud Engineer",
-        "Cloud Architect",
-        "Principal Architect"
-      ],
-      "status": "active"
-    },
-    {
-      "job_code": "FSD-SG-002",
-      "job_name": "Full Stack Developer",
-      "department": "Engineering",
-      "employment_type": "Full-time",
-      "role_summary": "Develop and maintain scalable web applications and APIs for cloud-based enterprise solutions.",
-      "reporting_to": "Engineering Team Lead",
-      "work_model": {
-        "type": "Hybrid",
-        "office_days_per_week": 3,
-        "remote_days_per_week": 2
-      },
-      "responsibilities": [
-        "Build responsive front-end interfaces using React or Vue.js",
-        "Develop RESTful APIs using Node.js or Python",
-        "Integrate applications with AWS Lambda and Azure Functions",
-        "Collaborate with UX designers and cloud architects",
-        "Write clean, maintainable, well-documented code",
-        "Participate in agile development and code reviews"
-      ],
-      "qualifications": {
-        "education": "Bachelor's degree in Computer Science or related field",
-        "experience_years_min": 2,
-        "technical_skills": [
-          "JavaScript",
-          "TypeScript",
-          "HTML/CSS",
-          "Node.js",
-          "Python",
-          "AWS",
-          "Azure",
-          "Docker",
-          "Kubernetes",
-          "Microservices"
-        ],
-        "languages_required": [
-          "English"
-        ]
-      },
-      "compensation": {
-        "salary_band_min": 5000,
-        "salary_band_max": 7500,
-        "salary_frequency": "monthly",
-        "package_structure": "14-month package including AWS",
-        "bonus_policy": {
-          "type": "Performance Bonus",
-          "max_months": 2
-        }
-      },
-      "benefits": {
-        "cpf": {
-          "employer_percent": 17,
-          "employee_percent": 20,
-          "applies_to": "Ordinary Wages"
-        },
-        "medical_insurance": {
-          "annual_limit": 80000,
-          "outpatient_included": true
-        },
-        "dental_coverage_per_year": 500,
-        "wellness_allowance_per_year": 500,
-        "professional_development_budget_per_year": 2500
-      },
-      "leave_policy": {
-        "annual_leave_days": 14,
-        "sick_leave_days": 14
-      },
-      "probation_period_months": 3,
-      "career_path": [
-        "Junior Developer",
-        "Full Stack Developer",
-        "Senior Developer",
-        "Tech Lead"
-      ],
-      "status": "active"
-    },
-    {
-      "job_code": "DEVOPS-SG-003",
-      "job_name": "DevOps Engineer",
-      "department": "Engineering",
-      "employment_type": "Full-time",
-      "role_summary": "Manage CI/CD pipelines, cloud infrastructure automation, and system reliability for enterprise-grade cloud platforms.",
-      "reporting_to": "Engineering Manager (Singapore)",
-      "work_model": {
-        "type": "Hybrid",
-        "office_days_per_week": 2,
-        "remote_days_per_week": 3
-      },
-      "responsibilities": [
-        "Maintain and optimize CI/CD pipelines",
-        "Automate infrastructure using Infrastructure as Code",
-        "Manage Kubernetes clusters and containerized workloads",
-        "Monitor system reliability and performance",
-        "Implement security best practices in cloud environments"
-      ],
-      "qualifications": {
-        "education": "Bachelor's degree in Computer Science, Engineering or related field",
-        "experience_years_min": 2,
-        "technical_skills": [
-          "Docker",
-          "Kubernetes",
-          "Terraform",
-          "CI/CD",
-          "AWS or Azure",
-          "Monitoring and Observability tools"
-        ],
-        "languages_required": [
-          "English"
-        ]
-      },
-      "compensation": {
-        "salary_band_min": 5500,
-        "salary_band_max": 8500,
-        "salary_frequency": "monthly",
-        "package_structure": "14-month package including AWS",
-        "bonus_policy": {
-          "type": "Performance Bonus",
-          "max_months": 2
-        }
-      },
-      "benefits": {
-        "cpf": {
-          "employer_percent": 17,
-          "employee_percent": 20,
-          "applies_to": "Ordinary Wages"
-        },
-        "medical_insurance": {
-          "annual_limit": 80000,
-          "outpatient_included": true
-        },
-        "dental_coverage_per_year": 500,
-        "wellness_allowance_per_year": 500,
-        "professional_development_budget_per_year": 2500
-      },
-      "leave_policy": {
-        "annual_leave_days": 14,
-        "sick_leave_days": 14
-      },
-      "probation_period_months": 3,
-      "career_path": [
-        "DevOps Engineer",
-        "Senior DevOps Engineer",
-        "DevOps Architect",
-        "SRE Lead"
-      ],
-      "status": "active"
-    }
-  ]
 }

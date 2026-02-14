@@ -10,6 +10,9 @@ class Config:
         "VITE_OPENROUTER_API_KEY"
     )
 
+    # Logging
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+
     # Supabase
     SUPABASE_URL = os.environ.get("SUPABASE_URL")
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")

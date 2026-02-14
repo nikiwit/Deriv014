@@ -177,6 +177,11 @@ export interface OnboardingJourney {
   status: "not_started" | "in_progress" | "completed";
   aiPlan?: string;
   startDate: string;
+  email?: string;
+  position?: string;
+  department?: string;
+  jurisdiction?: string;
+  role?: string;
 }
 export interface InitialOnboardingJourney {
   // System fields

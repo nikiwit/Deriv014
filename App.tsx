@@ -310,8 +310,9 @@ function AppContent() {
   if (authUser.role === 'employee') {
     const renderEmployeeView = () => {
       switch (currentView) {
-        case 'employee_dashboard':
-          return <EmployeeDashboard onNavigate={setCurrentView} />;
+        // case 'employee_dashboard':
+
+          // return <EmployeeDashboard onNavigate={setCurrentView} />;
         case 'my_onboarding':
           return <MyOnboarding />;
         case 'my_leave':
@@ -328,7 +329,8 @@ function AppContent() {
         case 'my_profile':
           return <MyProfile />;
         default:
-          return <EmployeeDashboard onNavigate={setCurrentView} />;
+          // return <EmployeeDashboard onNavigate={setCurrentView} />;
+          return <MyOnboarding />;
       }
     };
 

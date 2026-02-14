@@ -115,6 +115,7 @@ export interface EmployeeListItem {
   status: string;
   created_at: string;
   progress: string;
+  role: string;
 }
 
 export async function createEmployee(data: CreateEmployeeRequest): Promise<{

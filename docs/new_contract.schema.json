@@ -1,0 +1,244 @@
+{
+  "title": "Employment Contract Template",
+  "version": "2.1",
+  "jurisdictions_supported": ["MY", "SG"],
+  "sections": [
+    {
+      "id": "header",
+      "title": "Employment Contract",
+      "type": "header",
+      "content": [
+        {"type": "company_name", "value": "{{company.name}}"},
+        {"type": "company_registration", "value": "{{company.registration_number}}"},
+        {"type": "company_address", "value": "{{company.address}}"}
+      ]
+    },
+    {
+      "id": "employee_details",
+      "title": "1. Employee Details",
+      "jurisdiction": "all",
+      "fields": [
+        {"key": "fullName", "label": "Full Name (as per NRIC/Passport)", "type": "display", "value": "{{employee.fullName}}", "required": true},
+        {"key": "nric", "label": "NRIC/Passport No", "type": "display", "value": "{{employee.nric}}", "required": true},
+        {"key": "nationality", "label": "Nationality", "type": "display", "value": "{{employee.nationality}}", "required": true},
+        {"key": "position", "label": "Position", "type": "display", "value": "{{job.job_name}} ({{job.job_code}})", "required": true},
+        {"key": "department", "label": "Department", "type": "display", "value": "{{job.department}}", "required": true},
+        {"key": "employmentType", "label": "Employment Type", "type": "display", "value": "{{job.employment_type}}", "required": true},
+        {"key": "reportingTo", "label": "Reporting To", "type": "display", "value": "{{job.reporting_to}}", "required": true},
+        {"key": "startDate", "label": "Start Date", "type": "display", "value": "{{employee.startDate}}", "required": true},
+        {"key": "workModel", "label": "Work Model", "type": "display", "value": "{{job.work_model.type}} ({{job.work_model.office_days_per_week}} office / {{job.work_model.remote_days_per_week}} remote days per week)", "required": true}
+      ]
+    },
+    {
+      "id": "role_responsibilities",
+      "title": "2. Role & Responsibilities",
+      "jurisdiction": "all",
+      "content": [
+        {"type": "paragraph", "value": "{{job.role_summary}}"},
+        {"type": "list", "items": "{{job.responsibilities}}"}
+      ]
+    },
+    {
+      "id": "compensation",
+      "title": "3. Compensation Package",
+      "jurisdiction": "all",
+      "fields": [
+        {"key": "monthlySalary", "label": "Monthly Salary", "type": "display", "value": "{{job.currency}} {{employee.offered_salary}}", "required": true},
+        {"key": "salaryBand", "label": "Salary Band", "type": "display", "value": "{{job.currency}} {{job.compensation.salary_band_min}} – {{job.currency}} {{job.compensation.salary_band_max}}", "required": true},
+        {"key": "paymentFrequency", "label": "Payment Frequency", "type": "display", "value": "Monthly (by 7th of following month)", "required": true},
+        {"key": "annualWageSupplement", "label": "Annual Wage Supplement (AWS)", "type": "display", "value": "{{#if job.compensation.annual_wage_supplement_months}}{{job.compensation.annual_wage_supplement_months}} months{{else}}Not applicable{{/if}}", "jurisdiction": "SG"},
+        {"key": "bonusPolicy", "label": "Performance Bonus", "type": "display", "value": "Up to {{job.compensation.bonus_policy.max_months}} months' salary (discretionary)", "required": true}
+      ]
+    },
+    {
+      "id": "benefits",
+      "title": "4. Benefits & Allowances",
+      "jurisdiction": "all",
+      "fields": [
+        {"key": "medicalInsurance", "label": "Medical Insurance", "type": "display", "value": "{{job.currency}} {{job.benefits.medical_insurance.annual_limit}} annual limit", "required": true},
+        {"key": "learningAllowance", "label": "Learning Allowance", "type": "display", "value": "{{#if job.benefits.learning_allowance_per_year}}{{job.currency}} {{job.benefits.learning_allowance_per_year}}/year{{else}}Not applicable{{/if}}"},
+        {"key": "professionalDevelopment", "label": "Professional Development Budget", "type": "display", "value": "{{#if job.benefits.professional_development_budget_per_year}}{{job.currency}} {{job.benefits.professional_development_budget_per_year}}/year{{else}}Not applicable{{/if}}"},
+        {"key": "dentalCoverage", "label": "Dental Coverage", "type": "display", "value": "{{#if job.benefits.dental_coverage_per_year}}{{job.currency}} {{job.benefits.dental_coverage_per_year}}/year{{else}}Not applicable{{/if}}"},
+        {"key": "wellnessAllowance", "label": "Wellness Allowance", "type": "display", "value": "{{#if job.benefits.wellness_allowance_per_year}}{{job.currency}} {{job.benefits.wellness_allowance_per_year}}/year{{else}}Not applicable{{/if}}"},
+        {"key": "flexibleHours", "label": "Flexible Working Hours", "type": "display", "value": "{{#if job.benefits.flexible_hours}}Yes{{else}}No{{/if}}", "required": true}
+      ]
+    },
+    {
+      "id": "statutory_my",
+      "title": "5. Statutory Contributions (Malaysia)",
+      "jurisdiction": "MY",
+      "type": "table",
+      "columns": ["Contribution", "Employer", "Employee", "Notes"],
+      "rows": [
+        {"contribution": "EPF", "employer": "{{job.benefits.retirement.epf.employer_percent}}%", "employee": "{{job.benefits.retirement.epf.employee_percent}}%", "notes": "Mandatory retirement savings"},
+        {"contribution": "SOCSO", "employer": "Yes", "employee": "Yes", "notes": "Employment injury & invalidity scheme"},
+        {"contribution": "EIS", "employer": "Yes", "employee": "Yes", "notes": "Employment insurance system"}
+      ]
+    },
+    {
+      "id": "statutory_sg",
+      "title": "5. Statutory Contributions (Singapore)",
+      "jurisdiction": "SG",
+      "type": "table",
+      "columns": ["Contribution", "Employer", "Employee", "Notes"],
+      "rows": [
+        {"contribution": "CPF", "employer": "{{job.benefits.retirement.cpf.employer_percent}}%", "employee": "{{job.benefits.retirement.cpf.employee_percent}}%", "notes": "Applies to Ordinary Wages"},
+        {"contribution": "SDL", "employer": "0.25%", "employee": "—", "notes": "Skills Development Levy (employer-paid)"}
+      ]
+    },
+    {
+      "id": "leave_entitlement",
+      "title": "6. Leave Entitlement",
+      "jurisdiction": "all",
+      "type": "table",
+      "columns": ["Leave Type", "Entitlement", "Conditions"],
+      "rows": [
+        {"type": "Annual Leave", "entitlement": "{{job.leave_policy.annual_leave_days}} days/year", "conditions": "Accrued pro-rata during first year"},
+        {"type": "Sick Leave", "entitlement": "{{job.leave_policy.sick_leave_days}} days/year", "conditions": "MC required for >2 consecutive days"},
+        {"type": "Hospitalization Leave", "entitlement": "{{#if jurisdiction=='MY'}}60{{else}}60{{/if}} days/year", "conditions": "As per Employment Act"},
+        {"type": "Maternity Leave", "entitlement": "{{#if jurisdiction=='MY'}}98{{else}}16 weeks{{/if}}", "conditions": "For eligible female employees"},
+        {"type": "Paternity Leave", "entitlement": "{{#if jurisdiction=='MY'}}7{{else}}2 weeks{{/if}}", "conditions": "For eligible fathers"}
+      ]
+    },
+    {
+      "id": "probation_notice",
+      "title": "7. Probation & Notice Period",
+      "jurisdiction": "all",
+      "type": "table",
+      "columns": ["Period", "Duration", "Notice Required"],
+      "rows": [
+        {"period": "Probation", "duration": "{{job.probation_period_months}} months", "notice": "1 week by either party"},
+        {"period": "Post-Probation", "duration": "—", "notice": "{{#if jurisdiction=='MY'}}1 month{{else}}1 month{{/if}} or salary in lieu"}
+      ]
+    },
+    {
+      "id": "career_path",
+      "title": "8. Career Development Path",
+      "jurisdiction": "all",
+      "type": "list",
+      "items": "{{job.career_path}}"
+    },
+    {
+      "id": "governing_terms",
+      "title": "9. Governing Terms",
+      "jurisdiction": "all",
+      "content": [
+        {"type": "paragraph", "value": "Governing Law: Laws of {{jurisdiction}}"},
+        {"type": "paragraph", "value": "Confidentiality: As per Company Confidentiality Agreement (provided separately)"},
+        {"type": "paragraph", "value": "IP Assignment: All work product assigned to Company per IP Agreement"},
+        {"type": "paragraph", "value": "Policy Compliance: Employee Handbook (provided separately)"}
+      ]
+    },
+    {
+      "id": "acknowledgements",
+      "title": "10. Acknowledgements",
+      "jurisdiction": "all",
+      "fields": [
+        {"key": "acknowledgeTerms", "label": "I have read and understood all terms of this employment contract", "type": "checkbox", "required": true},
+        {"key": "acknowledgeHandbook", "label": "I have received and reviewed the Employee Handbook", "type": "checkbox", "required": true},
+        {"key": "declarationTruthfulness", "label": "I confirm all information provided is true and correct", "type": "checkbox", "required": true},
+        {"key": "backgroundCheckConsent", "label": "I consent to background verification checks", "type": "checkbox", "required": true}
+      ]
+    },
+    {
+      "id": "signatures",
+      "title": "Signatures",
+      "jurisdiction": "all",
+      "content": [
+        {
+          "type": "signature_block",
+          "label": "Employee Signature",
+          "fields": [
+            {"key": "employeeSignature", "label": "Signature", "type": "signature", "required": true},
+            {"key": "employeeSignatureDate", "label": "Date", "type": "date", "required": true}
+          ]
+        },
+        {
+          "type": "signature_block",
+          "label": "Company Representative",
+          "fields": [
+            {"key": "companyRepresentativeName", "label": "Name", "type": "text", "required": true},
+            {"key": "companyRepresentativeTitle", "label": "Title", "type": "text", "required": true},
+            {"key": "companySignature", "label": "Signature", "type": "signature", "required": true},
+            {"key": "companySignatureDate", "label": "Date", "type": "date", "required": true}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "footer",
+      "title": "",
+      "type": "footer",
+      "content": [
+        {"type": "paragraph", "value": "This contract is generated electronically and is legally binding upon digital signature."},
+        {"type": "metadata", "value": "Contract Version: {{metadata.contract_version}} | Generated: {{metadata.generated_at}}"}
+      ]
+    }
+  ],
+  "data_model": {
+    "employee": {
+      "fullName": "string",
+      "nric": "string",
+      "nationality": "string",
+      "startDate": "date",
+      "offered_salary": "number"
+    },
+    "job": {
+      "job_code": "string",
+      "job_name": "string",
+      "department": "string",
+      "employment_type": "string",
+      "role_summary": "string",
+      "reporting_to": "string",
+      "work_model": {
+        "type": "string",
+        "office_days_per_week": "integer",
+        "remote_days_per_week": "integer"
+      },
+      "responsibilities": "array<string>",
+      "compensation": {
+        "salary_band_min": "number",
+        "salary_band_max": "number",
+        "annual_wage_supplement_months": "integer|null",
+        "bonus_policy": {
+          "max_months": "integer"
+        }
+      },
+      "benefits": {
+        "retirement": {
+          "epf": {
+            "employer_percent": "number",
+            "employee_percent": "number"
+          },
+          "cpf": {
+            "employer_percent": "number",
+            "employee_percent": "number"
+          }
+        },
+        "medical_insurance": {
+          "annual_limit": "number"
+        }
+      },
+      "leave_policy": {
+        "annual_leave_days": "integer",
+        "sick_leave_days": "integer"
+      },
+      "probation_period_months": "integer",
+      "career_path": "array<string>"
+    },
+    "company": {
+      "name": "string",
+      "jurisdiction": "string",
+      "currency": "string",
+      "registration_number": "string",
+      "address": "string"
+    }
+  },
+  "rendering_rules": {
+    "jurisdiction_conditionals": {
+      "MY": ["statutory_my", "employee_details", "compensation", "benefits", "leave_entitlement", "probation_notice", "career_path", "governing_terms", "acknowledgements", "signatures"],
+      "SG": ["statutory_sg", "employee_details", "compensation", "benefits", "leave_entitlement", "probation_notice", "career_path", "governing_terms", "acknowledgements", "signatures"]
+    },
+    "placeholder_syntax": "handlebars"
+  }
+}

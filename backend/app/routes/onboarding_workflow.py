@@ -649,9 +649,157 @@ def create_employee():
     ), 201
 
 
+# @bp.route("/generate-offer-approval", methods=["POST"])
+# def generate_offer_approval():
+#     """Generate offer approval JSON and create user with pending_employee role"""
+#     data = request.get_json() or {}
+    
+#     # Required fields
+#     full_name = data.get("full_name", "").strip()
+#     email = data.get("email", "").strip().lower()
+#     first_name = data.get("first_name", "").strip()
+#     last_name = data.get("last_name", "").strip()
+#     position_title = data.get("position_title", "").strip()
+#     department = data.get("department", "").strip()
+#     start_date = data.get("start_date", "")
+#     salary = data.get("salary", "")
+    
+#     if not full_name or not email or not position_title:
+#         return jsonify({
+#             "success": False,
+#             "error": "full_name, email, and position_title are required"
+#         }), 400
+    
+#     # Generate employee ID
+#     employee_id = str(uuid.uuid4())
+#     now = datetime.utcnow().isoformat()
+    
+#     # Prepare offer approval data
+#     offer_data = {
+#         "employee_id": employee_id,
+#         "full_name": full_name,
+#         "email": email,
+#         "first_name": first_name,
+#         "last_name": last_name,
+#         "nric": data.get("nric", ""),
+#         "position_title": position_title,
+#         "position": data.get("position", position_title),
+#         "department": department,
+#         "start_date": start_date,
+#         "salary": salary,
+#         "nationality": data.get("nationality", "Malaysian"),
+#         "date_of_birth": data.get("date_of_birth", ""),
+#         "work_location": data.get("work_location", ""),
+#         "work_hours": data.get("work_hours", ""),
+#         "leave_annual_days": data.get("leave_annual_days", 14),
+#         "leave_sick_days": data.get("leave_sick_days", 14),
+#         "public_holidays_policy": data.get("public_holidays_policy", ""),
+#         "bank_name": data.get("bank_name", ""),
+#         "bank_account_holder": data.get("bank_account_holder", ""),
+#         "bank_account_number": data.get("bank_account_number", ""),
+#         "jurisdiction": data.get("jurisdiction", "MY"),
+#         "bonus": data.get("bonus", ""),
+#         "probation_months": data.get("probation_months", 3),
+#         "created_at": now,
+#         "status": "pending"
+#     }
+    
+#     # Create JSON file in backend/temp_data
+#     backend_dir = Path(__file__).parent.parent.parent
+#     temp_data_dir = backend_dir / "temp_data"
+#     temp_data_dir.mkdir(exist_ok=True)
+    
+#     json_filename = f"{employee_id}_offer_approval.json"
+#     json_filepath = temp_data_dir / json_filename
+    
+#     try:
+#         with open(json_filepath, "w") as f:
+#             json.dump(offer_data, f, indent=2)
+#     except Exception as e:
+#         return jsonify({
+#             "success": False,
+#             "error": f"Failed to create JSON file: {str(e)}"
+#         }), 500
+    
+#     # Create user in users table with pending_employee role
+#     db = get_db()
+#     offer_url = f"/offer/{employee_id}"
+    
+#     try:
+#         # # Check if user already exists
+#         # existing = db.table("users").select("id").eq("email", email).execute()
+#         # if existing.data:
+#         #     return jsonify({
+#         #         "success": False,
+#         #         "error": "User with this email already exists"
+#         #     }), 409
+        
+#         # In generate_offer_approval() at line 729
+#         existing = db.table("users").select("id, role").eq("email", email).execute()
+#         if existing.data:
+#             # Check if this is for the SAME employee
+#             existing_user = existing.data[0]
+#             if existing_user.get("employee_id") == employee_id:
+#                 # Same employee, just return success
+#                 user_id = existing_user["id"]
+#             elif existing_user.get("role") == "pending_employee":
+#                 # Update existing pending employee
+#                 db.table("users").update(user_data).eq("id", existing_user["id"]).execute()
+#                 user_id = existing_user["id"]
+#             else:
+#                 # Different employee with same email
+#                 return jsonify({
+#                     "success": False,
+#                     "error": "User with this email already exists for a different employee"
+#                 }), 409
+#         else:
+#             # Create new user
+#             result = db.table("users").insert(user_data).execute()
+#             user_id = result.data[0]["id"]
+
+#         # Create user — only columns that exist in the users table
+#         user_data = {
+#             "email": email,
+#             "first_name": first_name,
+#             "last_name": last_name,
+#             "role": "pending_employee",
+#             "department": department,
+#             "employee_id": employee_id,
+#             "nationality": data.get("nationality", "Malaysian"),
+#             "start_date": start_date or None,
+#             "onboarding_complete": False,
+#             "nric": data.get("nric", ""),
+#         }
+
+#         result = db.table("users").insert(user_data).execute()
+#         user_id = result.data[0]["id"] if result.data else employee_id
+
+#         # Update offer_data JSON with the user_id for reference
+#         offer_data["user_id"] = user_id
+#         with open(json_filepath, "w") as f:
+#             json.dump(offer_data, f, indent=2)
+
+#         return jsonify({
+#             "success": True,
+#             "employee_id": employee_id,
+#             "user_id": user_id,
+#             "offer_url": offer_url,
+#             "json_path": str(json_filepath),
+#             "message": "Offer approval generated and user created with pending_employee role"
+#         }), 201
+
+#     except Exception as e:
+#         # Clean up JSON file if user creation fails
+#         if json_filepath.exists():
+#             json_filepath.unlink()
+#         return jsonify({
+#             "success": False,
+#             "error": f"Failed to create user: {str(e)}"
+#         }), 500
+
 @bp.route("/generate-offer-approval", methods=["POST"])
 def generate_offer_approval():
-    """Generate offer approval JSON and create user with pending_employee role"""
+    """Generate offer approval JSON and create/update user with pending_employee role"""
     data = request.get_json() or {}
     
     # Required fields
@@ -721,20 +869,12 @@ def generate_offer_approval():
             "error": f"Failed to create JSON file: {str(e)}"
         }), 500
     
-    # Create user in users table with pending_employee role
+    # Create or update user in users table with pending_employee role
     db = get_db()
     offer_url = f"/offer/{employee_id}"
     
     try:
-        # Check if user already exists
-        existing = db.table("users").select("id").eq("email", email).execute()
-        if existing.data:
-            return jsonify({
-                "success": False,
-                "error": "User with this email already exists"
-            }), 409
-
-        # Create user — only columns that exist in the users table
+        # Prepare user data (email included for inserts; we'll avoid changing it on update)
         user_data = {
             "email": email,
             "first_name": first_name,
@@ -748,8 +888,18 @@ def generate_offer_approval():
             "nric": data.get("nric", ""),
         }
 
-        result = db.table("users").insert(user_data).execute()
-        user_id = result.data[0]["id"] if result.data else employee_id
+        # Check if user already exists by email
+        existing = db.table("users").select("id, role, employee_id").eq("email", email).execute()
+        if existing.data:
+            existing_user = existing.data[0]
+            # Update all fields except email
+            update_data = {k: v for k, v in user_data.items() if k != "email"}
+            db.table("users").update(update_data).eq("id", existing_user["id"]).execute()
+            user_id = existing_user["id"]
+        else:
+            # Create new user
+            result = db.table("users").insert(user_data).execute()
+            user_id = result.data[0]["id"]
 
         # Update offer_data JSON with the user_id for reference
         offer_data["user_id"] = user_id
@@ -762,18 +912,17 @@ def generate_offer_approval():
             "user_id": user_id,
             "offer_url": offer_url,
             "json_path": str(json_filepath),
-            "message": "Offer approval generated and user created with pending_employee role"
+            "message": "Offer approval generated and user created/updated with pending_employee role"
         }), 201
 
     except Exception as e:
-        # Clean up JSON file if user creation fails
+        # Clean up JSON file if user creation/update fails
         if json_filepath.exists():
             json_filepath.unlink()
         return jsonify({
             "success": False,
-            "error": f"Failed to create user: {str(e)}"
+            "error": f"Failed to create or update user: {str(e)}"
         }), 500
-
 
 # ── OFFER LETTER DISPLAY & ACTIONS ──────────────────────────────────
 

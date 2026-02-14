@@ -46,19 +46,12 @@ import {
   Zap,
   Download,
   XCircle,
+  Check,
+  Link as LinkIcon,
 } from "lucide-react";
 
 const API_BASE = "";
 
-// Helper: load JSON from localStorage
-function loadJson(key: string): Record<string, any> | null {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 interface ChatMessage {
   id: string;
@@ -88,19 +81,10 @@ export const Onboarding: React.FC = () => {
     string,
     any
   > | null>(null);
+  const [downloadingDocFor, setDownloadingDocFor] = useState<string | null>(null);
+  const [copiedLinkFor, setCopiedLinkFor] = useState<string | null>(null);
   const [aiMode, setAiMode] = useState(false);
 
-  // Onboarding profile from localStorage (employee-submitted data)
-  const [onboardingProfile, setOnboardingProfile] = useState<Record<
-    string,
-    any
-  > | null>(null);
-  const [offerData, setOfferData] = useState<Record<string, any> | null>(null);
-  const [contractData, setContractData] = useState<Record<string, any> | null>(
-    null,
-  );
-  const [reportLoading, setReportLoading] = useState(false);
-  
   // Generated offer letter state
   const [generatedOfferData, setGeneratedOfferData] = useState<any>(null);
   const [generatedEmployeeData, setGeneratedEmployeeData] = useState<any>(null);
@@ -115,45 +99,7 @@ export const Onboarding: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    setOnboardingProfile(loadJson("onboardingProfile"));
-    setOfferData(loadJson("offerAcceptanceData"));
-    setContractData(loadJson("contractData"));
-  }, []);
 
-  const isAppDone = onboardingProfile?.status === "in_progress";
-  const isOfferDone = !!(offerData && offerData.completedAt);
-  const isContractDone = !!(contractData && contractData.completedAt);
-
-  const downloadFullReport = async () => {
-    if (!onboardingProfile) return;
-    try {
-      setReportLoading(true);
-      const employeeId =
-        onboardingProfile.id || onboardingProfile.email || "unknown";
-      const payload = {
-        id: employeeId,
-        profile: onboardingProfile,
-        offer: offerData || {},
-        contract: contractData || {},
-      };
-      const saveRes = await fetch(`${API_BASE}/api/save-full-report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
-      window.open(
-        `${API_BASE}/api/generate-full-report-pdf/${encodeURIComponent(employeeId)}`,
-        "_blank",
-      );
-    } catch (err: any) {
-      console.error("Failed to generate full report", err);
-      alert("Failed to generate report: " + (err?.message || err));
-    } finally {
-      setReportLoading(false);
-    }
-  };
 
   // Wizard state
   const [step, setStep] = useState(0);
@@ -214,8 +160,13 @@ export const Onboarding: React.FC = () => {
             employeeName: emp.full_name || "Unnamed Employee",
             tasks: [],
             progress: total > 0 ? Math.round((submitted / total) * 100) : 0,
-            status: emp.status === "active" ? "completed" : "in_progress",
+            status: emp.status === "active" ? "completed" : emp.status === "pending" ? "in_progress" : "in_progress",
             startDate: emp.created_at?.split("T")[0] || "",
+            email: emp.email || "",
+            position: emp.position || "",
+            department: emp.department || "",
+            jurisdiction: emp.jurisdiction || "MY",
+            role: emp.role || "employee",
           };
         });
         setEmployees(mapped);
@@ -446,6 +397,78 @@ export const Onboarding: React.FC = () => {
     setViewMode("list");
     setShowFormMode(false);
     handleRestart();
+  };
+
+  // ── Application PDF download ──────────────────────────────────────────────
+  const downloadApplicationPdf = async (employee: OnboardingJourney) => {
+    if (!employee.id) {
+      alert('Employee ID is missing.');
+      return;
+    }
+
+    try {
+      setDownloadingDocFor(employee.id);
+      
+      // Build payload for PDF generation
+      const payload = {
+        id: employee.id,
+        fullName: employee.employeeName,
+        email: employee.email || '',
+        role: employee.position || '',
+        department: employee.department || '',
+        startDate: employee.startDate || '',
+        nationality: employee.jurisdiction === 'SG' ? 'Non-Malaysian' : 'Malaysian',
+        nric: '',  // NRIC is stored in users table, backend will fetch it
+      };
+
+      // Save application data
+      const saveRes = await fetch(`${API_BASE}/api/save-application-comprehensive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!saveRes.ok) {
+        const errorData = await saveRes.json().catch(() => ({}));
+        if (errorData.error === 'offer_not_signed') {
+          alert(`${errorData.message}\n\nUse the link icon to copy the offer URL.`);
+          return;
+        }
+        throw new Error(`Save failed: ${saveRes.status}`);
+      }
+
+      // Open PDF in new tab (backend fetches complete data from users table)
+      window.open(
+        `${API_BASE}/api/generate-offer-pdf/${encodeURIComponent(employee.id)}`,
+        '_blank'
+      );
+    } catch (err: any) {
+      console.error('Failed to generate PDF:', err);
+      alert('Failed to generate PDF: ' + (err?.message || err));
+    } finally {
+      setDownloadingDocFor(null);
+    }
+  };
+
+  // ── Copy Offer Link ────────────────────────────────────────────────────────
+  const copyOfferLink = async (employeeId: string) => {
+    const offerUrl = `${window.location.origin}/offer/${employeeId}`;
+    
+    try {
+      await navigator.clipboard.writeText(offerUrl);
+      setCopiedLinkFor(employeeId);
+      setTimeout(() => setCopiedLinkFor(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+      // Fallback for older browsers
+      const input = document.createElement('input');
+      input.value = offerUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      alert(`Offer link copied: ${offerUrl}`);
+    }
   };
 
   // const handleFormSubmit = (data: OnboardingData, analysisResult: string) => {
@@ -685,105 +708,6 @@ export const Onboarding: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Onboarding Profile Card (from localStorage) ─────────── */}
-        {onboardingProfile && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-derivhr-500 to-derivhr-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                  {(onboardingProfile.fullName || "?")
-                    .split(" ")
-                    .map((n: string) => n[0])
-                    .join("")}
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    {onboardingProfile.fullName || "Unknown"}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {onboardingProfile.role || "—"} &bull;{" "}
-                    {onboardingProfile.department || "—"} &bull; Start:{" "}
-                    {onboardingProfile.startDate || "—"}
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-black text-derivhr-500 uppercase tracking-widest bg-derivhr-50 px-3 py-1 rounded-full">
-                Active Onboarding
-              </span>
-            </div>
-
-            {/* Profile details grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              <div className="bg-slate-50 rounded-xl p-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Email
-                </div>
-                <div className="text-sm font-bold text-slate-800 truncate">
-                  {onboardingProfile.email || "—"}
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Nationality
-                </div>
-                <div className="text-sm font-bold text-slate-800">
-                  {onboardingProfile.nationality || "—"}
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Salary
-                </div>
-                <div className="text-sm font-bold text-slate-800">
-                  MYR {onboardingProfile.salary || "—"}
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-3">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  NRIC
-                </div>
-                <div className="text-sm font-bold text-slate-800">
-                  {onboardingProfile.nric || "—"}
-                </div>
-              </div>
-            </div>
-
-            {/* Document status */}
-            <div className="flex items-center space-x-3 mb-5">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-1">
-                Documents:
-              </span>
-              <span
-                className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isAppDone ? "bg-jade-100 text-jade-700" : "bg-slate-100 text-slate-400"}`}
-              >
-                <CheckCircle2 size={12} /> <span>Application</span>
-              </span>
-              <span
-                className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isOfferDone ? "bg-jade-100 text-jade-700" : "bg-slate-100 text-slate-400"}`}
-              >
-                <CheckCircle2 size={12} /> <span>Offer Letter</span>
-              </span>
-              <span
-                className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold ${isContractDone ? "bg-jade-100 text-jade-700" : "bg-slate-100 text-slate-400"}`}
-              >
-                <CheckCircle2 size={12} /> <span>Contract</span>
-              </span>
-            </div>
-
-            {/* Action button */}
-            <button
-              onClick={downloadFullReport}
-              disabled={reportLoading}
-              className="inline-flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-derivhr-500 to-derivhr-600 text-white rounded-xl font-bold text-sm hover:from-derivhr-600 hover:to-derivhr-700 transition-all shadow-lg shadow-derivhr-500/20 disabled:opacity-60"
-            >
-              <Download size={16} />
-              <span>
-                {reportLoading ? "Generating Report…" : "Get Full Report PDF"}
-              </span>
-            </button>
-          </div>
-        )}
-
         {/* Employee List */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-lg overflow-hidden">
           {/* Toolbar */}
@@ -854,10 +778,12 @@ export const Onboarding: React.FC = () => {
                       className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         emp.status === "completed"
                           ? "bg-jade-100 text-jade-700"
+                          : emp.role === "pending_employee"
+                          ? "bg-blue-100 text-blue-700"
                           : "bg-amber-100 text-amber-700"
                       }`}
                     >
-                      {emp.status === "completed" ? "Complete" : "In Progress"}
+                      {emp.status === "completed" ? "Complete" : emp.role === "pending_employee" ? "Pending" : emp.role === "employee" ? "In Progress" : `${emp.role}`}
                     </span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -874,13 +800,39 @@ export const Onboarding: React.FC = () => {
 
                 <div className="flex items-center space-x-2">
                   <button
+                    onClick={() => downloadApplicationPdf(emp)}
+                    disabled={downloadingDocFor === emp.id}
+                    className="p-2 text-slate-400 hover:text-derivhr-500 hover:bg-derivhr-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-wait"
+                    title="Download Document"
+                  >
+                    {downloadingDocFor === emp.id ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <Download size={18} />
+                    )}
+                  </button>
+                  {/* Copy offer link button - only for pending employees */}
+                  {emp.role === "pending_employee" && (
+                    <button
+                      onClick={() => copyOfferLink(emp.id)}
+                      className="p-2 text-slate-400 hover:text-green-500 hover:bg-green-50 rounded-lg transition-all"
+                      title="Copy Offer Link"
+                    >
+                      {copiedLinkFor === emp.id ? (
+                        <Check size={18} className="text-green-500" />
+                      ) : (
+                        <LinkIcon size={18} />
+                      )}
+                    </button>
+                  )}
+                  <button
                     onClick={() =>
                       setSelectedEmployee({
                         id: emp.id,
                         name: emp.employeeName,
                       })
                     }
-                    className="p-2 text-slate-400 hover:text-derivhr-500 hover:bg-derivhr-50 rounded-lg transition-all"
+                    className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
                     title="View Documents"
                   >
                     <FileText size={18} />
@@ -1006,14 +958,8 @@ export const Onboarding: React.FC = () => {
     };
 
     const handleAIFinish = (data: OnboardingData, analysisResult: string) => {
-      // Load preliminary data from localStorage if available
-      const prelimData = loadJson("preliminaryEmployeeData");
-      if (prelimData) {
-        setPreliminaryData(prelimData);
-      } else {
-        // Fallback if not in localStorage but passed from AI
-        setPreliminaryData(data as any);
-      }
+      // Use data directly from the AI form — no localStorage
+      setPreliminaryData(data as any);
 
       // Add to employee list
       const newEmployee: OnboardingJourney = {

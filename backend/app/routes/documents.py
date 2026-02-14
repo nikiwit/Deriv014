@@ -647,12 +647,24 @@ def generate_offer_pdf(employee_id):
             # Fallback to JSON file if user not in database
             json_path = TEMP_DIR / f"{employee_id}_offer.json"
             if not json_path.exists():
-                return jsonify({"error": "Offer data not found in database or file system"}), 404
+                return jsonify({"error": f"{json_path}" +"Offer data not found in database or file system"}), 404
             
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
     
     except Exception as e:
+        # Check if this is a pending employee who hasn't completed offer
+        try:
+            user_check = db.table("users").select("role").eq("id", employee_id).execute()
+            if user_check.data and user_check.data[0].get("role") == "pending_employee":
+                return jsonify({
+                    "error": "offer_not_signed",
+                    "message": "Employee hasn't signed the offer letter yet. Share the offer link with them to complete acceptance.",
+                    "offer_url": f"/offer/{employee_id}"
+                }), 400
+        except:
+            pass
+        
         # Fallback to JSON file on error
         json_path = TEMP_DIR / f"{employee_id}_offer.json"
         if not json_path.exists():
@@ -733,7 +745,7 @@ def _generate_contract_pdf(data, out_path: Path):
 
     # Title
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Employee Onboarding Form", ln=True, align="C")
+    pdf.cell(0, 10, f"{val('fullName', 'Employee')} Onboarding Form", ln=True, align="C")
     pdf.set_font("Arial", "", 12)
     pdf.cell(0, 8, "Deriv Solutions Sdn Bhd", ln=True, align="C")
     pdf.ln(6)
@@ -871,31 +883,154 @@ def _generate_contract_pdf(data, out_path: Path):
 
 @onboarding_docs_bp.route("/api/generate-contract-pdf/<employee_id>", methods=["GET"])
 @cross_origin()
+def _flatten_contract_data(nested_data: dict) -> dict:
+    """
+    Transform nested schema structure (employee/job/company) to the flat
+    key structure that _generate_contract_pdf expects.
+    If the data is already flat (has 'fullName' at top level), returns it as-is.
+    """
+    # Already flat — return directly
+    if nested_data.get("fullName") or nested_data.get("jobTitle"):
+        return nested_data
+
+    employee = nested_data.get("employee", {}) or {}
+    job = nested_data.get("job", {}) or {}
+    company = nested_data.get("company", {}) or {}
+    banking = nested_data.get("banking", {}) or {}
+    terms = nested_data.get("terms", {}) or {}
+    work_model = job.get("work_model", {}) or {}
+    leave_policy = job.get("leave_policy", {}) or {}
+
+    jurisdiction = company.get("jurisdiction", "MY")
+
+    flat = {
+        "fullName": employee.get("fullName", ""),
+        "nric": employee.get("nric", ""),
+        "passportNo": "",
+        "nationality": employee.get("nationality", ""),
+        "dateOfBirth": employee.get("dateOfBirth", ""),
+        "gender": "",
+        "maritalStatus": "",
+        "race": "",
+        "religion": "",
+        "address1": "",
+        "address2": "",
+        "postcode": "",
+        "city": "",
+        "state": "",
+        "country": "Malaysia" if jurisdiction == "MY" else "Singapore",
+        "personalEmail": "",
+        "workEmail": employee.get("email", ""),
+        "mobile": "",
+        "altNumber": "",
+        "emergencyName": "",
+        "emergencyRelationship": "",
+        "emergencyMobile": "",
+        "emergencyAltNumber": "",
+        "jobTitle": job.get("job_name", ""),
+        "department": job.get("department", ""),
+        "reportingTo": job.get("reporting_to", ""),
+        "startDate": employee.get("startDate", ""),
+        "employmentType": job.get("employment_type", "Full-Time Permanent"),
+        "probationMonths": job.get("probation_period_months", 3),
+        "probationPeriod": f"{job.get('probation_period_months', 3)} months",
+        "workModel": f"{work_model.get('type', '')} ({work_model.get('office_days_per_week', 0)} office / {work_model.get('remote_days_per_week', 0)} remote)" if work_model.get("type") else "",
+        "workLocation": "",
+        "workHours": terms.get("workHours", ""),
+        "monthlySalary": str(employee.get("offered_salary", "")),
+        "currency": company.get("currency", "MYR" if jurisdiction == "MY" else "SGD"),
+        "overtimeRate": terms.get("overtimeRate", ""),
+        "noticePeriod": terms.get("noticePeriod", "1 month"),
+        "annualLeave": leave_policy.get("annual_leave_days", 12),
+        "sickLeave": leave_policy.get("sick_leave_days", 14),
+        "hospitalizationLeave": 60,
+        "maternityLeave": 98 if jurisdiction == "MY" else 112,
+        "paternityLeave": 7,
+        "bankName": banking.get("bankName", ""),
+        "accountHolder": banking.get("accountHolder", ""),
+        "accountNumber": banking.get("accountNumber", ""),
+        "bankBranch": "",
+        "taxResident": True,
+        "acknowledgeHandbook": True,
+        "acknowledgeIT": True,
+        "acknowledgePrivacy": True,
+        "acknowledgeConfidentiality": True,
+        "finalDeclaration": True,
+        "signature": nested_data.get("signature", ""),
+        "signatureDate": nested_data.get("signatureDate", ""),
+        "id": employee.get("employee_id", ""),
+        "completedAt": nested_data.get("completedAt", ""),
+    }
+    return flat
+
+
 def generate_contract_pdf(employee_id):
     """
-    Generate contract PDF from authenticated user data in Supabase.
-    Falls back to JSON file if user data not found in database.
+    Generate contract PDF. Priority:
+    1. Existing PDF (already generated by sign_and_store_contract)
+    2. Signed contract data from contracts table
+    3. JSON file from sign_and_store_contract
+    4. Users table fallback
     """
     from app.database import get_db
-    
-    # Try to fetch user data from Supabase first
+
+    pdf_path = TEMP_DIR / f"{employee_id}_contract.pdf"
+
+    # If PDF already exists (generated by sign_and_store_contract), serve it
+    if pdf_path.exists():
+        return send_file(str(pdf_path), as_attachment=True, download_name=f"contract_{employee_id}.pdf", mimetype="application/pdf")
+
+    data = None
+
     try:
         db = get_db()
-        user_result = db.table("users").select("*").eq("id", employee_id).execute()
-        
-        if user_result.data and len(user_result.data) > 0:
-            # Build contract data from Supabase user record
+
+        # 1. Try contracts table (signed contract data)
+        try:
+            contract_result = (
+                db.table("contracts")
+                .select("*")
+                .eq("employee_id", employee_id)
+                .eq("status", "active")
+                .execute()
+            )
+            if contract_result.data:
+                contract_row = contract_result.data[0]
+                raw = contract_row.get("contract_data")
+                if raw:
+                    nested = json.loads(raw) if isinstance(raw, str) else raw
+                    data = _flatten_contract_data(nested)
+                    # Enrich with contract row data
+                    data["signatureDate"] = (contract_row.get("employee_signed_at") or "")[:10]
+                    data["completedAt"] = contract_row.get("employee_signed_at", "")
+                    data["id"] = employee_id
+        except Exception as e:
+            logger.warning(f"Could not load from contracts table: {e}")
+
+        # 2. Fallback to JSON file from sign_and_store_contract
+        if not data:
+            json_path = TEMP_DIR / f"{employee_id}_contract.json"
+            if json_path.exists():
+                with open(json_path, "r", encoding="utf-8") as f:
+                    json_data = json.load(f)
+                data = _flatten_contract_data(json_data)
+                data["id"] = employee_id
+
+        # 3. Last fallback: users table
+        if not data:
+            user_result = db.table("users").select("*").eq("id", employee_id).execute()
+            if not user_result.data:
+                return jsonify({"error": "Contract data not found"}), 404
+
             user = user_result.data[0]
-            
-            # Determine jurisdiction
             nationality = (user.get("nationality") or "").lower()
             jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality else "MY"
-            
+
             data = {
                 "fullName": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
                 "nric": user.get("nric", ""),
                 "passportNo": "",
-                "nationality": user.get("nationality", "Malaysian"),
+                "nationality": user.get("nationality", ""),
                 "dateOfBirth": user.get("date_of_birth", ""),
                 "gender": "",
                 "maritalStatus": "",
@@ -940,49 +1075,22 @@ def generate_contract_pdf(employee_id):
                 "acknowledgePrivacy": True,
                 "acknowledgeConfidentiality": True,
                 "finalDeclaration": True,
-                "signature": user.get("signature", ""),  # Get signature if stored in DB
+                "signature": user.get("signature", ""),
                 "signatureDate": datetime.now().strftime("%Y-%m-%d"),
                 "id": employee_id,
                 "completedAt": datetime.now().isoformat(),
             }
-            
-            # If JSON file exists, merge signature from it (signature not in DB)
-            json_path = TEMP_DIR / f"{employee_id}_contract.json"
-            if json_path.exists():
-                try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        json_data = json.load(f)
-                    # Override signature and completedAt if present in saved file
-                    if json_data.get("signature"):
-                        data["signature"] = json_data["signature"]
-                    if json_data.get("completedAt"):
-                        data["completedAt"] = json_data["completedAt"]
-                    if json_data.get("signatureDate"):
-                        data["signatureDate"] = json_data["signatureDate"]
-                except Exception as e:
-                    logger.warning(f"Could not merge signature from JSON file: {e}")
-        else:
-            # Fallback to JSON file if user not in database
-            json_path = TEMP_DIR / f"{employee_id}_contract.json"
-            if not json_path.exists():
-                return jsonify({"error": "Contract data not found in database or file system"}), 404
-            
-            with open(json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-    
+
     except Exception as e:
-        # Fallback to JSON file on error
+        # Final fallback to JSON file
         json_path = TEMP_DIR / f"{employee_id}_contract.json"
         if not json_path.exists():
             return jsonify({"error": f"Failed to fetch contract data: {str(e)}"}), 500
-        
         with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            data = _flatten_contract_data(json.load(f))
+        data["id"] = employee_id
 
-    # Generate PDF
-    pdf_path = TEMP_DIR / f"{employee_id}_contract.pdf"
     _generate_contract_pdf(data, pdf_path)
-
     return send_file(str(pdf_path), as_attachment=True, download_name=f"contract_{employee_id}.pdf", mimetype="application/pdf")
 
 

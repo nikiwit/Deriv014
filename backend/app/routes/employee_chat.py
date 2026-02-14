@@ -161,32 +161,53 @@ def _summarize_modification_history(history: Optional[List[Dict[str, Any]]]) -> 
 
 
 def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
-    """Build a full markdown contract summary from contract JSON data."""
+    """
+    Build a full markdown contract summary from contract JSON data.
+    
+    Supports both:
+    - NEW schema structure: { employee: {...}, job: {...}, company: {...} }
+    - LEGACY flat structure: { personal_details: {...}, employment_details: {...} }
+    """
+    # Detect structure type: new schema vs legacy flat
+    employee_sec = contract_data.get("employee", {}) or {}
+    job_sec = contract_data.get("job", {}) or {}
+    company_sec = contract_data.get("company", {}) or {}
+    is_new_schema = bool(employee_sec.get("fullName") or job_sec.get("job_name"))
+
     # Top-level fields
-    employee_id = contract_data.get("employee_id") or contract_data.get("employeeId") or ""
-    session_id = contract_data.get("session_id") or contract_data.get("sessionId") or ""
+    employee_id = (
+        employee_sec.get("employee_id")
+        or contract_data.get("employee_id")
+        or contract_data.get("employeeId")
+        or ""
+    )
     status = contract_data.get("status", "")
-    jurisdiction = contract_data.get("jurisdiction", contract_data.get("jurisdiction_code", "MY"))
+    jurisdiction = (
+        company_sec.get("jurisdiction")
+        or contract_data.get("jurisdiction")
+        or contract_data.get("jurisdiction_code", "MY")
+    )
     created_at = _iso_to_readable(contract_data.get("created_at") or contract_data.get("createdAt"))
     last_updated = _iso_to_readable(contract_data.get("last_updated") or contract_data.get("lastUpdated"))
     finalized_at = _iso_to_readable(contract_data.get("finalized_at") or contract_data.get("finalizedAt"))
 
-    # Personal / banking / employment nested objects
+    # Legacy nested objects (for backwards compatibility)
     personal = contract_data.get("personal_details", {}) or {}
     banking = contract_data.get("banking_details", {}) or contract_data.get("bank_details", {}) or {}
     employment = contract_data.get("employment_details", {}) or {}
 
-    # personal fields (handle multiple possible key names)
+    # personal fields — try new schema first, then legacy
     employee_name = (
-        personal.get("fullName")
+        employee_sec.get("fullName")
+        or personal.get("fullName")
         or personal.get("full_name")
         or contract_data.get("employee_name")
         or contract_data.get("full_name")
         or ""
     )
-    email = personal.get("email") or contract_data.get("email") or ""
-    nationality = personal.get("nationality") or contract_data.get("nationality") or ""
-    nric = personal.get("nric") or contract_data.get("nric") or ""
+    email = employee_sec.get("email") or personal.get("email") or contract_data.get("email") or ""
+    nationality = employee_sec.get("nationality") or personal.get("nationality") or contract_data.get("nationality") or ""
+    nric = employee_sec.get("nric") or personal.get("nric") or contract_data.get("nric") or ""
     dob = personal.get("dateOfBirth") or personal.get("date_of_birth") or contract_data.get("date_of_birth") or ""
 
     # banking
@@ -194,23 +215,88 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
     bank_holder = banking.get("accountHolder") or banking.get("account_holder") or banking.get("bank_account_holder") or ""
     bank_account = banking.get("accountNumber") or banking.get("account_number") or banking.get("bank_account_number") or ""
 
-    # employment
-    position = employment.get("position_title") or employment.get("position") or ""
-    department = employment.get("department") or ""
-    start_date = employment.get("start_date") or ""
-    salary = employment.get("salary") or ""
+    # employment — try new schema (job_sec) first, then legacy (employment)
+    position = (
+        job_sec.get("job_name")
+        or employment.get("position_title")
+        or employment.get("position")
+        or ""
+    )
+    department = job_sec.get("department") or employment.get("department") or ""
+    start_date = (
+        employee_sec.get("startDate")
+        or employment.get("start_date")
+        or ""
+    )
+    salary = (
+        employee_sec.get("offered_salary")
+        or employment.get("salary")
+        or ""
+    )
+    employment_type = job_sec.get("employment_type") or employment.get("employment_type") or ""
+    reporting_to = job_sec.get("reporting_to") or employment.get("reporting_to") or ""
+    role_summary = job_sec.get("role_summary") or ""
+
+    # Work model (new schema)
+    work_model = job_sec.get("work_model", {}) or {}
+    work_type = work_model.get("type", "")
+    office_days = work_model.get("office_days_per_week", "")
+    remote_days = work_model.get("remote_days_per_week", "")
+    # Legacy fallback
     work_location = employment.get("work_location") or contract_data.get("work_location") or ""
     work_hours = employment.get("work_hours") or contract_data.get("work_hours") or ""
-    annual_leave = employment.get("annual_leave") or employment.get("leave_annual_days") or _safe(contract_data, "leave_annual_days")
-    sick_leave = employment.get("sick_leave") or employment.get("leave_sick_days") or _safe(contract_data, "leave_sick_days")
-    probation = employment.get("probation_months") or contract_data.get("probation_months") or ""
 
-    # other useful fields
+    # Leave (new schema path: job.leave_policy, legacy: employment_details)
+    leave_policy = job_sec.get("leave_policy", {}) or {}
+    annual_leave = (
+        leave_policy.get("annual_leave_days")
+        or employment.get("annual_leave")
+        or employment.get("leave_annual_days")
+        or _safe(contract_data, "leave_annual_days")
+    )
+    sick_leave = (
+        leave_policy.get("sick_leave_days")
+        or employment.get("sick_leave")
+        or employment.get("leave_sick_days")
+        or _safe(contract_data, "leave_sick_days")
+    )
+    probation = (
+        job_sec.get("probation_period_months")
+        or employment.get("probation_months")
+        or contract_data.get("probation_months")
+        or ""
+    )
+
+    # Compensation (new schema) - ensure numeric values for :, formatting
+    def _to_num(v, default=0):
+        """Convert value to number, return default if not possible."""
+        if v is None or v == "":
+            return default
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return default
+
+    compensation = job_sec.get("compensation", {}) or {}
+    salary_band_min = _to_num(compensation.get("salary_band_min"))
+    salary_band_max = _to_num(compensation.get("salary_band_max"))
+    bonus_months = _to_num((compensation.get("bonus_policy") or {}).get("max_months"))
+
+    # Benefits (new schema) - ensure numeric values for :, formatting
+    benefits = job_sec.get("benefits", {}) or {}
+    medical_insurance = benefits.get("medical_insurance", {}) or {}
+    medical_limit = _to_num(medical_insurance.get("annual_limit"))
+    learning_allowance = _to_num(benefits.get("learning_allowance_per_year"))
+    prof_dev = _to_num(benefits.get("professional_development_budget_per_year"))
+    dental_coverage = _to_num(benefits.get("dental_coverage_per_year"))
+    wellness_allowance = _to_num(benefits.get("wellness_allowance_per_year"))
+    flexible_hours = benefits.get("flexible_hours", "")
+    # Legacy fallback
     medical_coverage = contract_data.get("medical_coverage") or _safe(contract_data, "medicalCoverage") or ""
-    collection_progress = contract_data.get("collection_progress") or {}
-    total_fields = collection_progress.get("total_fields")
-    collected_fields = collection_progress.get("collected_fields")
-    missing_fields = collection_progress.get("missing_fields") or []
+
+    # Responsibilities and career path (new schema)
+    responsibilities = job_sec.get("responsibilities", []) or []
+    career_path = job_sec.get("career_path", []) or []
 
     # modification history summary
     modification_history = contract_data.get("modification_history") or contract_data.get("modifications") or []
@@ -218,15 +304,16 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
 
     # currency by jurisdiction (simple mapping)
     currency_map = {"MY": "RM", "SG": "SGD", "SGP": "SGD", "US": "USD"}
-    currency = currency_map.get((jurisdiction or "").upper(), "RM" if (jurisdiction or "").upper() == "MY" else "USD")
+    currency = (
+        company_sec.get("currency")
+        or currency_map.get((jurisdiction or "").upper(), "RM" if (jurisdiction or "").upper() == "MY" else "USD")
+    )
 
     # Build markdown
     lines: List[str] = []
     lines.append("# Employment Contract Summary\n")
 
     lines.append(f"- **Employee ID:** `{employee_id}`")
-    # if session_id:
-    #     lines.append(f"- **Session ID:** `{session_id}`")
     if status:
         lines.append(f"- **Status:** **{status}**")
     if jurisdiction:
@@ -242,14 +329,10 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
 
     # Personal details
     lines.append("## Personal details")
-    if employee_name:
-        lines.append(f"- **Name:** {employee_name}")
-    if email:
-        lines.append(f"- **Email:** {email}")
-    if nationality:
-        lines.append(f"- **Nationality:** {nationality}")
-    if nric:
-        lines.append(f"- **NRIC / ID:** {nric}")
+    lines.append(f"- **Name:** {employee_name or 'Not specified'}")
+    lines.append(f"- **Email:** {email or 'Not specified'}")
+    lines.append(f"- **Nationality:** {nationality or 'Not specified'}")
+    lines.append(f"- **NRIC / ID:** {nric or 'Not specified'}")
     if dob:
         lines.append(f"- **Date of birth:** {dob}")
 
@@ -257,15 +340,21 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
 
     # Employment details
     lines.append("## Employment details")
-    if position:
-        lines.append(f"- **Position:** {position}")
-    if department:
-        lines.append(f"- **Department:** {department}")
-    if start_date:
-        lines.append(f"- **Start date:** {start_date}")
+    lines.append(f"- **Position:** {position or 'Not specified'}")
+    lines.append(f"- **Department:** {department or 'Not specified'}")
+    if employment_type:
+        lines.append(f"- **Employment type:** {employment_type}")
+    if reporting_to:
+        lines.append(f"- **Reporting to:** {reporting_to}")
+    lines.append(f"- **Start date:** {start_date or 'Not specified'}")
     if salary:
         lines.append(f"- **Salary:** {currency} {salary}")
-    if work_location:
+    if work_type:
+        work_schedule = f"{work_type}"
+        if office_days or remote_days:
+            work_schedule += f" ({office_days} office / {remote_days} remote days per week)"
+        lines.append(f"- **Work model:** {work_schedule}")
+    elif work_location:
         lines.append(f"- **Work location:** {work_location}")
     if work_hours:
         lines.append(f"- **Work hours:** {work_hours}")
@@ -278,6 +367,48 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
 
     lines.append("")  # blank
 
+    # Role & Responsibilities (new schema)
+    if role_summary or responsibilities:
+        lines.append("## Role & Responsibilities")
+        if role_summary:
+            lines.append(f"{role_summary}")
+            lines.append("")
+        if responsibilities:
+            for resp in responsibilities:
+                lines.append(f"- {resp}")
+        lines.append("")
+
+    # Compensation details (new schema)
+    if salary_band_min or salary_band_max or bonus_months:
+        lines.append("## Compensation")
+        if salary:
+            lines.append(f"- **Monthly salary:** {currency} {salary}")
+        if salary_band_min and salary_band_max:
+            lines.append(f"- **Salary band:** {currency} {salary_band_min:,} – {currency} {salary_band_max:,}")
+        if bonus_months:
+            lines.append(f"- **Performance bonus:** Up to {bonus_months} months (discretionary)")
+        lines.append("")
+
+    # Benefits (new schema)
+    has_benefits = medical_limit or learning_allowance or prof_dev or dental_coverage or wellness_allowance
+    if has_benefits or medical_coverage:
+        lines.append("## Benefits & Allowances")
+        if medical_limit:
+            lines.append(f"- **Medical insurance:** {currency} {medical_limit:,} annual limit")
+        elif medical_coverage:
+            lines.append(f"- **Medical coverage:** {medical_coverage}")
+        if learning_allowance:
+            lines.append(f"- **Learning allowance:** {currency} {learning_allowance:,}/year")
+        if prof_dev:
+            lines.append(f"- **Professional development:** {currency} {prof_dev:,}/year")
+        if dental_coverage:
+            lines.append(f"- **Dental coverage:** {currency} {dental_coverage:,}/year")
+        if wellness_allowance:
+            lines.append(f"- **Wellness allowance:** {currency} {wellness_allowance:,}/year")
+        if flexible_hours is not None and flexible_hours != "":
+            lines.append(f"- **Flexible hours:** {'Yes' if flexible_hours else 'No'}")
+        lines.append("")
+
     # Banking
     if bank_name or bank_holder or bank_account:
         lines.append("## Banking details")
@@ -289,29 +420,12 @@ def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
             lines.append(f"- **Account number:** {bank_account}")
         lines.append("")
 
-    # Medical coverage
-    if medical_coverage:
-        lines.append("## Medical coverage")
-        lines.append(f"- **Medical coverage:** {medical_coverage}")
+    # Career path (new schema)
+    if career_path:
+        lines.append("## Career Development Path")
+        for level in career_path:
+            lines.append(f"- **{level}**")
         lines.append("")
-
-    # Collection progress
-    # lines.append("## Data collection progress")
-    # if isinstance(total_fields, int) and isinstance(collected_fields, int):
-    #     try:
-    #         pct = int((collected_fields / total_fields) * 100) if total_fields else 0
-    #     except Exception:
-    #         pct = 0
-    #     lines.append(f"- **Fields collected:** {collected_fields} / {total_fields} ({pct}%)")
-    # else:
-    #     # fallback to whatever data exists
-    #     if total_fields is not None:
-    #         lines.append(f"- **Total fields:** {total_fields}")
-    #     if collected_fields is not None:
-    #         lines.append(f"- **Collected fields:** {collected_fields}")
-    # if missing_fields:
-    #     lines.append(f"- **Missing fields:** {', '.join(map(str, missing_fields))}")
-    # lines.append("")
 
     # Modification history summary
     lines.append("## Modification history")
@@ -360,25 +474,47 @@ def _respond_in_contract_context(message: str, contract_json_path):
 
             message_lower = message.lower()
 
+            # Support both legacy (employment_details) and new schema (employee/job)
+            emp = contract_data.get("employment_details", {}) or {}
+            employee_sec = contract_data.get("employee", {}) or {}
+            job_sec = contract_data.get("job", {}) or {}
+            company_sec = contract_data.get("company", {}) or {}
+
             if "salary" in message_lower or "pay" in message_lower:
-                emp = contract_data.get("employment_details", {})
-                salary = emp.get("salary") or contract_data.get("salary", "not specified")
-                currency = "RM" if contract_data.get("jurisdiction") == "MY" else "SGD"
+                salary = (
+                    employee_sec.get("offered_salary")
+                    or emp.get("salary")
+                    or contract_data.get("salary")
+                    or "not specified"
+                )
+                currency = company_sec.get("currency") or ("RM" if contract_data.get("jurisdiction") == "MY" else "SGD")
                 return f"Your contract salary is **{currency} {salary}**.\n\nIf you'd like to negotiate this, please let me know what you'd like to change it to."
 
             elif "start date" in message_lower or "when do i start" in message_lower:
-                emp = contract_data.get("employment_details", {})
-                start_date = emp.get("start_date") or contract_data.get("start_date", "not specified")
+                start_date = (
+                    employee_sec.get("startDate")
+                    or emp.get("start_date")
+                    or contract_data.get("start_date")
+                    or "not specified"
+                )
                 return f"Your contract start date is **{start_date}**.\n\nIf you'd like to change this, please let me know your preferred start date."
 
             elif "position" in message_lower or "role" in message_lower or "title" in message_lower:
-                emp = contract_data.get("employment_details", {})
-                position = emp.get("position_title") or contract_data.get("position", "not specified")
+                position = (
+                    job_sec.get("job_name")
+                    or emp.get("position_title")
+                    or contract_data.get("position")
+                    or "not specified"
+                )
                 return f"Your position is **{position}**.\n\nIf you'd like to discuss this, please let me know."
 
             elif "department" in message_lower:
-                emp = contract_data.get("employment_details", {})
-                department = emp.get("department") or contract_data.get("department", "not specified")
+                department = (
+                    job_sec.get("department")
+                    or emp.get("department")
+                    or contract_data.get("department")
+                    or "not specified"
+                )
                 return f"Your department is **{department}**.\n\nIf you'd like to change this, please let me know."
 
             elif "sign" in message_lower or "ready" in message_lower:

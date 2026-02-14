@@ -513,7 +513,16 @@ export const EmployeeChatAssistant: React.FC = () => {
                 {cd.bank_name && <><span className="font-semibold">Bank</span><span>{cd.bank_name}</span></>}
                 {cd.bank_account_holder && <><span className="font-semibold">Account Holder</span><span>{cd.bank_account_holder}</span></>}
                 {cd.bank_account_number && <><span className="font-semibold">Account No.</span><span>{cd.bank_account_number}</span></>}
-                {cd.company && <><span className="font-semibold">Company</span><span>{cd.company}</span></>}
+{cd.company && (
+  <>
+    <span className="font-semibold">Company</span>
+    <span>
+      {typeof cd.company === "object"
+        ? cd.company.name
+        : cd.company}
+    </span>
+  </>
+)}
               </div>
             </div>
             <p className="text-xs text-slate-600 mb-3">

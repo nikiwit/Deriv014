@@ -16,7 +16,6 @@ import {
   Building2,
   Calendar,
   CreditCard,
-  Fingerprint,
   Mail,
   Globe,
   Loader2,
@@ -57,30 +56,7 @@ export const NewEmployeeModeSelection: React.FC<
 
     setIsUploading(true);
     try {
-      const parsedData = await parseResume(file);
-
-      // Save parsed data to localStorage so the form picks it up
-      try {
-        // Merge with existing or default structure
-        const existing = localStorage.getItem("onboardingProfile");
-        const base = existing
-          ? JSON.parse(existing)
-          : {
-              fullName: "",
-              email: "",
-              role: "",
-              department: "",
-              startDate: "",
-              nationality: "Malaysian",
-              salary: "",
-              nric: "",
-            };
-
-        const merged = { ...base, ...parsedData };
-        localStorage.setItem("onboardingProfile", JSON.stringify(merged));
-      } catch (err) {
-        console.warn("Failed to save parsed resume data:", err);
-      }
+      await parseResume(file);
 
       // Navigate to form
       onModeSelect("form");
@@ -272,32 +248,26 @@ interface ChatMessage {
   step?: number;
 }
 
+// Available position titles from jobs catalog
+const POSITION_TITLES = [
+  "Full Stack Developer",
+  "DevOps Engineer",
+  "Cloud Solutions Engineer",
+];
+
 // Step definitions for the AI chat flow
 interface OnboardingStep {
   key: string;
   prompt: string;
   icon: string;
-  type?: "choice" | "date";
+  type?: "choice" | "date" | "position_select";
   choices?: string[];
-  condition?: (d: any) => boolean;
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   { key: "fullName", prompt: "What is the **employee's full name**?", icon: "User" },
   { key: "email", prompt: "What is their **email address**?", icon: "Mail" },
-  { key: "role", prompt: "What **role/job title** are they being hired for?", icon: "Briefcase" },
-  { key: "positionTitle", prompt: "What is the official **position title**? (e.g., Senior Software Engineer)", icon: "Briefcase" },
-  { key: "department", prompt: "Which **department** will they be joining?", icon: "Building2" },
-  { key: "salary", prompt: "What is the monthly **salary**? (e.g., 5000 MYR)", icon: "CreditCard" },
-  { key: "nationality", prompt: "Is the candidate **Malaysian** or **Non-Malaysian**?", icon: "Globe", type: "choice", choices: ["Malaysian", "Non-Malaysian"] },
-  { key: "nric", prompt: "Please enter their **NRIC number** for EPF/SOCSO. (e.g., 910101-14-1234)", icon: "Fingerprint", condition: (d: any) => d.nationality === "Malaysian" },
-  { key: "dateOfBirth", prompt: "What is their **date of birth**?", icon: "Cake", type: "date" },
-  { key: "startDate", prompt: "When is their **start date**?", icon: "Calendar", type: "date" },
-  { key: "workLocation", prompt: "What is their **work location**? (e.g., Kuala Lumpur, Malaysia)", icon: "MapPin" },
-  { key: "workHours", prompt: "What are the **work hours**? (e.g., 9:00 AM - 6:00 PM, Mon-Fri)", icon: "Clock" },
-  { key: "leaveAnnualDays", prompt: "How many **annual leave days**? (e.g., 14)", icon: "Calendar" },
-  { key: "leaveSickDays", prompt: "How many **sick leave days**? (e.g., 14)", icon: "Calendar" },
-  { key: "publicHolidaysPolicy", prompt: "What is the **public holidays policy**? (e.g., Follow Malaysian public holidays)", icon: "Calendar" },
+  { key: "positionTitle", prompt: "Select the **position title** for this employee:", icon: "Briefcase", type: "position_select" },
   { key: "bankName", prompt: "What is the employee's **bank name**? (e.g., Maybank)", icon: "Banknote" },
   { key: "bankAccountHolder", prompt: "What is the **bank account holder name**?", icon: "Banknote" },
   { key: "bankAccountNumber", prompt: "What is the **bank account number**?", icon: "Banknote" },
@@ -305,17 +275,34 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 
 const FINAL_STEP = ONBOARDING_STEPS.length;
 
+// Predefined defaults for all other fields
+const PREDEFINED_DEFAULTS = {
+  role: "",  // will be set from positionTitle
+  department: "Engineering",
+  salary: "7000",
+  nationality: "Malaysian" as const,
+  nric: "",
+  dateOfBirth: "",
+  startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 30 days from now
+  workLocation: "Kuala Lumpur, Malaysia",
+  workHours: "9:00 AM - 6:00 PM, Mon-Fri",
+  leaveAnnualDays: "14",
+  leaveSickDays: "14",
+  publicHolidaysPolicy: "Follow Malaysian public holidays",
+};
+
 export const AIOnboarding: React.FC<AIOnboardingProps> = ({
   onSubmit,
   onCancel,
   existingEmployees = [],
 }) => {
   const [step, setStep] = useState(0);
+  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "0",
       sender: "ai",
-      text: "Hello! I'm DerivHR's AI Onboarding Assistant.\n\nI'll help you create a complete employee profile. This data will be used to generate an offer letter automatically.\n\nLet's get started! What is the **employee's full name**?",
+      text: "Hello! I'm DerivHR's AI Onboarding Assistant.\n\nI'll help you create a new employee profile quickly. I just need a few key details — everything else will be pre-filled with standard defaults.\n\nLet's get started! What is the **employee's full name**?",
       step: 0,
     },
   ]);
@@ -326,18 +313,18 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     fullName: "",
     email: "",
     role: "",
-    department: "",
-    startDate: "",
-    nationality: "Malaysian",
-    salary: "",
-    nric: "",
+    department: PREDEFINED_DEFAULTS.department,
+    startDate: PREDEFINED_DEFAULTS.startDate,
+    nationality: PREDEFINED_DEFAULTS.nationality,
+    salary: PREDEFINED_DEFAULTS.salary,
+    nric: PREDEFINED_DEFAULTS.nric,
     positionTitle: "",
-    workLocation: "",
-    workHours: "",
-    leaveAnnualDays: "",
-    leaveSickDays: "",
-    publicHolidaysPolicy: "",
-    dateOfBirth: "",
+    workLocation: PREDEFINED_DEFAULTS.workLocation,
+    workHours: PREDEFINED_DEFAULTS.workHours,
+    leaveAnnualDays: PREDEFINED_DEFAULTS.leaveAnnualDays,
+    leaveSickDays: PREDEFINED_DEFAULTS.leaveSickDays,
+    publicHolidaysPolicy: PREDEFINED_DEFAULTS.publicHolidaysPolicy,
+    dateOfBirth: PREDEFINED_DEFAULTS.dateOfBirth,
     bankName: "",
     bankAccountHolder: "",
     bankAccountNumber: "",
@@ -351,36 +338,56 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     }
   }, [messages, loading]);
 
-  // Get the actual next step index, skipping conditional steps whose condition is not met
-  const getNextStepIndex = (currentIdx: number, data: OnboardingData): number => {
-    let next = currentIdx + 1;
-    while (next < ONBOARDING_STEPS.length) {
-      const stepDef = ONBOARDING_STEPS[next];
-      if (stepDef.condition && !stepDef.condition(data)) {
-        next++;
-        continue;
-      }
-      return next;
-    }
-    return FINAL_STEP; // all done
-  };
-
   const currentStepDef = step < ONBOARDING_STEPS.length ? ONBOARDING_STEPS[step] : null;
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value;
-    // Format NRIC input
-    if (currentStepDef?.key === "nric") {
-      val = val.replace(/\D/g, "");
-      if (val.length > 6) val = val.slice(0, 6) + "-" + val.slice(6);
-      if (val.length > 9) val = val.slice(0, 9) + "-" + val.slice(9);
-      val = val.slice(0, 14);
-    }
-    setInput(val);
+    setInput(e.target.value);
   };
 
   const nextStep = async (value: string) => {
     if (!value) return;
+
+    // If waiting for manager confirmation
+    if (waitingForConfirmation) {
+      const confirmWords = ["yes", "continue", "proceed", "ok", "confirm", "go", "approve"];
+      const isConfirmed = confirmWords.some(w => value.toLowerCase().trim().includes(w));
+
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        sender: "user",
+        text: value,
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput("");
+
+      if (isConfirmed) {
+        setWaitingForConfirmation(false);
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              sender: "ai",
+              text: "Excellent! Generating the onboarding plan and preparing the offer letter data...",
+              step: FINAL_STEP,
+            },
+          ]);
+        }, 600);
+        triggerAnalysis(formData);
+      } else {
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              sender: "ai",
+              text: "No problem. Type **yes**, **continue**, or **proceed** when you're ready to generate the offer letter. Or click **Cancel** to start over.",
+            },
+          ]);
+        }, 600);
+      }
+      return;
+    }
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -388,51 +395,37 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       text: value,
     };
 
-    // Validate NRIC
-    if (currentStepDef?.key === "nric") {
-      const nricRegex = /^\d{6}-?\d{2}-?\d{4}$/;
-      if (!nricRegex.test(value)) {
-        setMessages((prev) => [
-          ...prev,
-          userMsg,
-          {
-            id: Date.now().toString(),
-            sender: "ai",
-            text: "That doesn't look like a valid NRIC format (e.g. 910101-14-1234). Please double check.",
-          },
-        ]);
-        setInput("");
-        return;
-      }
-    }
-
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
     const newData = { ...formData };
     if (currentStepDef) {
       (newData as any)[currentStepDef.key] = value;
+      // Sync role with positionTitle
+      if (currentStepDef.key === "positionTitle") {
+        newData.role = value;
+      }
     }
 
     setFormData(newData);
 
-    const nextIdx = getNextStepIndex(step, newData);
+    const nextIdx = step + 1;
 
     if (nextIdx >= FINAL_STEP) {
-      // All steps done — trigger analysis
+      // All fields collected — show summary and wait for confirmation
       setStep(FINAL_STEP);
+      setWaitingForConfirmation(true);
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now().toString(),
             sender: "ai",
-            text: "Excellent! Let me generate the onboarding plan and prepare the offer letter data...",
+            text: `I've collected all the required details. Here's the summary:\n\n**Employee Details:**\n- **Name:** ${newData.fullName}\n- **Email:** ${newData.email}\n- **Position:** ${newData.positionTitle}\n- **Department:** ${newData.department}\n- **Salary:** ${newData.salary} MYR\n- **Start Date:** ${newData.startDate}\n- **Nationality:** ${newData.nationality}\n- **Work Location:** ${newData.workLocation}\n- **Work Hours:** ${newData.workHours}\n\n**Banking Details:**\n- **Bank:** ${newData.bankName}\n- **Account Holder:** ${newData.bankAccountHolder}\n- **Account Number:** ${newData.bankAccountNumber}\n\nType **yes**, **continue**, or **proceed** to generate the offer letter.`,
             step: FINAL_STEP,
           },
         ]);
       }, 600);
-      triggerAnalysis(newData);
     } else {
       setStep(nextIdx);
       const nextDef = ONBOARDING_STEPS[nextIdx];
@@ -458,9 +451,8 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     setLoading(false);
 
     // Create employee in backend
-    let backendId = Date.now().toString();
     try {
-      const created = await createEmployee({
+      await createEmployee({
         email: data.email,
         full_name: data.fullName,
         jurisdiction: data.nationality === "Malaysian" ? "MY" : "SG",
@@ -471,23 +463,8 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         bank_name: data.bankName || "",
         bank_account: data.bankAccountNumber || "",
       });
-      backendId = created.id;
     } catch (err) {
       console.error("Backend employee creation failed:", err);
-    }
-
-    // Store data in localStorage for offer letter generation
-    try {
-      localStorage.setItem(
-        "preliminaryEmployeeData",
-        JSON.stringify({
-          ...data,
-          employeeId: backendId,
-          createdAt: new Date().toISOString(),
-        }),
-      );
-    } catch (e) {
-      console.warn("Failed to save preliminary data:", e);
     }
 
     // Add completion message
@@ -497,7 +474,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         {
           id: Date.now().toString(),
           sender: "ai",
-          text: `Perfect! I've collected all employee data and created the onboarding record.\n\n**Summary:**\n- **Name:** ${data.fullName}\n- **Email:** ${data.email}\n- **Role:** ${data.role}\n- **Position:** ${data.positionTitle || data.role}\n- **Department:** ${data.department}\n- **Start Date:** ${data.startDate}\n- **Salary:** ${data.salary} MYR\n- **Nationality:** ${data.nationality}\n- **Work Location:** ${data.workLocation || "—"}\n- **Work Hours:** ${data.workHours || "—"}\n- **Annual Leave:** ${data.leaveAnnualDays || "—"} days\n- **Sick Leave:** ${data.leaveSickDays || "—"} days\n- **Bank:** ${data.bankName || "—"}\n\nYou can now generate the **Offer Letter**!`,
+          text: `Profile created successfully! You can now generate the **Offer Letter**.`,
           step: FINAL_STEP + 1,
         },
       ]);
@@ -506,6 +483,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
 
   const handleRestart = () => {
     setStep(0);
+    setWaitingForConfirmation(false);
     setMessages([
       {
         id: "0",
@@ -519,18 +497,18 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       fullName: "",
       email: "",
       role: "",
-      department: "",
-      startDate: "",
-      nationality: "Malaysian",
-      salary: "",
-      nric: "",
+      department: PREDEFINED_DEFAULTS.department,
+      startDate: PREDEFINED_DEFAULTS.startDate,
+      nationality: PREDEFINED_DEFAULTS.nationality,
+      salary: PREDEFINED_DEFAULTS.salary,
+      nric: PREDEFINED_DEFAULTS.nric,
       positionTitle: "",
-      workLocation: "",
-      workHours: "",
-      leaveAnnualDays: "",
-      leaveSickDays: "",
-      publicHolidaysPolicy: "",
-      dateOfBirth: "",
+      workLocation: PREDEFINED_DEFAULTS.workLocation,
+      workHours: PREDEFINED_DEFAULTS.workHours,
+      leaveAnnualDays: PREDEFINED_DEFAULTS.leaveAnnualDays,
+      leaveSickDays: PREDEFINED_DEFAULTS.leaveSickDays,
+      publicHolidaysPolicy: PREDEFINED_DEFAULTS.publicHolidaysPolicy,
+      dateOfBirth: PREDEFINED_DEFAULTS.dateOfBirth,
       bankName: "",
       bankAccountHolder: "",
       bankAccountNumber: "",
@@ -545,65 +523,45 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
   };
 
   const renderControls = () => {
-    if (loading || step >= FINAL_STEP) return null;
+    if (loading) return null;
 
-    // Choice buttons (nationality)
-    if (currentStepDef?.type === "choice" && currentStepDef.choices) {
+    // Finished — show action buttons
+    if (step >= FINAL_STEP && !waitingForConfirmation) {
+      return null;
+    }
+
+    // Position select dropdown
+    if (currentStepDef?.type === "position_select") {
       return (
-        <div className="flex space-x-3 animate-fade-in">
-          {currentStepDef.choices.map((choice: string) => (
+        <div className="flex flex-col space-y-2 animate-fade-in">
+          {POSITION_TITLES.map((title) => (
             <button
-              key={choice}
-              onClick={() => nextStep(choice)}
-              className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:border-purple-500 hover:bg-purple-50 rounded-xl font-bold text-slate-700 shadow-sm transition-all flex items-center justify-center space-x-2"
+              key={title}
+              onClick={() => nextStep(title)}
+              className="w-full py-3 px-4 bg-white border border-slate-200 hover:border-purple-500 hover:bg-purple-50 rounded-xl font-bold text-slate-700 shadow-sm transition-all text-left flex items-center space-x-3"
             >
-              <span>{choice === "Malaysian" ? "🇲🇾" : "🌍"}</span>
-              <span>{choice}</span>
+              <Briefcase size={16} className="text-purple-500" />
+              <span>{title}</span>
             </button>
           ))}
         </div>
       );
     }
 
-    // Date input
-    if (currentStepDef?.type === "date") {
-      return (
-        <div className="flex space-x-3 animate-fade-in w-full">
-          <input
-            type="date"
-            value={input}
-            onChange={handleInput}
-            className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none shadow-sm font-medium"
-          />
-          <button
-            onClick={() => nextStep(input)}
-            disabled={!input}
-            className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl px-6 transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
-          >
-            <ArrowRight size={24} />
-          </button>
-        </div>
-      );
-    }
-
-    // Text input (default)
+    // Text input (default — including confirmation step)
     return (
       <div className="flex items-center space-x-3 bg-white border border-slate-200 rounded-xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all">
-        {currentStepDef?.key === "nric" && (
-          <Fingerprint className="text-slate-400 ml-2" size={20} />
-        )}
         <input
           value={input}
           onChange={handleInput}
           onKeyDown={(e) => e.key === "Enter" && nextStep(input)}
           autoFocus
           placeholder={
-            currentStepDef?.key === "nric"
-              ? "e.g. 910101-14-1234"
+            waitingForConfirmation
+              ? "Type yes, continue, or proceed..."
               : "Type your answer..."
           }
           className="flex-1 bg-transparent border-none text-slate-900 px-4 py-2 focus:ring-0 placeholder-slate-400 text-lg font-medium"
-          maxLength={currentStepDef?.key === "nric" ? 14 : undefined}
         />
         <button
           onClick={() => nextStep(input)}
@@ -630,7 +588,9 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
                 AI Assisted Onboarding
               </h2>
               <p className="text-white/80 text-sm font-medium">
-                Conversational data collection — Step {Math.min(step + 1, FINAL_STEP)} of {FINAL_STEP}
+                {waitingForConfirmation
+                  ? "Review & Confirm"
+                  : `Step ${Math.min(step + 1, FINAL_STEP)} of ${FINAL_STEP}`}
               </p>
             </div>
           </div>
@@ -686,7 +646,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       <div className="p-6 border-t border-slate-100">
         {renderControls()}
 
-        {step >= FINAL_STEP && !loading && (
+        {step >= FINAL_STEP && !loading && !waitingForConfirmation && (
           <div className="flex justify-center space-x-3 mt-4">
             <button
               onClick={handleRestart}
@@ -774,18 +734,15 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
 
   const handleGenerate = async () => {
     setLoading(true);
-    
-    console.log("🚀 Starting offer letter generation...");
+
+    console.log("Starting offer letter generation...");
     console.log("Form Data:", formData);
-    
+
     try {
       // Validate required fields
       if (!formData.candidateName || !formData.email || !formData.position) {
         throw new Error("Please fill in all required fields (Name, Email, Position)");
       }
-      
-      // Get preliminaryData from localStorage if not passed as prop
-      const prelimData = preliminaryData || JSON.parse(localStorage.getItem("preliminaryEmployeeData") || "{}");
       
       // Prepare comprehensive employee data for offer approval
       const offerApprovalData = {

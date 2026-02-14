@@ -3,18 +3,18 @@ import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, Calend
 import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask, TrainingCategory, TrainingCategoryInfo, TrainingItem, TrainingFormat, EmployeeTrainingProgress, TrainingCompletionTrend, EmployeeDocumentGroup } from './types';
 
 export const NAVIGATION_ITEMS = [
-  { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
+  // { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
   { id: 'onboarding', label: 'Onboarding AI', icon: <UserPlus size={20} /> },
   // Candidate Portal removed from Sidebar as it is now the external frontend
-  { id: 'leave', label: 'E-Leave (Global)', icon: <CalendarDays size={20} /> },
+  // { id: 'leave', label: 'E-Leave (Global)', icon: <CalendarDays size={20} /> },
   { id: 'documents', label: 'Smart Contracts', icon: <FileText size={20} /> },
   { id: 'assistant', label: 'DerivHR Agents', icon: <Bot size={20} /> },
   // { id: 'hr_agent', label: 'JD Analyzer', icon: <Sparkles size={20} /> },
-  { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
-  { id: 'planning', label: 'Workforce AI', icon: <TrendingUp size={20} /> },
+  // { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
+  // { id: 'planning', label: 'Workforce AI', icon: <TrendingUp size={20} /> },
   { id: 'employee_training', label: 'Employee Training', icon: <GraduationCap size={20} /> },
   { id: 'document_reminders', label: 'Document Reminders', icon: <FileWarning size={20} /> },
-  { id: 'training', label: 'Model Lab', icon: <TestTube2 size={20} /> },
+  // { id: 'training', label: 'Model Lab', icon: <TestTube2 size={20} /> },
 ];
 
 export const GLOBAL_JURISDICTIONS = [
@@ -212,10 +212,10 @@ export const DEMO_USERS: UserType[] = [
 // ============================================
 
 export const EMPLOYEE_NAV_ITEMS = [
-  { id: 'employee_dashboard', label: 'Dashboard', icon: <Home size={20} /> },
+  // { id: 'employee_dashboard', label: 'Dashboard', icon: <Home size={20} /> },
   { id: 'my_onboarding', label: 'My Onboarding', icon: <ClipboardCheck size={20} /> },
   { id: 'my_training', label: 'My Training', icon: <GraduationCap size={20} /> },
-  { id: 'my_leave', label: 'My Leave', icon: <CalendarDays size={20} /> },
+  // { id: 'my_leave', label: 'My Leave', icon: <CalendarDays size={20} /> },
   { id: 'my_documents', label: 'My Documents', icon: <FolderOpen size={20} /> },
   { id: 'employee_chat', label: 'Chat Assistant', icon: <MessageSquare size={20} /> },
   { id: 'my_profile', label: 'My Profile', icon: <User size={20} /> },

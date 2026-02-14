@@ -624,32 +624,76 @@ export const MyOnboardingProcess: React.FC = () => {
             
             <div className="space-y-4 text-sm">
               <div className="bg-slate-50 p-4 rounded-lg">
-                <h3 className="font-bold text-lg mb-2">{contractPreview.company}</h3>
-                <p className="text-slate-600">{contractPreview.companyAddress}</p>
+                <h3 className="font-bold text-lg mb-2">{contractPreview.company?.name || contractPreview.company || 'Not specified'}</h3>
+                <p className="text-slate-600">{contractPreview.company?.address || contractPreview.companyAddress || ''}</p>
+                {(contractPreview.company?.registration_number || contractPreview.companyReg) && (
+                  <p className="text-slate-500 text-xs mt-1">{contractPreview.company?.registration_number || contractPreview.companyReg}</p>
+                )}
               </div>
               
               <div>
                 <h3 className="font-bold mb-2">Employee Details</h3>
                 <table className="w-full text-sm">
                   <tbody>
-                    <tr className="border-b"><td className="py-2 font-semibold w-1/3">Name</td><td className="py-2">{contractPreview.fullName || 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 font-semibold">Position</td><td className="py-2">{contractPreview.position || 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 font-semibold">Department</td><td className="py-2">{contractPreview.department || 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 font-semibold">Start Date</td><td className="py-2">{contractPreview.startDate || 'N/A'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold w-1/3">Name</td><td className="py-2">{contractPreview.employee?.fullName || contractPreview.fullName || 'Not specified'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Position</td><td className="py-2">{contractPreview.job?.job_name || contractPreview.position || 'Not specified'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Department</td><td className="py-2">{contractPreview.job?.department || contractPreview.department || 'Not specified'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Employment Type</td><td className="py-2">{contractPreview.job?.employment_type || contractPreview.employmentType || 'Not specified'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Start Date</td><td className="py-2">{contractPreview.employee?.startDate || contractPreview.startDate || 'Not specified'}</td></tr>
+                    {(contractPreview.employee?.offered_salary || contractPreview.monthlySalary) && (
+                      <tr className="border-b"><td className="py-2 font-semibold">Salary</td><td className="py-2">{contractPreview.company?.currency || contractPreview.currency || ''} {contractPreview.employee?.offered_salary || contractPreview.monthlySalary}</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
               
+              {contractPreview.job?.work_model?.type && (
+                <div>
+                  <h3 className="font-bold mb-2">Work Model</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="border-b"><td className="py-2 font-semibold w-1/3">Type</td><td className="py-2">{contractPreview.job.work_model.type}</td></tr>
+                      <tr className="border-b"><td className="py-2 font-semibold">Office Days</td><td className="py-2">{contractPreview.job.work_model.office_days_per_week ?? 0} days/week</td></tr>
+                      <tr className="border-b"><td className="py-2 font-semibold">Remote Days</td><td className="py-2">{contractPreview.job.work_model.remote_days_per_week ?? 0} days/week</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               <div>
                 <h3 className="font-bold mb-2">Terms</h3>
                 <table className="w-full text-sm">
                   <tbody>
-                    <tr className="border-b"><td className="py-2 font-semibold w-1/3">Probation</td><td className="py-2">{contractPreview.probationMonths} months</td></tr>
-                    <tr className="border-b"><td className="py-2 font-semibold">Working Hours</td><td className="py-2">{contractPreview.workHours}</td></tr>
-                    <tr className="border-b"><td className="py-2 font-semibold">Annual Leave</td><td className="py-2">{contractPreview.leaveAnnual}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold w-1/3">Probation</td><td className="py-2">{contractPreview.job?.probation_period_months || contractPreview.probationMonths || '3'} months</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Working Hours</td><td className="py-2">{contractPreview.terms?.workHours || contractPreview.workHours || 'Not specified'}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Annual Leave</td><td className="py-2">{contractPreview.job?.leave_policy?.annual_leave_days ? `${contractPreview.job.leave_policy.annual_leave_days} days` : (contractPreview.terms?.leaveAnnual || contractPreview.leaveAnnual || 'Not specified')}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Sick Leave</td><td className="py-2">{contractPreview.job?.leave_policy?.sick_leave_days ? `${contractPreview.job.leave_policy.sick_leave_days} days` : (contractPreview.terms?.leaveSick || contractPreview.leaveSick || 'Not specified')}</td></tr>
+                    <tr className="border-b"><td className="py-2 font-semibold">Notice Period</td><td className="py-2">{contractPreview.terms?.noticePeriod || contractPreview.noticePeriod || 'Not specified'}</td></tr>
                   </tbody>
                 </table>
               </div>
+
+              {(contractPreview.job?.responsibilities?.length > 0) && (
+                <div>
+                  <h3 className="font-bold mb-2">Responsibilities</h3>
+                  <ul className="list-disc list-inside space-y-1">
+                    {contractPreview.job.responsibilities.map((r: string, i: number) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(contractPreview.job?.career_path?.length > 0) && (
+                <div>
+                  <h3 className="font-bold mb-2">Career Development Path</h3>
+                  <ul className="list-disc list-inside space-y-1">
+                    {contractPreview.job.career_path.map((level: string, i: number) => (
+                      <li key={i} className="font-medium">{level}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             
             <div className="mt-6 flex justify-end space-x-3">
