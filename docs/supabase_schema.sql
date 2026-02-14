@@ -2,6 +2,9 @@
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     jurisdiction TEXT,
+    active_contract_negotiation BOOLEAN DEFAULT FALSE,
+    contract_employee_id TEXT,
+    contract_collection_state TEXT, -- JSON: {collecting_field: 'field_key', missing_fields: [...]}
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

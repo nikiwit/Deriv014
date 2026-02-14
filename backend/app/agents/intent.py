@@ -90,6 +90,16 @@ class IntentClassifier:
             r"\b(is this a bot|are you a bot|bot or human)\b",
             r"\b(can you (generate|draft|calculate|route|connect))\b",
         ],
+
+        AgentType.SIGN_CONTRACT_REQUEST: [
+            r"\b(sign|signing)\b.*\b(contract|document|agreement)\b",
+            r"\b(contract)\b.*\b(sign|ready|signature)\b",
+            r"\b(ready to sign|want to sign|need to sign)\b",
+            r"\b(where can i sign|how do i sign)\b",
+            r"\b(sign my (contract|onboarding|employment))\b",
+            r"\b(is my contract ready)\b",
+            r"\b(contract signing|sign up)\b.*\b(process|status|start)\b",
+        ],
     }
 
     # Keywords that indicate complexity (prefer specialized agents)
@@ -101,7 +111,15 @@ class IntentClassifier:
     ]
 
     # High-priority routing keywords (override pattern matching)
+    # NOTE: Order matters — longer/more-specific phrases must come first
+    # because matching uses `keyword in query_lower`.
     PRIORITY_ROUTING = {
+        # Contract signing (checked before generic 'contract')
+        'sign my contract': AgentType.SIGN_CONTRACT_REQUEST,
+        'sign contract': AgentType.SIGN_CONTRACT_REQUEST,
+        'sign the contract': AgentType.SIGN_CONTRACT_REQUEST,
+        'contract signing': AgentType.SIGN_CONTRACT_REQUEST,
+
         # Immediate compliance routing
         'epf': AgentType.COMPLIANCE,
         'socso': AgentType.COMPLIANCE,
@@ -214,6 +232,7 @@ class IntentClassifier:
             AgentType.REQUEST_HR_TALK: "Request to schedule or escalate to an HR representative",
             AgentType.SMALL_TALK: "Casual / social interaction detected",
             AgentType.BOT_CAPABILITIES: "Questions about bot features, scope, or limitations",
+            AgentType.SIGN_CONTRACT_REQUEST: "Employee requesting to view or sign their employment contract",
         }
 
         return f"Routed to {agent_type.value} ({confidence_level} confidence): {reasons.get(agent_type, 'Unknown')}"

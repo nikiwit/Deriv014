@@ -10,6 +10,9 @@ from app.models import ContractParams
 
 bp = Blueprint("documents", __name__, url_prefix="/api/documents")
 
+import logging 
+logger = logging.getLogger(__name__)
+
 CHECKLISTS = {
     "new_hire": {
         "MY": [
@@ -441,7 +444,7 @@ def generate_app_comprehensive_pdf(employee_id):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    pdf_path = TEMP_DIR / f"{employee_id}_app_comprehensive.pdf"
+    pdf_path = TEMP_DIR / f"{employee_id}_contract.pdf"
     _generate_comprehensive_app_pdf(data, pdf_path)
 
     return send_file(str(pdf_path), as_attachment=True, download_name=f"onboarding_application_{employee_id}.pdf", mimetype="application/pdf")
@@ -601,13 +604,64 @@ def _generate_offer_pdf(data, out_path: Path):
 @onboarding_docs_bp.route("/api/generate-offer-pdf/<employee_id>", methods=["GET"])
 @cross_origin()
 def generate_offer_pdf(employee_id):
-    json_path = TEMP_DIR / f"{employee_id}_offer.json"
-    if not json_path.exists():
-        return jsonify({"error": "Offer acceptance data not found"}), 404
+    """
+    Generate offer PDF from authenticated user data in Supabase.
+    Falls back to JSON file if user data not found in database.
+    """
+    from app.database import get_db
+    
+    # Try to fetch user data from Supabase first
+    try:
+        db = get_db()
+        user_result = db.table("users").select("*").eq("id", employee_id).execute()
+        
+        if user_result.data and len(user_result.data) > 0:
+            # Build data from Supabase user record
+            user = user_result.data[0]
+            data = {
+                "fullName": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                "nricPassport": user.get("nric", ""),
+                "email": user.get("email", ""),
+                "mobile": user.get("phone", ""),
+                "company": "Deriv Solutions Sdn Bhd",
+                "position": user.get("position_title", user.get("role", "")),
+                "department": user.get("department", ""),
+                "reportingTo": "",
+                "startDate": user.get("start_date", ""),
+                "employmentType": "Permanent",
+                "probationPeriod": "3 months",
+                "monthlySalary": user.get("salary", ""),
+                "benefits": "As per company policy",
+                "acceptanceDate": datetime.now().strftime("%Y-%m-%d"),
+                "emergencyName": user.get("emergency_contact_name", ""),
+                "emergencyRelationship": user.get("emergency_contact_relation", ""),
+                "emergencyMobile": user.get("emergency_contact_phone", ""),
+                "emergencyAltNumber": "",
+                "noConflicts": True,
+                "conflictDetails": "",
+                "accepted": True,
+                "completedAt": datetime.now().isoformat(),
+                "id": employee_id
+            }
+        else:
+            # Fallback to JSON file if user not in database
+            json_path = TEMP_DIR / f"{employee_id}_offer.json"
+            if not json_path.exists():
+                return jsonify({"error": "Offer data not found in database or file system"}), 404
+            
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+    
+    except Exception as e:
+        # Fallback to JSON file on error
+        json_path = TEMP_DIR / f"{employee_id}_offer.json"
+        if not json_path.exists():
+            return jsonify({"error": f"Failed to fetch offer data: {str(e)}"}), 500
+        
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
+    # Generate PDF
     pdf_path = TEMP_DIR / f"{employee_id}_offer.pdf"
     _generate_offer_pdf(data, pdf_path)
 
@@ -813,13 +867,114 @@ def _generate_contract_pdf(data, out_path: Path):
 @onboarding_docs_bp.route("/api/generate-contract-pdf/<employee_id>", methods=["GET"])
 @cross_origin()
 def generate_contract_pdf(employee_id):
-    json_path = TEMP_DIR / f"{employee_id}_contract.json"
-    if not json_path.exists():
-        return jsonify({"error": "Contract data not found"}), 404
+    """
+    Generate contract PDF from authenticated user data in Supabase.
+    Falls back to JSON file if user data not found in database.
+    """
+    from app.database import get_db
+    
+    # Try to fetch user data from Supabase first
+    try:
+        db = get_db()
+        user_result = db.table("users").select("*").eq("id", employee_id).execute()
+        
+        if user_result.data and len(user_result.data) > 0:
+            # Build contract data from Supabase user record
+            user = user_result.data[0]
+            
+            # Determine jurisdiction
+            nationality = (user.get("nationality") or "").lower()
+            jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality else "MY"
+            
+            data = {
+                "fullName": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                "nric": user.get("nric", ""),
+                "passportNo": "",
+                "nationality": user.get("nationality", "Malaysian"),
+                "dateOfBirth": user.get("date_of_birth", ""),
+                "gender": "",
+                "maritalStatus": "",
+                "race": "",
+                "religion": "",
+                "address1": user.get("address", ""),
+                "address2": "",
+                "postcode": "",
+                "city": "",
+                "state": "",
+                "country": "Malaysia" if jurisdiction == "MY" else "Singapore",
+                "personalEmail": "",
+                "workEmail": user.get("email", ""),
+                "mobile": user.get("phone", ""),
+                "altNumber": "",
+                "emergencyName": user.get("emergency_contact_name", ""),
+                "emergencyRelationship": user.get("emergency_contact_relation", ""),
+                "emergencyMobile": user.get("emergency_contact_phone", ""),
+                "emergencyAltNumber": "",
+                "jobTitle": user.get("position_title", user.get("role", "")),
+                "department": user.get("department", ""),
+                "reportingTo": "",
+                "startDate": str(user.get("start_date", "")),
+                "employmentType": "Full-Time Permanent",
+                "probationMonths": 3,
+                "workHours": "9:00 AM - 6:00 PM (Mon-Fri)",
+                "monthlySalary": str(user.get("salary", "")),
+                "currency": "MYR" if jurisdiction == "MY" else "SGD",
+                "overtimeRate": "1.5x hourly rate",
+                "noticePeriod": "1 month",
+                "annualLeave": 14,
+                "sickLeave": 14,
+                "hospitalizationLeave": 60,
+                "maternityLeave": 60 if jurisdiction == "MY" else 112,
+                "paternityLeave": 7,
+                "bankName": user.get("bank_name", ""),
+                "accountHolder": user.get("bank_account_holder", ""),
+                "accountNumber": user.get("bank_account_number", ""),
+                "taxResident": "malaysian" in nationality,
+                "acknowledgeHandbook": True,
+                "acknowledgeIT": True,
+                "acknowledgePrivacy": True,
+                "acknowledgeConfidentiality": True,
+                "finalDeclaration": True,
+                "signature": user.get("signature", ""),  # Get signature if stored in DB
+                "signatureDate": datetime.now().strftime("%Y-%m-%d"),
+                "id": employee_id,
+                "completedAt": datetime.now().isoformat(),
+            }
+            
+            # If JSON file exists, merge signature from it (signature not in DB)
+            json_path = TEMP_DIR / f"{employee_id}_contract.json"
+            if json_path.exists():
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        json_data = json.load(f)
+                    # Override signature and completedAt if present in saved file
+                    if json_data.get("signature"):
+                        data["signature"] = json_data["signature"]
+                    if json_data.get("completedAt"):
+                        data["completedAt"] = json_data["completedAt"]
+                    if json_data.get("signatureDate"):
+                        data["signatureDate"] = json_data["signatureDate"]
+                except Exception as e:
+                    logger.warning(f"Could not merge signature from JSON file: {e}")
+        else:
+            # Fallback to JSON file if user not in database
+            json_path = TEMP_DIR / f"{employee_id}_contract.json"
+            if not json_path.exists():
+                return jsonify({"error": "Contract data not found in database or file system"}), 404
+            
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+    
+    except Exception as e:
+        # Fallback to JSON file on error
+        json_path = TEMP_DIR / f"{employee_id}_contract.json"
+        if not json_path.exists():
+            return jsonify({"error": f"Failed to fetch contract data: {str(e)}"}), 500
+        
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
+    # Generate PDF
     pdf_path = TEMP_DIR / f"{employee_id}_contract.pdf"
     _generate_contract_pdf(data, pdf_path)
 
