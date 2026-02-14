@@ -148,6 +148,8 @@ import { MyDocumentsViewer  } from './components/employee/MyDocumentsViewer';
 import { MyProfile } from './components/employee/MyProfile';
 import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
 import { HRAgent } from './components/HRAgent';
+import { EmployeeTrainingDashboard } from './components/EmployeeTrainingDashboard';
+import { MyTraining } from './components/employee/MyTraining';
 import { ViewState, User, UserRole } from './types';
 
 // Helper: load user profile from localStorage if exists
@@ -247,6 +249,8 @@ function AppContent() {
           return <CandidatePortal />;
         case 'hr_agent':
           return <HRAgent />;
+        case 'employee_training':
+          return <EmployeeTrainingDashboard />;
         default:
           return <Dashboard />;
       }
@@ -276,6 +280,8 @@ function AppContent() {
         
         case 'employee_chat':
           return <EmployeeChatAssistant />;
+        case 'my_training':
+          return <MyTraining />;
         case 'my_profile':
           return <MyProfile />;
         default:

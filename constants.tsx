@@ -1,6 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare, Sparkles } from 'lucide-react';
-import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask } from './types';
+import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare, Sparkles, GraduationCap, Monitor, Shield, Building2, Briefcase, Users2, KeyRound, Video, HelpCircle, Gamepad2, Radio } from 'lucide-react';
+import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask, TrainingCategory, TrainingCategoryInfo, TrainingItem, TrainingFormat, EmployeeTrainingProgress, TrainingCompletionTrend } from './types';
 
 export const NAVIGATION_ITEMS = [
   { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
@@ -12,6 +12,7 @@ export const NAVIGATION_ITEMS = [
   // { id: 'hr_agent', label: 'JD Analyzer', icon: <Sparkles size={20} /> },
   { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
   { id: 'planning', label: 'Workforce AI', icon: <TrendingUp size={20} /> },
+  { id: 'employee_training', label: 'Employee Training', icon: <GraduationCap size={20} /> },
   { id: 'training', label: 'Model Lab', icon: <TestTube2 size={20} /> },
 ];
 
@@ -212,6 +213,7 @@ export const DEMO_USERS: UserType[] = [
 export const EMPLOYEE_NAV_ITEMS = [
   { id: 'employee_dashboard', label: 'Dashboard', icon: <Home size={20} /> },
   { id: 'my_onboarding', label: 'My Onboarding', icon: <ClipboardCheck size={20} /> },
+  { id: 'my_training', label: 'My Training', icon: <GraduationCap size={20} /> },
   { id: 'my_leave', label: 'My Leave', icon: <CalendarDays size={20} /> },
   { id: 'my_documents', label: 'My Documents', icon: <FolderOpen size={20} /> },
   { id: 'employee_chat', label: 'Chat Assistant', icon: <MessageSquare size={20} /> },
@@ -248,4 +250,145 @@ export const DEFAULT_ONBOARDING_TASKS: Omit<OnboardingTask, 'id' | 'status' | 'c
   { title: 'Join Interest Groups on Slack', description: 'Find and join hobby or interest-based channels', category: 'culture', priority: 'optional', estimatedMinutes: 5 },
   { title: 'Schedule Coffee Chat with Mentor', description: 'Book a 30-min intro call with your assigned buddy', category: 'culture', priority: 'recommended', estimatedMinutes: 5 },
   { title: 'Complete Your Profile', description: 'Add a photo and bio to your employee profile', category: 'culture', priority: 'optional', estimatedMinutes: 10 },
+];
+
+// ============================================
+// Training Configuration & Mock Data
+// ============================================
+
+export const TRAINING_CATEGORY_CONFIG: Record<TrainingCategory, TrainingCategoryInfo> = {
+  it_systems:    { id: 'it_systems',    label: 'IT Systems',    icon: <Monitor size={18} />,   color: 'bg-purple-500', description: 'Internal tools, platforms, and access setup' },
+  compliance:    { id: 'compliance',    label: 'Compliance',    icon: <Shield size={18} />,    color: 'bg-red-500',    description: 'Legal, regulatory, and policy requirements' },
+  orientation:   { id: 'orientation',   label: 'Orientation',   icon: <Building2 size={18} />, color: 'bg-blue-500',   description: 'Company culture, values, and structure' },
+  role_specific: { id: 'role_specific', label: 'Role-Specific', icon: <Briefcase size={18} />, color: 'bg-amber-500',  description: 'Department and role-based training modules' },
+  soft_skills:   { id: 'soft_skills',   label: 'Soft Skills',   icon: <Users2 size={18} />,    color: 'bg-pink-500',   description: 'Communication, teamwork, and leadership' },
+  security:      { id: 'security',      label: 'Security',      icon: <KeyRound size={18} />,  color: 'bg-slate-700',  description: 'Information security and data protection' },
+};
+
+export const TRAINING_FORMAT_CONFIG: Record<TrainingFormat, { label: string; icon: React.ReactNode }> = {
+  video:        { label: 'Video',       icon: <Video size={12} /> },
+  document:     { label: 'Reading',     icon: <FileText size={12} /> },
+  quiz:         { label: 'Quiz',        icon: <HelpCircle size={12} /> },
+  interactive:  { label: 'Interactive', icon: <Gamepad2 size={12} /> },
+  live_session: { label: 'Live Session', icon: <Radio size={12} /> },
+};
+
+export const DEFAULT_TRAINING_ITEMS: Omit<TrainingItem, 'id' | 'status' | 'completedAt' | 'score'>[] = [
+  // IT Systems
+  { title: 'Internal Tools Onboarding',        description: 'Jira, Confluence, and Slack workspace setup and best practices',  category: 'it_systems',    format: 'interactive', estimatedMinutes: 30, required: true,  order: 1 },
+  { title: 'Development Environment Setup',    description: 'Git workflows, CI/CD pipelines, and code review process',         category: 'it_systems',    format: 'document',    estimatedMinutes: 45, required: true,  order: 2 },
+  { title: 'HR Portal & Payroll Systems',      description: 'How to use DerivHR portal, submit claims, and view payslips',     category: 'it_systems',    format: 'video',       estimatedMinutes: 15, required: true,  order: 3 },
+
+  // Compliance
+  { title: 'Anti-Money Laundering (AML)',       description: 'Regulatory requirements and reporting obligations',               category: 'compliance',    format: 'video',       estimatedMinutes: 45, required: true,  order: 1, dueDate: '2026-03-15' },
+  { title: 'Data Protection (PDPA/GDPR)',       description: 'Personal data handling, consent, and breach procedures',          category: 'compliance',    format: 'quiz',        estimatedMinutes: 30, required: true,  order: 2, dueDate: '2026-03-15' },
+  { title: 'Code of Conduct',                  description: 'Ethics, conflicts of interest, and whistleblowing policy',        category: 'compliance',    format: 'document',    estimatedMinutes: 20, required: true,  order: 3 },
+
+  // Orientation
+  { title: 'Welcome to Deriv',                 description: 'Company history, mission, vision, and organizational structure',   category: 'orientation',   format: 'video',       estimatedMinutes: 20, required: true,  order: 1 },
+  { title: 'Benefits & Perks Overview',         description: 'Insurance, wellness programs, learning budget, and more',         category: 'orientation',   format: 'document',    estimatedMinutes: 15, required: false, order: 2 },
+  { title: 'Office Tour & Facilities',          description: 'Virtual tour of offices and booking shared spaces',              category: 'orientation',   format: 'video',       estimatedMinutes: 10, required: false, order: 3 },
+
+  // Role-Specific
+  { title: 'Department Processes & Workflows',  description: 'Team-specific standard operating procedures',                     category: 'role_specific', format: 'interactive', estimatedMinutes: 60, required: true,  order: 1 },
+  { title: 'Product Knowledge Deep Dive',       description: 'Understanding our product suite and customer segments',           category: 'role_specific', format: 'video',       estimatedMinutes: 45, required: true,  order: 2 },
+  { title: 'Stakeholder Map & Escalation Paths', description: 'Key contacts and decision-making chains',                        category: 'role_specific', format: 'document',    estimatedMinutes: 15, required: false, order: 3 },
+
+  // Soft Skills
+  { title: 'Effective Communication',           description: 'Written and verbal communication in a remote-first company',      category: 'soft_skills',   format: 'live_session', estimatedMinutes: 60, required: false, order: 1 },
+  { title: 'Giving & Receiving Feedback',       description: 'Constructive feedback frameworks and growth mindset',             category: 'soft_skills',   format: 'video',        estimatedMinutes: 25, required: false, order: 2 },
+
+  // Security
+  { title: 'Cybersecurity Awareness',           description: 'Phishing, social engineering, and password hygiene',              category: 'security',      format: 'quiz',        estimatedMinutes: 25, required: true,  order: 1, dueDate: '2026-03-01' },
+  { title: 'Incident Response Protocol',        description: 'What to do if you suspect a security breach',                     category: 'security',      format: 'document',    estimatedMinutes: 15, required: true,  order: 2 },
+  { title: 'Physical Security & Access Control', description: 'Badge access, visitor policies, and clean desk policy',           category: 'security',      format: 'video',       estimatedMinutes: 10, required: false, order: 3 },
+];
+
+// Helper to generate mock training items with varied statuses
+function generateMockItems(completedCount: number): TrainingItem[] {
+  return DEFAULT_TRAINING_ITEMS.map((t, idx) => ({
+    ...t,
+    id: `training_${idx}`,
+    status: idx < completedCount ? 'completed' as const : idx === completedCount ? 'in_progress' as const : idx === completedCount + 1 ? 'available' as const : 'locked' as const,
+    completedAt: idx < completedCount ? '2026-01-15T10:00:00Z' : undefined,
+    score: idx < completedCount && t.format === 'quiz' ? 85 + Math.floor(Math.random() * 15) : undefined,
+  }));
+}
+
+export const MOCK_EMPLOYEE_TRAINING_PROGRESS: EmployeeTrainingProgress[] = [
+  {
+    employeeId: 'EMP-2024-001',
+    employeeName: 'John Doe',
+    department: 'Engineering',
+    role: 'Software Engineer',
+    startDate: '2024-01-15',
+    overallProgress: 65,
+    status: 'in_progress',
+    lastActivityDate: '2026-02-12',
+    items: generateMockItems(11),
+  },
+  {
+    employeeId: 'EMP-2023-042',
+    employeeName: 'Jane Smith',
+    department: 'Marketing',
+    role: 'Marketing Specialist',
+    startDate: '2023-06-01',
+    overallProgress: 100,
+    status: 'completed',
+    lastActivityDate: '2025-12-20',
+    items: generateMockItems(17),
+  },
+  {
+    employeeId: 'EMP-2025-003',
+    employeeName: 'Ahmad Razak',
+    department: 'Finance',
+    role: 'Financial Analyst',
+    startDate: '2025-11-01',
+    overallProgress: 35,
+    status: 'in_progress',
+    lastActivityDate: '2026-02-10',
+    items: generateMockItems(6),
+  },
+  {
+    employeeId: 'EMP-2025-007',
+    employeeName: 'Priya Nair',
+    department: 'Engineering',
+    role: 'QA Engineer',
+    startDate: '2025-12-15',
+    overallProgress: 18,
+    status: 'overdue',
+    lastActivityDate: '2026-01-20',
+    items: generateMockItems(3),
+  },
+  {
+    employeeId: 'EMP-2026-001',
+    employeeName: 'Wei Lin Tan',
+    department: 'Product',
+    role: 'Product Manager',
+    startDate: '2026-01-10',
+    overallProgress: 47,
+    status: 'in_progress',
+    lastActivityDate: '2026-02-13',
+    items: generateMockItems(8),
+  },
+  {
+    employeeId: 'EMP-2026-002',
+    employeeName: 'Siti Aisyah',
+    department: 'Human Resources',
+    role: 'HR Executive',
+    startDate: '2026-02-01',
+    overallProgress: 0,
+    status: 'not_started',
+    lastActivityDate: undefined,
+    items: generateMockItems(0),
+  },
+];
+
+export const MOCK_TRAINING_COMPLETION_TREND: TrainingCompletionTrend[] = [
+  { month: 'Sep', completed: 8,  inProgress: 12, overdue: 3 },
+  { month: 'Oct', completed: 14, inProgress: 10, overdue: 2 },
+  { month: 'Nov', completed: 18, inProgress: 8,  overdue: 4 },
+  { month: 'Dec', completed: 22, inProgress: 6,  overdue: 1 },
+  { month: 'Jan', completed: 25, inProgress: 9,  overdue: 2 },
+  { month: 'Feb', completed: 28, inProgress: 7,  overdue: 3 },
 ];
