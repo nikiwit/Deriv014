@@ -123,6 +123,9 @@ export async function createEmployee(data: CreateEmployeeRequest): Promise<{
   full_name: string;
   jurisdiction: string;
   status: string;
+  offer_letter_html?: string;
+  offer_id?: string;
+  pdf_path?: string;
 }> {
   const res = await fetch(`${API_BASE}/onboarding/employees`, {
     method: "POST",
