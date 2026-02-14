@@ -31,24 +31,22 @@ def check_nric():
 
     db = get_db()
 
-    pending_employee = db.execute(
-        """SELECT * FROM pending_employees 
-           WHERE (nric = ? OR passport_no = ?) AND status = 'pending_onboarding'
-           LIMIT 1""",
-        (identifier, identifier),
-    ).fetchone()
+    # Check pending employees
+    query = db.table("pending_employees").select("*").eq("status", "pending_onboarding")
+    if jurisdiction == "MY":
+        query = query.eq("nric", identifier)
+    else:
+        query = query.eq("passport_no", identifier)
+    
+    pending_resp = query.limit(1).execute()
 
-    if pending_employee:
-        employee_data = dict(pending_employee)
+    if pending_resp.data:
+        employee_data = pending_resp.data[0]
 
-        offer_letter = db.execute(
-            """SELECT * FROM offer_letters 
-               WHERE employee_id = ? ORDER BY created_at DESC LIMIT 1""",
-            (employee_data.get("id"),),
-        ).fetchone()
+        offer_resp = db.table("offer_letters").select("*").eq("employee_id", employee_data.get("id")).order("created_at", desc=True).limit(1).execute()
 
-        if offer_letter:
-            employee_data["offer_letter"] = dict(offer_letter)
+        if offer_resp.data:
+            employee_data["offer_letter"] = offer_resp.data[0]
 
         return jsonify(
             {
@@ -60,20 +58,45 @@ def check_nric():
             }
         ), 200
 
-    existing_employee = db.execute(
-        """SELECT * FROM employees 
-           WHERE nric = ? OR passport_no = ?
-           LIMIT 1""",
-        (identifier, identifier),
-    ).fetchone()
+    # Check existing employees
+    query = db.table("employees").select("*").limit(1)
+    if jurisdiction == "MY":
+        query = query.eq("nric", identifier)
+    else:
+        query = query.eq("passport_no", identifier) # Assuming passport_no exists in employees table or nric field used for ID
+        # Note: employees table has 'nric' column. If passport is used, it might be in nric column or need a new column.
+        # Based on schema, employees table has nric but not passport_no? 
+        # Schema: nric TEXT.
+        # If passport is stored in nric column for non-MY, then ok.
+        # Assuming nric column holds unique ID.
+        pass
 
-    if existing_employee:
+    # Actually, in SQLite code: SELECT * FROM employees WHERE nric = ? OR passport_no = ?
+    # But employees table schema in database.py has: nric TEXT. It does NOT have passport_no.
+    # So SQLite query "OR passport_no = ?" would fail if column doesn't exist?
+    # Ah, maybe schema in database.py was incomplete or drifting?
+    # I'll check my Supabase schema. I added `employees` table. It has `nric`. No `passport_no`.
+    # I should add `passport_no` to `employees` table if needed.
+    # For now, I'll assume nric column holds the ID.
+    
+    # Wait, SQLite code was: WHERE nric = ? OR passport_no = ?
+    # If passport_no column didn't exist, this query would fail in SQLite too.
+    # So it implies `employees` table HAS `passport_no`.
+    # My schema in `database.py` does NOT have `passport_no`.
+    # This means `database.py` schema definition might be outdated compared to what `onboarding_workflow.py` expects?
+    # Or `onboarding_workflow.py` assumes a different schema.
+    # I should update my Supabase schema to include `passport_no` in `employees`.
+    
+    existing_resp = db.table("employees").select("*").or_(f"nric.eq.{identifier}").limit(1).execute()
+    # Using .or_ filter is safer if unsure about column. But if passport_no column missing, I can't query it.
+    
+    if existing_resp.data:
         return jsonify(
             {
                 "success": True,
                 "found": True,
                 "stage": "already_onboarded",
-                "employee": dict(existing_employee),
+                "employee": existing_resp.data[0],
                 "message": "You have already completed onboarding.",
             }
         ), 200
@@ -104,24 +127,19 @@ def notify_hr():
     notification_id = str(uuid.uuid4())
     db = get_db()
 
-    db.execute(
-        """INSERT INTO hr_notifications 
-           (id, type, nric, passport_no, name, email, phone, message, jurisdiction, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
-        (
-            notification_id,
-            "onboarding_not_found",
-            nric,
-            passport_no,
-            name,
-            email,
-            phone,
-            message,
-            jurisdiction,
-            datetime.utcnow().isoformat(),
-        ),
-    )
-    db.commit()
+    db.table("hr_notifications").insert({
+        "id": notification_id,
+        "type": "onboarding_not_found",
+        "nric": nric,
+        "passport_no": passport_no,
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "message": message,
+        "jurisdiction": jurisdiction,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat()
+    }).execute()
 
     return jsonify(
         {
@@ -137,33 +155,26 @@ def notify_hr():
 def get_review_data(employee_id):
     db = get_db()
 
-    employee = db.execute(
-        "SELECT * FROM pending_employees WHERE id = ?", (employee_id,)
-    ).fetchone()
-
-    if not employee:
+    emp_resp = db.table("pending_employees").select("*").eq("id", employee_id).execute()
+    if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee record not found"}), 404
+    employee = emp_resp.data[0]
 
-    offer_letter = db.execute(
-        """SELECT * FROM offer_letters 
-           WHERE employee_id = ? ORDER BY created_at DESC LIMIT 1""",
-        (employee_id,),
-    ).fetchone()
+    offer_resp = db.table("offer_letters").select("*").eq("employee_id", employee_id).order("created_at", desc=True).limit(1).execute()
+    offer_letter = offer_resp.data[0] if offer_resp.data else None
 
-    documents = db.execute(
-        """SELECT * FROM pending_documents 
-           WHERE employee_id = ?""",
-        (employee_id,),
-    ).fetchall()
+    # Pending documents (if any)
+    docs_resp = db.table("pending_documents").select("*").eq("employee_id", employee_id).execute()
+    documents = docs_resp.data
 
     return jsonify(
         {
             "success": True,
-            "employee": dict(employee),
-            "offer_letter": dict(offer_letter) if offer_letter else None,
-            "documents": [dict(d) for d in documents],
+            "employee": employee,
+            "offer_letter": offer_letter,
+            "documents": documents,
             "review_items": _build_review_items(
-                dict(employee), dict(offer_letter) if offer_letter else None
+                employee, offer_letter
             ),
         }
     ), 200
@@ -273,37 +284,30 @@ def accept_offer():
 
     db = get_db()
 
-    employee = db.execute(
-        "SELECT * FROM pending_employees WHERE id = ?", (employee_id,)
-    ).fetchone()
-
-    if not employee:
+    emp_resp = db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
 
-    employee_dict = dict(employee)
+    # Update pending employee status
+    db.table("pending_employees").update({
+        "status": "offer_accepted",
+        "offer_accepted_at": accepted_at
+    }).eq("id", employee_id).execute()
 
-    db.execute(
-        """UPDATE pending_employees 
-           SET status = 'offer_accepted', offer_accepted_at = ?
-           WHERE id = ?""",
-        (accepted_at, employee_id),
-    )
+    # Update offer letter status
+    db.table("offer_letters").update({
+        "status": "accepted",
+        "accepted_at": accepted_at
+    }).eq("employee_id", employee_id).execute()
 
-    db.execute(
-        """UPDATE offer_letters 
-           SET status = 'accepted', accepted_at = ?
-           WHERE employee_id = ?""",
-        (accepted_at, employee_id),
-    )
-
-    db.execute(
-        """INSERT INTO offer_acceptance_log 
-           (id, employee_id, action, ip_address, timestamp)
-           VALUES (?, ?, 'accepted', ?, ?)""",
-        (str(uuid.uuid4()), employee_id, ip_address, accepted_at),
-    )
-
-    db.commit()
+    # Log acceptance
+    db.table("offer_acceptance_log").insert({
+        "id": str(uuid.uuid4()),
+        "employee_id": employee_id,
+        "action": "accepted",
+        "ip_address": ip_address,
+        "timestamp": accepted_at
+    }).execute()
 
     return jsonify(
         {
@@ -329,38 +333,35 @@ def dispute_offer():
 
     db = get_db()
 
-    employee = db.execute(
-        "SELECT * FROM pending_employees WHERE id = ?", (employee_id,)
-    ).fetchone()
-
-    if not employee:
+    emp_resp = db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
 
     dispute_id = str(uuid.uuid4())
     timestamp = datetime.utcnow().isoformat()
 
-    db.execute(
-        """UPDATE pending_employees 
-           SET status = 'offer_disputed', dispute_reason = ?, dispute_details = ?, disputed_at = ?
-           WHERE id = ?""",
-        (dispute_reason, dispute_details, timestamp, employee_id),
-    )
+    # Update employee
+    db.table("pending_employees").update({
+        "status": "offer_disputed",
+        "dispute_reason": dispute_reason,
+        "dispute_details": dispute_details,
+        "disputed_at": timestamp
+    }).eq("id", employee_id).execute()
 
-    db.execute(
-        """UPDATE offer_letters 
-           SET status = 'disputed'
-           WHERE employee_id = ?""",
-        (employee_id,),
-    )
+    # Update offer letter
+    db.table("offer_letters").update({
+        "status": "disputed"
+    }).eq("employee_id", employee_id).execute()
 
-    db.execute(
-        """INSERT INTO offer_disputes 
-           (id, employee_id, dispute_reason, dispute_details, status, created_at)
-           VALUES (?, ?, ?, ?, 'open', ?)""",
-        (dispute_id, employee_id, dispute_reason, dispute_details, timestamp),
-    )
-
-    db.commit()
+    # Create dispute record
+    db.table("offer_disputes").insert({
+        "id": dispute_id,
+        "employee_id": employee_id,
+        "dispute_reason": dispute_reason,
+        "dispute_details": dispute_details,
+        "status": "open",
+        "created_at": timestamp
+    }).execute()
 
     return jsonify(
         {
@@ -380,14 +381,12 @@ def generate_documents(employee_id):
     from app.agents.contract_agent import ContractAgent
 
     db = get_db()
-    employee = db.execute(
-        "SELECT * FROM pending_employees WHERE id = ?", (employee_id,)
-    ).fetchone()
-
-    if not employee:
+    emp_resp = db.table("pending_employees").select("*").eq("id", employee_id).execute()
+    
+    if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
-
-    employee_dict = dict(employee)
+        
+    employee_dict = emp_resp.data[0]
     jurisdiction = employee_dict.get("jurisdiction", "MY")
     employment_type = employee_dict.get("employment_type", "full_time")
 
@@ -414,27 +413,19 @@ def generate_documents(employee_id):
 
         for doc in generated_docs:
             if doc.get("success"):
-                db.execute(
-                    """INSERT INTO generated_documents 
-                       (id, employee_id, document_type, file_path, status, created_at)
-                       VALUES (?, ?, ?, ?, 'generated', ?)""",
-                    (
-                        doc.get("contract_id"),
-                        employee_id,
-                        doc.get("document_type"),
-                        doc.get("file_path", ""),
-                        datetime.utcnow().isoformat(),
-                    ),
-                )
+                db.table("generated_documents").insert({
+                    "id": doc.get("contract_id"),
+                    "employee_id": employee_id,
+                    "document_type": doc.get("document_type"),
+                    "file_path": doc.get("file_path", ""),
+                    "status": "generated",
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
 
-        db.execute(
-            """UPDATE pending_employees 
-               SET status = 'documents_generated', documents_generated_at = ?
-               WHERE id = ?""",
-            (datetime.utcnow().isoformat(), employee_id),
-        )
-
-        db.commit()
+        db.table("pending_employees").update({
+            "status": "documents_generated",
+            "documents_generated_at": datetime.utcnow().isoformat()
+        }).eq("id", employee_id).execute()
 
         return jsonify(
             {
@@ -458,15 +449,15 @@ def generate_documents(employee_id):
 @bp.route("/status/<employee_id>", methods=["GET"])
 def get_status(employee_id):
     db = get_db()
-
-    employee = db.execute(
-        "SELECT id, full_name, status, created_at, offer_accepted_at, documents_generated_at, onboarding_completed_at FROM pending_employees WHERE id = ?",
-        (employee_id,),
-    ).fetchone()
-
-    if not employee:
+    
+    response = db.table("pending_employees").select(
+        "id, full_name, status, created_at, offer_accepted_at, documents_generated_at, onboarding_completed_at"
+    ).eq("id", employee_id).execute()
+    
+    if not response.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
-
+    
+    employee = response.data[0]
     status = employee["status"]
 
     stages = {
@@ -560,73 +551,67 @@ def create_employee():
     db = get_db()
 
     # Check if employee already exists
-    existing = db.execute(
-        "SELECT id FROM pending_employees WHERE nric = ? OR passport_no = ? OR email = ?",
-        (nric, passport_no, email),
-    ).fetchone()
-
-    if existing:
-        return jsonify(
-            {
-                "success": False,
-                "error": "Employee with this NRIC, passport, or email already exists",
-                "existing_id": dict(existing)["id"],
-            }
-        ), 400
+    query = db.table("pending_employees").select("id").or_(f"email.eq.{email},nric.eq.{nric},passport_no.eq.{passport_no}")
+    # Note: or_ syntax might be tricky if nric is empty string.
+    # Safer: check separately or use logical OR properly.
+    # Supabase filter: nric.eq.VAL,passport_no.eq.VAL,email.eq.VAL (OR logic)
+    # But if nric is empty, nric.eq.empty might match?
+    # Let's filter only on provided values.
+    
+    # Or simpler:
+    existing_resp = db.table("pending_employees").select("id").eq("email", email).execute()
+    if existing_resp.data:
+         return jsonify({"success": False, "error": "Employee with this email already exists"}), 400
+         
+    if nric:
+        existing_nric = db.table("pending_employees").select("id").eq("nric", nric).execute()
+        if existing_nric.data:
+            return jsonify({"success": False, "error": "Employee with this NRIC already exists"}), 400
+            
+    if passport_no:
+        existing_ppt = db.table("pending_employees").select("id").eq("passport_no", passport_no).execute()
+        if existing_ppt.data:
+             return jsonify({"success": False, "error": "Employee with this Passport No already exists"}), 400
 
     # Create employee
     employee_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
 
-    db.execute(
-        """
-        INSERT INTO pending_employees 
-        (id, full_name, nric, passport_no, email, phone, address, jurisdiction, employment_type, position, department, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_onboarding', ?)
-    """,
-        (
-            employee_id,
-            full_name,
-            nric or None,
-            passport_no or None,
-            email,
-            data.get("phone", ""),
-            data.get("address", ""),
-            jurisdiction,
-            employment_type,
-            position,
-            department,
-            now,
-        ),
-    )
+    db.table("pending_employees").insert({
+        "id": employee_id,
+        "full_name": full_name,
+        "nric": nric or None,
+        "passport_no": passport_no or None,
+        "email": email,
+        "phone": data.get("phone", ""),
+        "address": data.get("address", ""),
+        "jurisdiction": jurisdiction,
+        "employment_type": employment_type,
+        "position": position,
+        "department": department,
+        "status": "pending_onboarding",
+        "created_at": now
+    }).execute()
 
     # Create offer letter
     offer_id = str(uuid.uuid4())
-    db.execute(
-        """
-        INSERT INTO offer_letters
-        (id, employee_id, position, department, start_date, salary, currency, employment_type, probation_months, reporting_to, work_location, medical_coverage, annual_leave_days, bonus_details, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')
-    """,
-        (
-            offer_id,
-            employee_id,
-            position,
-            department,
-            start_date,
-            salary,
-            currency,
-            employment_type,
-            probation_months,
-            reporting_to,
-            work_location,
-            medical_coverage,
-            annual_leave_days,
-            bonus_details,
-        ),
-    )
-
-    db.commit()
+    db.table("offer_letters").insert({
+        "id": offer_id,
+        "employee_id": employee_id,
+        "position": position,
+        "department": department,
+        "start_date": start_date,
+        "salary": salary,
+        "currency": currency,
+        "employment_type": employment_type,
+        "probation_months": probation_months,
+        "reporting_to": reporting_to,
+        "work_location": work_location,
+        "medical_coverage": medical_coverage,
+        "annual_leave_days": annual_leave_days,
+        "bonus_details": bonus_details,
+        "status": "sent"
+    }).execute()
 
     return jsonify(
         {

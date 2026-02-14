@@ -10,8 +10,9 @@ class Config:
         "VITE_OPENROUTER_API_KEY"
     )
 
-    # Database
-    DATABASE = os.path.join(BASE_DIR, "..", "instance", "hr_platform.sqlite")
+    # Supabase
+    SUPABASE_URL = os.environ.get("SUPABASE_URL")
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
 
     # Paths
     MD_FILES_DIR = os.path.join(BASE_DIR, "..", "..", "md_files")
