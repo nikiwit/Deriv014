@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { DEFAULT_ONBOARDING_TASKS } from '../../constants';
+import { DEFAULT_ONBOARDING_TASKS, TASK_DEPENDENCIES, ONBOARDING_CATEGORY_WEIGHTS } from '../../constants';
 import { OnboardingTask, TaskStatus, TaskCategory } from '../../types';
 import {
   CheckCircle2,
@@ -17,7 +17,10 @@ import {
   GraduationCap,
   Heart,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Calendar,
+  Trophy
 } from 'lucide-react';
 import { SignaturePad } from '../design-system/SignaturePad';
 
@@ -31,25 +34,101 @@ const categoryConfig: Record<TaskCategory, { label: string; icon: React.ReactNod
 
 const API_BASE = '';
 
+// Helper to get task IDs for backend sync
+const TASK_ID_MAP: Record<string, string> = {
+  'doc_identity': 'doc_identity',
+  'doc_personal_info': 'doc_personal_info',
+  'doc_offer': 'doc_offer',
+  'doc_contract': 'doc_contract',
+  'doc_tax': 'doc_tax',
+  'doc_bank': 'doc_bank',
+  'it_policy': 'it_policy',
+  'it_2fa': 'it_2fa',
+  'it_email': 'it_email',
+  'comp_harassment': 'comp_harassment',
+  'comp_pdpa': 'comp_pdpa',
+  'comp_safety': 'comp_safety',
+  'train_overview': 'train_overview',
+  'train_role': 'train_role',
+  'culture_slack': 'culture_slack',
+  'culture_buddy': 'culture_buddy',
+  'culture_profile': 'culture_profile',
+  'culture_org_chart': 'culture_org_chart',
+  'culture_team_intro': 'culture_team_intro',
+};
+
+// Helper to determine if a task should be unlocked based on dependencies
+const isTaskUnlocked = (taskId: string, completedTaskIds: Set<string>): boolean => {
+  const deps = TASK_DEPENDENCIES[taskId] || [];
+  if (deps.length === 0) return true;
+  return deps.every(depId => completedTaskIds.has(depId));
+};
+
 export const MyOnboarding: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
 
-  // Initialize tasks from template with status
-  const [tasks, setTasks] = useState<OnboardingTask[]>(() =>
-    DEFAULT_ONBOARDING_TASKS.map((t, idx) => ({
-      ...t,
-      id: `task_${idx}`,
-      status: 'available' as TaskStatus,
-      completedAt: undefined,
-    }))
-  );
+  // Get personalized tips based on department/role
+  const getPersonalizedTips = () => {
+    const dept = user?.department?.toLowerCase() || '';
+    const role = user?.employeeId ? 'employee' : 'new';
+    
+    if (dept.includes('engineer') || dept.includes('tech') || dept.includes('dev')) {
+      return "As an engineer, you'll need to complete IT security training and set up your development environment.";
+    } else if (dept.includes('sales') || dept.includes('marketing')) {
+      return "As part of Sales/Marketing, focus on CRM training and compliance modules.";
+    } else if (dept.includes('finance') || dept.includes('account')) {
+      return "Finance team members need additional compliance training - plan accordingly.";
+    }
+    return "Complete the documentation tasks first - they unlock IT and compliance modules faster!";
+  };
+
+  // Get user's start date or use today
+  const startDate = useMemo(() => {
+    return user?.startDate ? new Date(user.startDate) : new Date();
+  }, [user?.startDate]);
+
+  // Calculate due date for a task
+  const getDueDate = (dueDaysFromStart: number | undefined): Date | null => {
+    if (!dueDaysFromStart) return null;
+    const due = new Date(startDate);
+    due.setDate(due.getDate() + dueDaysFromStart);
+    return due;
+  };
+
+  // Check if task is overdue
+  const isOverdue = (dueDate: Date | null): boolean => {
+    if (!dueDate) return false;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return dueDate < today;
+  };
+
+  // Initialize tasks from template with proper IDs and status
+  const [tasks, setTasks] = useState<OnboardingTask[]>(() => {
+    return DEFAULT_ONBOARDING_TASKS.map((t, idx) => {
+      // Generate proper task ID from the task definition
+      const taskId = `task_${t.title.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^_|_$/g, '')}`;
+      return {
+        ...t,
+        id: taskId,
+        status: isTaskUnlocked(taskId, new Set()) ? 'available' as TaskStatus : 'locked' as TaskStatus,
+        completedAt: undefined,
+        startedAt: undefined,
+        dueDate: getDueDate(t.dueDaysFromStart)?.toISOString(),
+        isOverdue: false,
+      };
+    });
+  });
 
   const [selectedTask, setSelectedTask] = useState<OnboardingTask | null>(null);
   const [templateContent, setTemplateContent] = useState<string | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Fetch tasks from backend on mount
   useEffect(() => {
@@ -100,6 +179,82 @@ export const MyOnboarding: React.FC = () => {
     setSignature(null);
   }, [selectedTask?.id]);
 
+  // Show welcome modal on first visit
+  useEffect(() => {
+    const hasVisited = localStorage.getItem('onboarding_visited');
+    if (!hasVisited) {
+      setShowWelcome(true);
+      localStorage.setItem('onboarding_visited', 'true');
+    }
+  }, []);
+
+  // Calculate weighted progress based on category weights
+  const progressData = useMemo(() => {
+    const completedTaskIds = new Set(tasks.filter(t => t.status === 'completed').map(t => t.id));
+    
+    const categoryStats = {} as Record<TaskCategory, { completed: number; total: number; weight: number }>;
+    
+    // Initialize categories
+    (Object.keys(ONBOARDING_CATEGORY_WEIGHTS) as TaskCategory[]).forEach(cat => {
+      categoryStats[cat] = { completed: 0, total: 0, weight: ONBOARDING_CATEGORY_WEIGHTS[cat] };
+    });
+    
+    // Count by category
+    tasks.forEach(task => {
+      if (categoryStats[task.category]) {
+        categoryStats[task.category].total++;
+        if (task.status === 'completed') {
+          categoryStats[task.category].completed++;
+        }
+      }
+    });
+    
+    // Calculate weighted progress
+    let weightedProgress = 0;
+    let totalRequired = 0;
+    let completedRequired = 0;
+    
+    Object.values(categoryStats).forEach(stat => {
+      if (stat.total > 0) {
+        const categoryProgress = stat.completed / stat.total;
+        weightedProgress += categoryProgress * stat.weight;
+      }
+      // Track required tasks
+      const requiredInCategory = tasks.filter(t => t.category === Object.keys(categoryStats).find(cat => categoryStats[cat] === stat) && t.priority === 'required');
+      completedRequired += requiredInCategory.filter(t => t.status === 'completed').length;
+      totalRequired += requiredInCategory.length;
+    });
+    
+    const requiredProgress = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 0;
+    const overallProgress = Math.round(weightedProgress * 100);
+    
+    // Calculate estimated completion date
+    // Assume employee works 2 hours/day on onboarding
+    const remainingMinutes = tasks.filter(t => t.status !== 'completed' && t.priority === 'required').reduce((sum, t) => sum + t.estimatedMinutes, 0);
+    const daysToComplete = Math.ceil(remainingMinutes / 120); // 2 hours per day
+    const estimatedCompletion = new Date();
+    estimatedCompletion.setDate(estimatedCompletion.getDate() + daysToComplete);
+    
+    return {
+      weightedPercentage: overallProgress,
+      requiredPercentage: requiredProgress,
+      completedTasks: tasks.filter(t => t.status === 'completed').length,
+      totalTasks: tasks.length,
+      requiredCompleted: completedRequired,
+      requiredTotal: totalRequired,
+      totalMinutesRemaining: remainingMinutes,
+      estimatedCompletionDate: daysToComplete > 0 ? estimatedCompletion.toISOString() : undefined,
+    };
+  }, [tasks]);
+
+  // Update overdue status when tasks or start date changes
+  useEffect(() => {
+    setTasks(prev => prev.map(task => ({
+      ...task,
+      isOverdue: task.status !== 'completed' && isOverdue(task.dueDate ? new Date(task.dueDate) : null),
+    })));
+  }, [startDate]);
+
   // Fetch template when a task with templateId is selected
   useEffect(() => {
     if (!selectedTask?.templateId) {
@@ -141,9 +296,10 @@ export const MyOnboarding: React.FC = () => {
       .finally(() => setTemplateLoading(false));
   }, [selectedTask?.templateId, selectedTask?.id]);
 
-  const completedCount = tasks.filter(t => t.status === 'completed').length;
-  const progress = Math.round((completedCount / tasks.length) * 100);
-  const totalMinutes = tasks.filter(t => t.status !== 'completed').reduce((sum, t) => sum + t.estimatedMinutes, 0);
+  // Use weighted progress for display
+  const progress = progressData.weightedPercentage;
+  const completedCount = progressData.completedTasks;
+  const totalMinutes = progressData.totalMinutesRemaining;
 
   const handleCompleteTask = async (taskId: string) => {
     if (selectedTask?.requiresSignature && !signature) {
@@ -151,22 +307,32 @@ export const MyOnboarding: React.FC = () => {
       return;
     }
 
-    // Update local state first
+    const now = new Date().toISOString();
+
+    // Update local state with dependency-based unlocking
     setTasks(prev => {
       const updated = prev.map(t => {
         if (t.id === taskId) {
-          return { ...t, status: 'completed' as TaskStatus, completedAt: new Date().toISOString() };
+          return { 
+            ...t, 
+            status: 'completed' as TaskStatus, 
+            completedAt: now,
+            startedAt: t.startedAt || now,
+          };
         }
         return t;
       });
 
-      // Unlock next task
-      const completedIdx = updated.findIndex(t => t.id === taskId);
-      if (completedIdx < updated.length - 1 && updated[completedIdx + 1].status === 'locked') {
-        updated[completedIdx + 1].status = 'available';
-      }
-
-      return updated;
+      // Get completed task IDs
+      const completedIds = new Set(updated.filter(t => t.status === 'completed').map(t => t.id));
+      
+      // Unlock tasks based on dependencies (DAG)
+      return updated.map(t => {
+        if (t.status === 'locked' && isTaskUnlocked(t.id, completedIds)) {
+          return { ...t, status: 'available' as TaskStatus };
+        }
+        return t;
+      });
     });
 
     // Save to backend
@@ -193,7 +359,25 @@ export const MyOnboarding: React.FC = () => {
         };
         
         const backendTaskId = taskIdMap[taskId];
-        if (backendTaskId) {
+        
+        // If there's a signature or file to upload, send them together with task completion
+        if ((selectedTask?.requiresSignature && signature) || (selectedTask?.requiresUpload && uploadedFile)) {
+          const formData = new FormData();
+          formData.append('status', 'completed');
+          
+          if (signature) {
+            formData.append('signature', signature);
+          }
+          
+          if (uploadedFile) {
+            formData.append('file', uploadedFile);
+          }
+          
+          await fetch(`${API_BASE}/api/multiagent/onboarding/employee/${user.employeeId}/tasks/${backendTaskId}`, {
+            method: 'POST',
+            body: formData,
+          });
+        } else if (backendTaskId) {
           await fetch(`${API_BASE}/api/multiagent/onboarding/employee/${user.employeeId}/tasks/${backendTaskId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -205,6 +389,9 @@ export const MyOnboarding: React.FC = () => {
       }
     }
 
+    // Reset form state
+    setSignature(null);
+    setUploadedFile(null);
     setSelectedTask(null);
   };
 
@@ -220,6 +407,43 @@ export const MyOnboarding: React.FC = () => {
         <div className="text-center">
           <Loader2 className="animate-spin text-derivhr-500 mx-auto mb-4" size={40} />
           <p className="text-slate-500 font-medium">Loading your onboarding tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Welcome Modal for first-time visitors
+  if (showWelcome) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+          <div className="h-2 bg-gradient-to-r from-jade-500 to-jade-400"></div>
+          <div className="p-8 text-center">
+            <div className="w-20 h-20 bg-jade-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Sparkles className="text-jade-600" size={40} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 mb-3">Welcome to Deriv!</h2>
+            <p className="text-slate-600 mb-6">
+              We're excited to have you join our team. Complete your onboarding tasks to get started.
+            </p>
+            
+            <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
+              <h3 className="font-bold text-slate-800 mb-3">Your Onboarding Journey:</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                <li className="flex items-center"><CheckCircle2 size={16} className="text-jade-500 mr-2" /> Complete documentation tasks</li>
+                <li className="flex items-center"><CheckCircle2 size={16} className="text-jade-500 mr-2" /> Set up IT & security</li>
+                <li className="flex items-center"><CheckCircle2 size={16} className="text-jade-500 mr-2" /> Complete compliance training</li>
+                <li className="flex items-center"><CheckCircle2 size={16} className="text-jade-500 mr-2" /> Get to know the team</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => setShowWelcome(false)}
+              className="w-full py-3 px-4 bg-jade-500 text-white rounded-xl font-bold hover:bg-jade-600 transition-all shadow-lg shadow-jade-500/20"
+            >
+              Get Started
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -297,12 +521,50 @@ export const MyOnboarding: React.FC = () => {
                 </div>
                 <span className="text-sm font-black text-jade-600">{completedCount}/{tasks.length}</span>
               </div>
+              
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
                 <div className="flex items-center space-x-2">
                   <Clock size={16} className="text-slate-500" />
                   <span className="text-sm font-bold text-slate-600">Time Remaining</span>
                 </div>
                 <span className="text-sm font-black text-slate-800">~{totalMinutes} min</span>
+              </div>
+
+              {/* Estimated Completion */}
+              {progressData.estimatedCompletionDate && progress < 100 && (
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+                  <div className="flex items-center space-x-2">
+                    <Calendar size={16} className="text-blue-500" />
+                    <span className="text-sm font-bold text-blue-800">Est. Complete</span>
+                  </div>
+                  <span className="text-sm font-black text-blue-600">
+                    {new Date(progressData.estimatedCompletionDate).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+
+              {/* Overdue Alert */}
+              {tasks.some(t => t.isOverdue) && (
+                <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-200">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle size={16} className="text-red-500" />
+                    <span className="text-sm font-bold text-red-700">Overdue</span>
+                  </div>
+                  <span className="text-sm font-black text-red-600">
+                    {tasks.filter(t => t.isOverdue).length} task(s)
+                  </span>
+                </div>
+              )}
+
+              {/* Required vs Optional */}
+              <div className="flex items-center justify-between p-3 bg-amber-50 rounded-xl">
+                <div className="flex items-center space-x-2">
+                  <Trophy size={16} className="text-amber-500" />
+                  <span className="text-sm font-bold text-amber-800">Required</span>
+                </div>
+                <span className="text-sm font-black text-amber-600">
+                  {progressData.requiredCompleted}/{progressData.requiredTotal}
+                </span>
               </div>
             </div>
 
@@ -354,6 +616,7 @@ export const MyOnboarding: React.FC = () => {
                       className={`w-full p-4 text-left transition-all flex items-center space-x-4 ${
                         task.status === 'locked' ? 'opacity-50 cursor-not-allowed' :
                         task.status === 'completed' ? 'bg-jade-50/50' :
+                        task.isOverdue ? 'bg-red-50 animate-pulse' :
                         'hover:bg-slate-50 cursor-pointer'
                       }`}
                     >
@@ -381,6 +644,15 @@ export const MyOnboarding: React.FC = () => {
                           </span>
                           {task.priority === 'required' && (
                             <span className="text-[10px] font-bold text-red-500 uppercase">Required</span>
+                          )}
+                          {task.dueDate && (
+                            <span className={`text-[10px] font-bold ${
+                              task.isOverdue ? 'text-red-500' :
+                              new Date(task.dueDate) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) ? 'text-amber-500' : 'text-slate-400'
+                            }`}>
+                              <Calendar size={10} className="inline mr-1" />
+                              Due {new Date(task.dueDate).toLocaleDateString()}
+                            </span>
                           )}
                           {task.requiresUpload && (
                             <span className="text-[10px] font-bold text-blue-500">
@@ -497,9 +769,36 @@ export const MyOnboarding: React.FC = () => {
 
                   {selectedTask.requiresUpload && (
                     <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center mb-6 hover:border-jade-500 transition-colors cursor-pointer group">
-                      <Upload className="mx-auto text-slate-400 mb-2 group-hover:text-jade-500 transition-colors" size={32} />
-                      <p className="font-bold text-slate-600 group-hover:text-slate-900 transition-colors">Click to upload or drag and drop</p>
-                      <p className="text-sm text-slate-400">PDF, PNG, JPG up to 10MB</p>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 10 * 1024 * 1024) {
+                              alert('File size must be less than 10MB');
+                              return;
+                            }
+                            setUploadedFile(file);
+                          }
+                        }}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label htmlFor="file-upload" className="cursor-pointer">
+                        <Upload className="mx-auto text-slate-400 mb-2 group-hover:text-jade-500 transition-colors" size={32} />
+                        {uploadedFile ? (
+                          <>
+                            <p className="font-bold text-jade-600">{uploadedFile.name}</p>
+                            <p className="text-sm text-slate-400">Click to change file</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-bold text-slate-600 group-hover:text-slate-900 transition-colors">Click to upload or drag and drop</p>
+                            <p className="text-sm text-slate-400">PDF, PNG, JPG up to 10MB</p>
+                          </>
+                        )}
+                      </label>
                     </div>
                   )}
 

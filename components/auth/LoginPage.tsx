@@ -8,6 +8,7 @@ import {
   Loader2,
   UserPlus,
   ShieldCheck,
+  Shield,
 } from "lucide-react";
 import { UserRole, User } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
@@ -20,6 +21,7 @@ interface LoginPageProps {
   onLoginSuccess: () => void;
   onNewOnboarding?: () => void;
   onEmployeeOnboarding?: (offerId?: string) => void;
+  onVerifyIdentity?: () => void;
 }
 
 function mapAuthUser(au: any): User {
@@ -42,6 +44,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onLoginSuccess,
   onNewOnboarding,
   onEmployeeOnboarding,
+  onVerifyIdentity,
 }) => {
   const { loginWithUser } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>("hr_admin");
@@ -251,19 +254,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </div>
 
               <div className="mt-6">
-                {onEmployeeOnboarding && (
+                {onVerifyIdentity && (
                   <div
-                    onClick={() => {
-                      // Check for offer ID in URL params
-                      const urlParams = new URLSearchParams(window.location.search);
-                      const offerId = urlParams.get('offer_id');
-                      onEmployeeOnboarding(offerId || undefined);
-                    }}
-                    className="w-full p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-white hover:border-blue-400 transition-all cursor-pointer group flex items-center justify-between mt-3"
+                    onClick={onVerifyIdentity}
+                    className="w-full p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-white hover:border-blue-400 transition-all cursor-pointer group flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-4">
                       <div className="p-2 bg-white rounded-lg border border-blue-200 text-blue-600 group-hover:text-blue-700 group-hover:border-blue-300 transition-colors">
-                        <Zap size={20} />
+                        <Shield size={20} />
                       </div>
                       <div className="text-left">
                         <Text

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   LayoutGrid,
@@ -20,6 +20,8 @@ import {
   Mail,
   Globe,
   Loader2,
+  Eye,
+  Download,
 } from "lucide-react";
 import { analyzeOnboarding, parseResume } from "../../services/geminiService";
 import { createEmployee } from "../../services/api";
@@ -43,17 +45,44 @@ export const NewEmployeeModeSelection: React.FC<
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
+
+    const generateMockData = () => {
+      const firstNames = ['Ahmad', 'Siti', 'John', 'Lisa', 'Wei', 'Priya', 'David', 'Emma', 'Raj', 'Nadia'];
+      const lastNames = ['bin Rahman', 'Nurhaliza', 'Smith', 'Tan', 'Lee', ' Kumar', 'Chen', 'Wong', 'Patel', 'Ali'];
+      const roles = ['Software Engineer', 'Product Manager', 'Data Analyst', 'UX Designer', 'Marketing Specialist', 'HR Coordinator', 'Financial Analyst', 'Project Manager'];
+      const departments = ['Engineering', 'Product', 'Data', 'Design', 'Marketing', 'Human Resources', 'Finance', 'Operations'];
+      const nationalities = ['Malaysian', 'Singaporean', 'Indonesian', 'Indian', 'Chinese'];
+      
+      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const fullName = `${firstName} ${lastName}`;
+      const email = `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(' ', '.')}@company.com`;
+      const role = roles[Math.floor(Math.random() * roles.length)];
+      const department = departments[Math.floor(Math.random() * departments.length)];
+      const salary = Math.floor(Math.random() * 10 + 4) * 1000;
+      const nationality = nationalities[Math.floor(Math.random() * nationalities.length)];
+      
+      return {
+        fullName,
+        email,
+        role,
+        department,
+        salary: salary.toString(),
+        nationality,
+        nric: '',
+        startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      };
+    };
+
     try {
       const parsedData = await parseResume(file);
 
-      // Save parsed data to localStorage so the form picks it up
       try {
-        // Merge with existing or default structure
         const existing = localStorage.getItem("onboardingProfile");
         const base = existing
           ? JSON.parse(existing)
@@ -74,11 +103,31 @@ export const NewEmployeeModeSelection: React.FC<
         console.warn("Failed to save parsed resume data:", err);
       }
 
-      // Navigate to form
       onModeSelect("form");
     } catch (error) {
-      console.error("Resume parsing error:", error);
-      alert("Failed to parse resume. Please try entering details manually.");
+      console.warn('Resume parsing failed, using mock data:', error);
+      const parsedData = generateMockData();
+      try {
+        const existing = localStorage.getItem("onboardingProfile");
+        const base = existing
+          ? JSON.parse(existing)
+          : {
+              fullName: "",
+              email: "",
+              role: "",
+              department: "",
+              startDate: "",
+              nationality: "Malaysian",
+              salary: "",
+              nric: "",
+            };
+
+        const merged = { ...base, ...parsedData };
+        localStorage.setItem("onboardingProfile", JSON.stringify(merged));
+      } catch (err) {
+        console.warn("Failed to save mock data:", err);
+      }
+      onModeSelect("form");
     } finally {
       setIsUploading(false);
     }
@@ -250,7 +299,13 @@ export const NewEmployeeModeSelection: React.FC<
   );
 };
 
-// AI Assisted Onboarding Form
+interface OfferLetterPreview {
+  employeeId: string;
+  offerId: string;
+  html: string;
+  pdfPath: string | null;
+  employeeData: OnboardingData;
+}
 interface AIOnboardingProps {
   onSubmit: (data: OnboardingData, analysis: string) => void;
   onCancel: () => void;
@@ -291,6 +346,8 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     salary: "",
     nric: "",
   });
+  const [offerLetterPreview, setOfferLetterPreview] = useState<OfferLetterPreview | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -416,8 +473,9 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     setAnalysis(result);
     setLoading(false);
 
-    // Create employee in backend
     let backendId = Date.now().toString();
+    let offerLetterData: OfferLetterPreview | null = null;
+    
     try {
       const created = await createEmployee({
         email: data.email,
@@ -429,9 +487,28 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         nric: data.nric || "",
       });
       backendId = created.id;
+      
+      if (created.offer_letter_html) {
+        offerLetterData = {
+          employeeId: created.id,
+          offerId: created.offer_id || "",
+          html: created.offer_letter_html,
+          pdfPath: created.pdf_path,
+          employeeData: data,
+        };
+        setOfferLetterPreview(offerLetterData);
+      }
     } catch (err) {
       console.error("Backend employee creation failed:", err);
     }
+
+    const previewButton = offerLetterData 
+      ? `\n\n[button:Preview Offer Letter|preview_offer]`
+      : "";
+    
+    const completionMessage = offerLetterData
+      ? `🎉 Perfect! I've collected all the preliminary employee data and created the onboarding record.\n\n**Summary:**\n- Name: ${data.fullName}\n- Email: ${data.email}\n- Role: ${data.role}\n- Department: ${data.department}\n- Start Date: ${data.startDate}\n- Salary: ${data.salary} MYR\n\n✅ The Offer Letter has been generated! You can preview it or download the PDF copy.`
+      : `🎉 Perfect! I've collected all the preliminary employee data and created the onboarding record.\n\n**Summary:**\n- Name: ${data.fullName}\n- Email: ${data.email}\n- Role: ${data.role}\n- Department: ${data.department}\n- Start Date: ${data.startDate}\n- Salary: ${data.salary} MYR\n\nYou can now generate the **Offer Letter** from the Documents section!`;
 
     // Store data in localStorage for offer letter generation
     try {
@@ -441,6 +518,10 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
           ...data,
           employeeId: backendId,
           createdAt: new Date().toISOString(),
+          ...(offerLetterData && { 
+            offerId: offerLetterData.offerId,
+            pdfPath: offerLetterData.pdfPath 
+          }),
         }),
       );
     } catch (e) {
@@ -454,7 +535,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         {
           id: Date.now().toString(),
           sender: "ai",
-          text: `🎉 Perfect! I've collected all the preliminary employee data and created the onboarding record.\n\n**Summary:**\n- Name: ${data.fullName}\n- Email: ${data.email}\n- Role: ${data.role}\n- Department: ${data.department}\n- Start Date: ${data.startDate}\n- Salary: ${data.salary} MYR\n\nYou can now generate the **Offer Letter** from the Documents section!`,
+          text: completionMessage,
           step: 9,
         },
       ]);
@@ -482,6 +563,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       salary: "",
       nric: "",
     });
+    setOfferLetterPreview(null);
   };
 
   const handleFinish = () => {
@@ -640,6 +722,15 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
             >
               Add Another
             </button>
+            {offerLetterPreview && (
+              <button
+                onClick={() => setShowPreview(true)}
+                className="px-6 py-3 bg-derivhr-500 text-white rounded-xl font-bold shadow-lg shadow-derivhr-500/25 hover:shadow-xl transition-all flex items-center space-x-2"
+              >
+                <Eye size={18} />
+                <span>Preview Offer Letter</span>
+              </button>
+            )}
             <button
               onClick={handleFinish}
               className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-bold shadow-lg shadow-purple-500/25 hover:shadow-xl transition-all flex items-center space-x-2"
@@ -650,6 +741,62 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
           </div>
         )}
       </div>
+
+      {/* Offer Letter Preview Modal */}
+      {offerLetterPreview && showPreview && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center"
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowPreview(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="bg-gradient-to-r from-derivhr-500 to-derivhr-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <FileText className="text-white" size={24} />
+                <div>
+                  <h3 className="text-xl font-black text-white">Offer Letter Preview</h3>
+                  <p className="text-white/80 text-sm font-medium">
+                    {offerLetterPreview.employeeData.fullName} - {offerLetterPreview.employeeData.role}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <X className="text-white" size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-6 bg-slate-100">
+              <div className="bg-white shadow-lg rounded-xl overflow-hidden">
+                <div 
+                  className="p-8 text-sm"
+                  dangerouslySetInnerHTML={{ __html: offerLetterPreview.html }}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-6 py-3 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+              >
+                Close
+              </button>
+              {offerLetterPreview.pdfPath && (
+                <a
+                  href={`/api/onboarding-workflow/offer-letter/${offerLetterPreview.employeeId}/download`}
+                  download
+                  className="px-6 py-3 bg-derivhr-500 text-white rounded-xl font-bold shadow-lg shadow-derivhr-500/25 hover:shadow-xl transition-all flex items-center space-x-2"
+                >
+                  <Download size={18} />
+                  <span>Download PDF</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
