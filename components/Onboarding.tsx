@@ -9,6 +9,7 @@ import {
 
 import { NewEmployeeOnboardingForm } from "./onboarding/NewEmployeeOnboardingForm";
 import { GeneratedDocumentsPanel } from "./onboarding/GeneratedDocumentsPanel";
+import { InviteLinkModal } from "./onboarding/InviteLinkModal";
 import {
   NewEmployeeModeSelection,
   AIOnboarding,
@@ -44,6 +45,8 @@ import {
   Zap,
   Download,
   XCircle,
+  Play,
+  Link as LinkIcon,
 } from "lucide-react";
 
 const API_BASE = "";
@@ -63,6 +66,21 @@ interface ChatMessage {
   sender: "ai" | "user";
   text: string;
   step?: number;
+}
+
+interface OnboardingState {
+  id: string;
+  employee_id: string;
+  offer_id: string;
+  status: string;
+  employee_name: string;
+  email: string;
+  position: string;
+  department: string;
+  salary: number;
+  jurisdiction: string;
+  start_date: string;
+  days_until_expiry?: number;
 }
 
 // No more mock data — employees are loaded from the backend
@@ -87,6 +105,10 @@ export const Onboarding: React.FC = () => {
     any
   > | null>(null);
   const [aiMode, setAiMode] = useState(false);
+  const [pendingOffers, setPendingOffers] = useState<OnboardingState[]>([]);
+  const [showSimulateDropdown, setShowSimulateDropdown] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmployee, setInviteEmployee] = useState<{ id: string; name: string } | null>(null);
 
   // Onboarding profile from localStorage (employee-submitted data)
   const [onboardingProfile, setOnboardingProfile] = useState<Record<
@@ -109,10 +131,23 @@ export const Onboarding: React.FC = () => {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
     setOnboardingProfile(loadJson("onboardingProfile"));
     setOfferData(loadJson("offerAcceptanceData"));
     setContractData(loadJson("contractData"));
+  }, []);
+
+  useEffect(() => {
+    const fetchPendingOffers = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/multiagent/onboarding/pending`);
+        const data = await res.json();
+        setPendingOffers(data.pending_offers || []);
+      } catch (err) {
+        console.error("Failed to fetch pending offers:", err);
+      }
+    };
+    fetchPendingOffers();
   }, []);
 
   const isAppDone = onboardingProfile?.status === "in_progress";
@@ -436,10 +471,15 @@ export const Onboarding: React.FC = () => {
     setShowFormMode(true);
   };
 
-  const handleBackToList = () => {
+const handleBackToList = () => {
     setViewMode("list");
     setShowFormMode(false);
     handleRestart();
+  };
+
+  const handleGenerateInviteLink = (employee: { id: string; name: string }) => {
+    setInviteEmployee(employee);
+    setShowInviteModal(true);
   };
 
   // const handleFormSubmit = (data: OnboardingData, analysisResult: string) => {
@@ -559,32 +599,7 @@ export const Onboarding: React.FC = () => {
               Track and manage employee onboarding journeys
             </p>
           </div>
-          <div className="flex items-center space-x-3">
-            {/* Mode Toggle */}
-            <div className="flex items-center bg-slate-100 rounded-xl p-1">
-              <button
-                onClick={() => setShowFormMode(false)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                  !showFormMode
-                    ? "bg-white text-derivhr-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <MessageSquare size={16} />
-                <span>AI Chat</span>
-              </button>
-              <button
-                onClick={() => setShowFormMode(true)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                  showFormMode
-                    ? "bg-white text-derivhr-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                <LayoutGrid size={16} />
-                <span>Form</span>
-              </button>
-            </div>
+<div className="flex items-center space-x-3">
             <button
               onClick={() => setShowModeSelection(true)}
               className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-derivhr-500 to-derivhr-600 text-white rounded-xl font-bold hover:from-derivhr-600 hover:to-derivhr-700 transition-all shadow-lg shadow-derivhr-500/30 transform hover:-translate-y-0.5"
@@ -593,6 +608,46 @@ export const Onboarding: React.FC = () => {
               <span>New Employee</span>
               <Sparkles size={16} className="ml-1" />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowSimulateDropdown(!showSimulateDropdown)}
+                className="flex items-center space-x-2 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-all"
+              >
+                <Play size={18} />
+                <span>Simulate</span>
+              </button>
+              {showSimulateDropdown && pendingOffers.length > 0 && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 max-h-80 overflow-y-auto">
+                  <div className="p-3 border-b border-slate-100">
+                    <span className="font-bold text-slate-700">Pending Offers</span>
+                  </div>
+                  {pendingOffers.filter(o => o.status === 'offer_pending').map((offer) => (
+                    <button
+                      key={offer.offer_id}
+                      onClick={() => {
+                        // Logout current HR user
+                        localStorage.removeItem('derivhr_session');
+                        // Navigate in same window to offer URL
+                        window.location.href = `/employee/offer/${offer.offer_id}`;
+                        setShowSimulateDropdown(false);
+                      }}
+                      className="w-full p-3 hover:bg-slate-50 text-left border-b border-slate-50 last:border-0"
+                    >
+                      <div className="font-bold text-slate-900">{offer.employee_name}</div>
+                      <div className="text-sm text-slate-500">{offer.position} • {offer.department}</div>
+                      <div className="text-xs text-amber-600 mt-1">
+                        Expires: {offer.days_until_expiry} days left
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showSimulateDropdown && pendingOffers.filter(o => o.status === 'offer_pending').length === 0 && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4">
+                  <span className="text-slate-500">No pending offers</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -866,7 +921,7 @@ export const Onboarding: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
+<div className="flex items-center space-x-2">
                   <button
                     onClick={() =>
                       setSelectedEmployee({
@@ -878,6 +933,16 @@ export const Onboarding: React.FC = () => {
                     title="View Documents"
                   >
                     <FileText size={18} />
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleGenerateInviteLink({ id: emp.id, name: emp.employeeName })
+                    }
+                    className="flex items-center space-x-1 text-derivhr-500 hover:text-derivhr-600 text-sm font-medium"
+                    title="Generate Invite Link"
+                  >
+                    <LinkIcon size={14} />
+                    <span>Generate Link</span>
                   </button>
                   <button
                     onClick={() =>
@@ -905,12 +970,24 @@ export const Onboarding: React.FC = () => {
           </div>
         </div>
 
-        {/* Modal Overlay */}
+{/* Modal Overlay */}
         {showModeSelection && (
           <NewEmployeeModeSelection
             isOpen={showModeSelection}
             onClose={() => setShowModeSelection(false)}
             onModeSelect={handleModeSelect}
+          />
+        )}
+
+        {showInviteModal && inviteEmployee && (
+          <InviteLinkModal
+            isOpen={showInviteModal}
+            onClose={() => {
+              setShowInviteModal(false);
+              setInviteEmployee(null);
+            }}
+            employeeId={inviteEmployee.id}
+            employeeName={inviteEmployee.name}
           />
         )}
       </div>
@@ -1187,7 +1264,7 @@ export const Onboarding: React.FC = () => {
                 Applied
               </span>
             </div>
-            <button className="text-derivhr-500 hover:underline flex items-center space-x-1">
+            <button onClick={() => downloadFullReport()} className="text-derivhr-500 hover:underline flex items-center space-x-1">
               <FileText size={14} />
               <span>Export to PDF</span>
             </button>

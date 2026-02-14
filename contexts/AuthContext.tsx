@@ -1,8 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, UserRole, AuthContextType } from '../types';
-import { DEMO_USERS } from '../constants';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { User, UserRole, AuthContextType } from "../types";
+import { DEMO_USERS } from "../constants";
 
-const AUTH_STORAGE_KEY = 'derivhr_session';
+const AUTH_STORAGE_KEY = "derivhr_session";
 const SESSION_EXPIRY_HOURS = 8;
 
 interface StoredSession {
@@ -15,7 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -42,7 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
       } catch (error) {
-        console.error('Failed to restore session:', error);
+        console.error("Failed to restore session:", error);
         localStorage.removeItem(AUTH_STORAGE_KEY);
       } finally {
         setIsLoading(false);
@@ -63,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Legacy login matching DEMO_USERS (kept as fallback)
   const login = (email: string, role: UserRole): boolean => {
     const matchedUser = DEMO_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.role === role
+      (u) => u.email.toLowerCase() === email.toLowerCase() && u.role === role,
     );
 
     if (matchedUser) {
@@ -84,6 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem("onboardingProfile");
   };
 
   const value: AuthContextType = {

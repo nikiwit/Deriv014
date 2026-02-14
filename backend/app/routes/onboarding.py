@@ -307,7 +307,7 @@ def create_employee():
 
 @bp.route("/employees/<employee_id>", methods=["GET"])
 def get_employee(employee_id):
-    """Get employee profile."""
+    """Get employee profile with comprehensive details."""
     db = get_db()
 
     response = db.table("employees").select("*").eq("id", employee_id).execute()
@@ -316,12 +316,66 @@ def get_employee(employee_id):
 
     emp = response.data[0]
 
-    return jsonify(emp)
+    # Get onboarding progress
+    docs_resp = (
+        db.table("onboarding_documents")
+        .select("id, document_name, submitted, submitted_at")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    forms_resp = (
+        db.table("onboarding_forms")
+        .select("id, form_type, submitted_at")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    # Calculate progress
+    total_docs = len(docs_resp.data) if docs_resp.data else 0
+    submitted_docs = (
+        sum(1 for d in docs_resp.data if d.get("submitted")) if docs_resp.data else 0
+    )
+
+    total_forms = len(forms_resp.data) if forms_resp.data else 0
+    submitted_forms = len(forms_resp.data) if forms_resp.data else 0
+
+    progress_percentage = 0
+    if total_docs + total_forms > 0:
+        progress_percentage = round(
+            ((submitted_docs + submitted_forms) / (total_docs + total_forms)) * 100, 1
+        )
+
+    # Get onboarding state
+    state_resp = (
+        db.table("onboarding_states")
+        .select("status, created_at, updated_at")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    onboarding_state = state_resp.data[0] if state_resp.data else None
+
+    employee_details = {
+        **emp,
+        "onboarding_progress": {
+            "percentage": progress_percentage,
+            "submitted_documents": submitted_docs,
+            "total_documents": total_docs,
+            "submitted_forms": submitted_forms,
+            "total_forms": total_forms,
+        },
+        "onboarding_state": onboarding_state,
+        "documents": docs_resp.data,
+        "forms": forms_resp.data,
+    }
+
+    return jsonify(employee_details)
 
 
 @bp.route("/employees/<employee_id>", methods=["PUT"])
 def update_employee(employee_id):
-    """Update employee profile (T3 - personal state change)."""
+    """Update employee profile with comprehensive field support."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body is required"}), 400
@@ -333,7 +387,7 @@ def update_employee(employee_id):
     if not response.data:
         return jsonify({"error": "Employee not found"}), 404
 
-    # Only allow updating specific fields
+    # Allow updating most employee fields (excluding system fields)
     allowed = {
         "full_name",
         "phone",
@@ -344,11 +398,29 @@ def update_employee(employee_id):
         "emergency_contact_phone",
         "emergency_contact_relation",
         "nric",
+        "passport_no",
         "position",
         "department",
         "start_date",
+        "nationality",
+        "date_of_birth",
+        "gender",
+        "marital_status",
+        "salary",
+        "epf_no",
+        "tax_id",
+        "status",
     }
-    updates = {k: v for k, v in data.items() if k in allowed and v}
+
+    # Validate jurisdiction if provided
+    if "jurisdiction" in data and data["jurisdiction"] not in ("MY", "SG"):
+        return jsonify({"error": "Jurisdiction must be 'MY' or 'SG'"}), 400
+
+    # Allow jurisdiction updates
+    if "jurisdiction" in data:
+        allowed.add("jurisdiction")
+
+    updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
         return jsonify(
             {"error": f"No valid fields to update. Allowed: {sorted(allowed)}"}
@@ -357,9 +429,93 @@ def update_employee(employee_id):
     # Add timestamp
     updates["updated_at"] = datetime.datetime.now().isoformat()
 
+    # Update employee record
     db.table("employees").update(updates).eq("id", employee_id).execute()
 
-    return jsonify({"updated": list(updates.keys()), "employee_id": employee_id})
+    # If jurisdiction changed, we may need to update the checklist
+    if "jurisdiction" in updates:
+        # Remove old documents
+        db.table("onboarding_documents").delete().eq(
+            "employee_id", employee_id
+        ).execute()
+
+        # Add new documents for the new jurisdiction
+        for doc_name in REQUIRED_DOCS.get(updates["jurisdiction"], REQUIRED_DOCS["MY"]):
+            db.table("onboarding_documents").insert(
+                {"employee_id": employee_id, "document_name": doc_name}
+            ).execute()
+
+    return jsonify(
+        {
+            "message": "Employee updated successfully",
+            "updated_fields": list(updates.keys()),
+            "employee_id": employee_id,
+        }
+    )
+
+
+@bp.route("/employees/<employee_id>", methods=["DELETE"])
+def delete_employee(employee_id):
+    """Delete an employee and all related records."""
+    db = get_db()
+
+    # Check if employee exists
+    response = (
+        db.table("employees")
+        .select("id, email, full_name")
+        .eq("id", employee_id)
+        .execute()
+    )
+    if not response.data:
+        return jsonify({"error": "Employee not found"}), 404
+
+    employee = response.data[0]
+
+    try:
+        # Delete related records first to maintain referential integrity
+        # Delete onboarding documents
+        db.table("onboarding_documents").delete().eq(
+            "employee_id", employee_id
+        ).execute()
+
+        # Delete onboarding forms
+        db.table("onboarding_forms").delete().eq("employee_id", employee_id).execute()
+
+        # Delete task progress
+        db.table("onboarding_task_progress").delete().eq(
+            "employee_id", employee_id
+        ).execute()
+
+        # Delete onboarding state
+        db.table("onboarding_states").delete().eq("employee_id", employee_id).execute()
+
+        # Delete the employee record
+        db.table("employees").delete().eq("id", employee_id).execute()
+
+        # Also delete from users table if exists
+        users_response = (
+            db.table("users").select("id").eq("email", employee["email"]).execute()
+        )
+        if users_response.data:
+            user_id = users_response.data[0]["id"]
+            db.table("users").delete().eq("id", user_id).execute()
+
+            # Delete HR assignments
+            db.table("hr_employee_assignments").delete().eq(
+                "employee_user_id", user_id
+            ).execute()
+
+        return jsonify(
+            {
+                "message": f"Employee {employee['full_name']} deleted successfully",
+                "employee_id": employee_id,
+                "email": employee["email"],
+            }
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to delete employee {employee_id}: {e}")
+        return jsonify({"error": f"Failed to delete employee: {str(e)}"}), 500
 
 
 @bp.route("/employees/<employee_id>/checklist", methods=["GET"])
@@ -600,6 +756,178 @@ def get_employee_documents(employee_id):
             "total": len(documents),
         }
     )
+
+
+@bp.route("/invite-links", methods=["POST"])
+def create_invite_link():
+    """Create a new invite link for an employee."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    employee_id = data.get("employee_id")
+    if not employee_id:
+        return jsonify({"error": "employee_id is required"}), 400
+
+    db = get_db()
+
+    token = str(uuid.uuid4())
+
+    expiry_days = data.get("expiry_days", 7)
+    expires_at = datetime.datetime.now() + datetime.timedelta(days=expiry_days)
+
+    invite_data = {
+        "id": str(uuid.uuid4()),
+        "token": token,
+        "employee_id": employee_id,
+        "created_by": data.get("created_by", "hr_admin"),
+        "created_at": datetime.datetime.now().isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "is_one_time": data.get("is_one_time", False),
+        "custom_message": data.get("custom_message", ""),
+        "view_count": 0,
+        "status": "active",
+    }
+
+    try:
+        db.table("invite_links").insert(invite_data).execute()
+        return jsonify(
+            {
+                "success": True,
+                "invite_link": {**invite_data, "url": f"/login?invite_token={token}"},
+            }
+        ), 201
+    except Exception as e:
+        current_app.logger.error(f"Failed to create invite link: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/invite-links", methods=["GET"])
+def get_invite_links():
+    """Get all invite links, optionally filtered by employee_id."""
+    employee_id = request.args.get("employee_id")
+    db = get_db()
+
+    try:
+        query = db.table("invite_links").select("*").order("created_at", desc=True)
+        if employee_id:
+            query = query.eq("employee_id", employee_id)
+
+        result = query.execute()
+
+        links = []
+        for item in result.data:
+            links.append({**item, "url": f"/login?invite_token={item['token']}"})
+
+        return jsonify({"invite_links": links}), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to get invite links: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/invite-links/<link_id>", methods=["GET"])
+def get_invite_link(link_id):
+    """Get a single invite link by ID."""
+    db = get_db()
+
+    try:
+        result = db.table("invite_links").select("*").eq("id", link_id).execute()
+
+        if not result.data:
+            return jsonify({"error": "Invite link not found"}), 404
+
+        link = result.data[0]
+        link["url"] = f"/login?invite_token={link['token']}"
+
+        return jsonify({"invite_link": link}), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to get invite link: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/invite-links/<link_id>", methods=["DELETE"])
+def delete_invite_link(link_id):
+    """Delete/revoke an invite link."""
+    db = get_db()
+
+    try:
+        db.table("invite_links").update({"status": "revoked"}).eq(
+            "id", link_id
+        ).execute()
+
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to delete invite link: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/invite-links/<link_id>/stats", methods=["GET"])
+def get_invite_link_stats(link_id):
+    """Get statistics for an invite link."""
+    db = get_db()
+
+    try:
+        result = db.table("invite_links").select("*").eq("id", link_id).execute()
+
+        if not result.data:
+            return jsonify({"error": "Invite link not found"}), 404
+
+        link = result.data[0]
+
+        status = "active"
+        if link.get("status") == "revoked":
+            status = "revoked"
+        elif link.get("is_used"):
+            status = "used"
+        elif link.get("expires_at"):
+            expires = datetime.datetime.fromisoformat(link["expires_at"])
+            if expires < datetime.datetime.now():
+                status = "expired"
+
+        return jsonify(
+            {
+                "link_id": link_id,
+                "view_count": link.get("view_count", 0),
+                "first_viewed_at": link.get("first_viewed_at"),
+                "last_viewed_at": link.get("last_viewed_at"),
+                "status": status,
+                "created_at": link.get("created_at"),
+                "expires_at": link.get("expires_at"),
+            }
+        ), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to get invite link stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/invite-links/track/<token>", methods=["POST"])
+def track_invite_link_view(token):
+    """Track when someone views/clicks an invite link."""
+    db = get_db()
+
+    try:
+        result = db.table("invite_links").select("*").eq("token", token).execute()
+
+        if not result.data:
+            return jsonify({"error": "Invite link not found"}), 404
+
+        link = result.data[0]
+        now = datetime.datetime.now().isoformat()
+
+        update_data = {
+            "view_count": (link.get("view_count") or 0) + 1,
+            "last_viewed_at": now,
+        }
+
+        if not link.get("first_viewed_at"):
+            update_data["first_viewed_at"] = now
+
+        db.table("invite_links").update(update_data).eq("token", token).execute()
+
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        current_app.logger.error(f"Failed to track invite link: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/documents/<document_id>/download", methods=["GET"])

@@ -10,9 +10,19 @@ class Config:
         "VITE_OPENROUTER_API_KEY"
     )
 
-    # Supabase
+    # Database Mode: 'local' (PostgreSQL Docker) or 'supabase' (cloud)
+    # Default: 'supabase' for production, override with LOCAL_DB_MODE=local for dev
+    DB_MODE = os.environ.get("DB_MODE", "supabase")
+
+    # Supabase (Production)
     SUPABASE_URL = os.environ.get("SUPABASE_URL")
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+
+    # Local PostgreSQL (Development)
+    LOCAL_DATABASE_URL = os.environ.get(
+        "LOCAL_DATABASE_URL",
+        "postgresql://derivhr:derivhr_dev_password@localhost:5432/derivhr_dev",
+    )
 
     # Paths
     MD_FILES_DIR = os.path.join(BASE_DIR, "..", "..", "md_files")
@@ -25,3 +35,7 @@ class Config:
     # LLM (Gemini for responses, OpenAI for embeddings)
     LLM_MODEL = "gemini-1.5-flash"
     EMBEDDING_MODEL = "text-embedding-3-small"
+
+    # Onboarding Settings
+    ONBOARDING_DUE_DAYS_DEFAULT = int(os.environ.get("ONBOARDING_DUE_DAYS_DEFAULT", 30))
+    ONBOARDING_REMINDER_DAYS = int(os.environ.get("ONBOARDING_REMINDER_DAYS", 3))

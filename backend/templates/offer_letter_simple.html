@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Offer Letter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 40px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .content {
+            margin-bottom: 40px;
+        }
+        .field {
+            margin-bottom: 15px;
+        }
+        .label {
+            font-weight: bold;
+            display: inline-block;
+            width: 200px;
+        }
+        .signature-section {
+            margin-top: 60px;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 250px;
+            margin-top: 50px;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OFFER LETTER</h1>
+        <p>{{ generated_date }}</p>
+    </div>
+
+    <div class="content">
+        <p>Dear {{ employee_name }},</p>
+
+        <p>We are pleased to offer you the position of <strong>{{ position }}</strong> with the following terms:</p>
+
+        <div class="field">
+            <span class="label">Full Name (as in IC):</span> {{ employee_name }}
+        </div>
+        <div class="field">
+            <span class="label">NRIC / Passport No:</span> {{ nric }}
+        </div>
+        <div class="field">
+            <span class="label">Designation:</span> {{ position }}
+        </div>
+        <div class="field">
+            <span class="label">Monthly Salary:</span> {{ currency }} {{ salary }}
+        </div>
+    </div>
+
+    <div class="signature-section">
+        <p>We look forward to having you on board.</p>
+
+        <div style="display: flex; justify-content: space-between;">
+            <div>
+                <div class="signature-line">
+                    Authorized Signatory
+                </div>
+                <p>For {{ company_name }}</p>
+            </div>
+
+            <div>
+                <div class="signature-line">
+                    Candidate Signature
+                </div>
+                <p>I accept the offer.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
