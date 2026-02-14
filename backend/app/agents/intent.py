@@ -24,42 +24,71 @@ class IntentClassifier:
     PATTERNS = {
         AgentType.POLICY_RESEARCH: [
             r'\b(policy|policies|handbook|guideline|rule|procedure|regulation)\b',
-            r'\b(what does|what is|explain|clarify|interpret|meaning)\b.*\b(policy|section|clause|article)\b',
-            r'\b(entitled|entitlement|eligible|eligibility|qualify|qualified)\b',
-            r'\b(compare|difference|vs|versus|between)\b.*\b(MY|SG|Malaysia|Singapore)\b',
-            r'\b(where can i find|which document|which policy)\b',
-            r'\b(section|chapter|clause|article)\s*\d+',
+            r"\b(what does|what is|explain|clarify|interpret|meaning)\b.*\b(policy|section|clause|article)\b",
+            r"\b(entitled|entitlement|eligible|eligibility|qualify|qualified)\b",
+            r"\b(compare|difference|vs|versus|between)\b.*\b(MY|SG|Malaysia|Singapore)\b",
+            r"\b(where can i find|which document|which policy)\b",
+            r"\b(section|chapter|clause|article)\s*\d+",
         ],
         AgentType.COMPLIANCE: [
-            r'\b(calculate|computation|how much|amount|total)\b',
-            r'\b(EPF|KWSP|SOCSO|PERKESO|EIS|CPF|PCB|MTD|SDL)\b',
-            r'\b(statutory|contribution|deduction|tax)\b',
-            r'\b(overtime|OT)\b.*\b(rate|pay|calculate|eligible)\b',
-            r'\b(compliance|audit|risk|violation|penalty|fine)\b',
-            r'\b(visa|work permit|employment pass|S pass|EP)\b.*\b(expir|renew|status|valid)\b',
-            r'\b(minimum wage|salary threshold|ceiling)\b',
-            r'\b(foreign worker|expatriate|expat)\b.*\b(quota|levy|regulation)\b',
-            r'\b(probation|confirmation|termination)\b.*\b(notice|period|calculate)\b',
+            r"\b(calculate|computation|how much|amount|total)\b",
+            r"\b(EPF|KWSP|SOCSO|PERKESO|EIS|CPF|PCB|MTD|SDL)\b",
+            r"\b(statutory|contribution|deduction|tax)\b",
+            r"\b(overtime|OT)\b.*\b(rate|pay|calculate|eligible)\b",
+            r"\b(compliance|audit|risk|violation|penalty|fine)\b",
+            r"\b(visa|work permit|employment pass|S pass|EP)\b.*\b(expir|renew|status|valid)\b",
+            r"\b(minimum wage|salary threshold|ceiling)\b",
+            r"\b(foreign worker|expatriate|expat)\b.*\b(quota|levy|regulation)\b",
+            r"\b(probation|confirmation|termination)\b.*\b(notice|period|calculate)\b",
         ],
         AgentType.DOCUMENT: [
-            r'\b(contract|form|document|checklist|template|letter)\b',
-            r'\b(generate|create|draft|prepare|issue)\b.*\b(contract|letter|document|offer)\b',
-            r'\b(what documents|required documents|submit|submission|upload)\b',
-            r'\b(EA form|IR8A|KWSP form|Form 8A|nomination form)\b',
-            r'\b(onboarding documents|new hire paperwork)\b',
-            r'\b(offer letter|confirmation letter|warning letter|termination letter)\b',
+            r"\b(contract|form|document|checklist|template|letter)\b",
+            r"\b(generate|create|draft|prepare|issue)\b.*\b(contract|letter|document|offer)\b",
+            r"\b(what documents|required documents|submit|submission|upload)\b",
+            r"\b(EA form|IR8A|KWSP form|Form 8A|nomination form)\b",
+            r"\b(onboarding documents|new hire paperwork)\b",
+            r"\b(offer letter|confirmation letter|warning letter|termination letter)\b",
         ],
         AgentType.EMPLOYEE_SUPPORT: [
-            r'\b(leave|annual leave|sick leave|maternity|paternity|MC|medical certificate)\b',
-            r'\b(onboarding|first day|orientation|new hire|new joiner|induction)\b',
-            r'\b(apply|application|request|submit)\b.*\b(leave|time off|vacation)\b',
-            r'\b(balance|remaining|how many days|days left)\b',
-            r'\b(who|where|when|how)\b.*\b(HR|manager|team|contact)\b',
-            r'\b(help|assist|support|question|confused|unclear)\b',
-            r'\b(benefit|insurance|medical|dental|optical)\b',
-            r'\b(claim|reimbursement|expense)\b',
-            r'\b(work from home|WFH|remote|flexible|hybrid)\b',
-            r'\b(public holiday|PH|off day|rest day)\b',
+            r"\b(leave|annual leave|sick leave|maternity|paternity|MC|medical certificate)\b",
+            r"\b(onboarding|first day|orientation|new hire|new joiner|induction)\b",
+            r"\b(apply|application|request|submit)\b.*\b(leave|time off|vacation)\b",
+            r"\b(balance|remaining|how many days|days left)\b",
+            r"\b(who|where|when|how)\b.*\b(HR|manager|team|contact)\b",
+            r"\b(help|assist|support|question|confused|unclear)\b",
+            r"\b(benefit|insurance|medical|dental|optical)\b",
+            r"\b(claim|reimbursement|expense)\b",
+            r"\b(work from home|WFH|remote|flexible|hybrid)\b",
+            r"\b(public holiday|PH|off day|rest day)\b",
+        ],
+
+        # New intents added below
+        AgentType.PROFILE_QUERY: [
+            r"\b(profile|my profile|view profile|update profile|edit profile)\b",
+            r"\b(change my (name|email|phone|address|bank|details))\b",
+            r"\b(show me my (profile|details|information))\b",
+            r"\b(upload profile picture|profile photo)\b",
+        ],
+
+        AgentType.REQUEST_HR_TALK: [
+            r"\b(talk to (hr|human resources)|speak to (hr|human resources)|contact hr)\b",
+            r"\b(schedule|book|arrange)\b.*\b(meeting|call)\b.*\b(hr|human resources)\b",
+            r"\b(need to (talk|speak) to someone|request meeting)\b",
+            r"\b(urgent|escalat(e|ion)|raise to (hr|manager))\b",
+        ],
+
+        AgentType.SMALL_TALK: [
+            r"\b(hi|hello|hey|good morning|good afternoon|good evening)\b",
+            r"\b(thanks|thank you|ty|cheers)\b",
+            r"\b(how are you|what's up|sup|how's it going)\b",
+            r"\b(joke|fun|bored)\b",
+        ],
+
+        AgentType.BOT_CAPABILITIES: [
+            r"\b(what can you do|your capabilities|how can you help|help me with)\b",
+            r"\b(list of features|features|capabilities|limitations)\b",
+            r"\b(is this a bot|are you a bot|bot or human)\b",
+            r"\b(can you (generate|draft|calculate|route|connect))\b",
         ],
     }
 
@@ -89,6 +118,12 @@ class IntentClassifier:
         # Immediate policy routing
         'employment act': AgentType.POLICY_RESEARCH,
         'section 60': AgentType.POLICY_RESEARCH,
+
+        # Immediate profile / HR talk routing
+        'profile': AgentType.PROFILE_QUERY,
+        'my profile': AgentType.PROFILE_QUERY,
+        'talk to hr': AgentType.REQUEST_HR_TALK,
+        'speak to hr': AgentType.REQUEST_HR_TALK,
     }
 
     @classmethod
@@ -175,6 +210,10 @@ class IntentClassifier:
             AgentType.COMPLIANCE: "Statutory calculations or regulatory assessment required",
             AgentType.DOCUMENT: "Document generation or form guidance requested",
             AgentType.EMPLOYEE_SUPPORT: "General employee assistance or day-to-day HR support",
+            AgentType.PROFILE_QUERY: "Profile lookup or update request",
+            AgentType.REQUEST_HR_TALK: "Request to schedule or escalate to an HR representative",
+            AgentType.SMALL_TALK: "Casual / social interaction detected",
+            AgentType.BOT_CAPABILITIES: "Questions about bot features, scope, or limitations",
         }
 
         return f"Routed to {agent_type.value} ({confidence_level} confidence): {reasons.get(agent_type, 'Unknown')}"
