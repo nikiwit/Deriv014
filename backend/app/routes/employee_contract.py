@@ -23,7 +23,6 @@ from typing import Optional
 from flask import Blueprint, jsonify, request
 
 from app.database import get_db
-from app import rag
 from app.document_generator import _get_jurisdiction_defaults
 from app.utils.contract_state_manager import ContractStateManager
 
@@ -67,13 +66,17 @@ def _fetch_user_from_supabase_employees(user_id: Optional[str] = None, email: Op
 
 # Map schema field keys → Supabase user column(s)
 _FIELD_MAP = {
-    "fullName": lambda u: f"{u.get('first_name', '')} {u.get('last_name', '')}".strip(),
+    "fullName": lambda u: (
+        u.get("full_name")
+        or f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+        or ""
+    ),
     "nric": lambda u: u.get("nric", ""),
-    "nationality": lambda u: u.get("nationality", ""),
+    "nationality": lambda u: u.get("nationality", "") or u.get("jurisdiction", ""),
     "dateOfBirth": lambda u: u.get("date_of_birth", ""),
     "bankName": lambda u: u.get("bank_name", ""),
     "accountHolder": lambda u: u.get("bank_account_holder", ""),
-    "accountNumber": lambda u: u.get("bank_account_number", ""),
+    "accountNumber": lambda u: u.get("bank_account_number", "") or u.get("bank_account", ""),
 }
 
 # Job-detail fields that can be inferred via LLM if missing
@@ -97,31 +100,49 @@ _PERSONAL_FIELD_QUESTIONS = {
 
 def process_contract_request(employee_context: Optional[dict] = None, session_id: Optional[str] = None) -> dict:
     """
-    Core contract processing logic with resumption support and template creation.
+    Core contract processing logic.
     Called from the employee_chat route when intent is SIGN_CONTRACT_REQUEST.
 
-    New Flow:
-    1. Check for existing collection state (resumption)
-    2. Set active_contract_negotiation = TRUE immediately
-    3. Create template file at start
-    4. Extract job details via RAG (REQUIRED - fail if not found)
-    5. Check for missing personal fields
-    6. Collect fields one by one with triple-update
-    7. Finalize template to contract when complete
+    Flow:
+    1. Fetch employee from DB, merge with employee_context
+    2. Extract job details directly from merged data (no RAG)
+    3. Set active_contract_negotiation, create template
+    4. Render contract immediately with all available data
+    5. Return with action="show_contract" so frontend shows Sign/Reject buttons
 
     Returns a dict with:
-      - status: "contract_ready" | "missing_fields" | "resuming_collection" | "error"
+      - status: "contract_ready" | "error"
       - response: markdown string for chat display
       - contract_data: structured data (when contract_ready)
-      - missing_fields: list of {key, question} (when missing_fields)
-      - action: "show_contract" (when contract_ready) so frontend renders buttons
+      - action: "show_contract" (when contract_ready)
     """
     # 0. Resolve the user from Supabase
     user_id = (employee_context or {}).get("id")
     email = (employee_context or {}).get("email")
+
+    if not user_id:
+        return {
+            "status": "error",
+            "response": "Unable to identify your user profile. Please log in again.",
+        }
+
+    # 0a. Check if contract already signed
+    existing_contract = _check_already_signed(user_id)
+    if existing_contract:
+        signed_at = existing_contract.get("employee_signed_at") or existing_contract.get("created_at")
+        return {
+            "status": "already_signed",
+            "response": (
+                f"You have already signed your employment contract on **{signed_at}**.\n\n"
+                "You can download a copy from **My Documents** in the sidebar.\n\n"
+                "If you have questions about your contract, please contact HR."
+            ),
+            "contract": existing_contract,
+        }
+
     db_user = _fetch_user_from_supabase_employees(user_id=user_id, email=email)
 
-    if not db_user or not user_id:
+    if not db_user:
         return {
             "status": "error",
             "response": "Unable to identify your user profile. Please log in again.",
@@ -129,52 +150,18 @@ def process_contract_request(employee_context: Optional[dict] = None, session_id
 
     # Merge: DB data is authoritative, employee_context fills gaps
     merged = dict(db_user)
+
     if employee_context:
         for k, v in employee_context.items():
             if v and not merged.get(k):
                 merged[k] = v
 
+    logger.info(f"Merged employee data for contract: {list(merged.keys())}")
+
     # Initialize state manager
     state_manager = ContractStateManager(session_id, user_id)
-    
-    # 1. Check for existing collection state (resumption)
-    existing_state = state_manager.get_state()
-    if existing_state and existing_state.get("collected_data"):
-        # Resume from existing state
-        resume_result = state_manager.resume_collection()
-        collected_data = resume_result.get("collected_data", {})
-        missing_fields = resume_result.get("remaining_fields", [])
-        
-        # Merge collected data with user data
-        merged.update(collected_data)
-        
-        if missing_fields:
-            # Continue collection
-            next_field = missing_fields[0]
-            collected_count = resume_result.get("collected_count", 0)
-            total_fields = collected_count + len(missing_fields)
-            
-            response_md = (
-                f"Welcome back! Let's continue with your contract.\n\n"
-                f"**Progress**: {collected_count}/{total_fields} fields collected\n\n"
-                f"**{next_field.get('label', next_field['key'])}**: {next_field['question']}\n\n"
-                f"_Type 'cancel' to exit._"
-            )
-            
-            return {
-                "status": "resuming_collection",
-                "response": response_md,
-                "missing_fields": missing_fields,
-                "collecting_field": next_field["key"],
-                "collected_count": collected_count,
-                "total_fields": total_fields
-            }
-        else:
-            # All fields collected during previous session - finalize
-            logger.info(f"Resuming with all fields collected for user {user_id}")
-            # Fall through to finalization
 
-    # 2. Load schema
+    # 1. Load schema
     try:
         schema = _load_schema()
     except FileNotFoundError:
@@ -183,33 +170,33 @@ def process_contract_request(employee_context: Optional[dict] = None, session_id
             "response": "Contract schema not found. Please contact HR.",
         }
 
-    # 3. Determine jurisdiction early
-    nationality = (merged.get("nationality") or "").lower()
-    jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality else "MY"
+    # 2. Determine jurisdiction early
+    nationality = (merged.get("nationality") or merged.get("jurisdiction") or "").lower()
+    jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality or nationality == "sg" else "MY"
 
-    # 4. Extract job details via RAG (REQUIRED - strict mode)
-    job_details = _extract_job_details_via_rag_strict(merged, session_id)
-    
+    # 3. Extract job details directly from merged employee data (no RAG needed)
+    job_details = _extract_job_details_from_merged(merged)
+
     if not job_details:
-        # RAG extraction failed - cannot continue
         return {
             "status": "error",
-            "error_type": "rag_extraction_failed",
+            "error_type": "missing_job_details",
             "response": (
-                "⚠️ Unable to retrieve your employment details from onboarding documents.\n\n"
+                "Unable to find your employment details in our records.\n\n"
                 "**Required Information:**\n"
                 "- Job Position/Title\n"
                 "- Department\n"
                 "- Start Date\n\n"
-                "Please contact HR to ensure your offer letter and employment records have been uploaded to the system."
+                "Please contact HR to ensure your employment records are up to date."
             )
         }
-    
+
     # Merge job details into user data
     merged.update(job_details)
-    logger.info(f"Extracted job details via RAG for user {user_id}: {job_details}")
+    logger.info(f"Job details for user {user_id}: {job_details}")
 
-    # 5. Set active_contract_negotiation and create template immediately
+    # 4. Set active_contract_negotiation and create template
+    existing_state = state_manager.get_state()
     if not existing_state:
         init_result = state_manager.initialize_collection(jurisdiction, job_details)
         if init_result.get("status") == "error":
@@ -217,74 +204,19 @@ def process_contract_request(employee_context: Optional[dict] = None, session_id
                 "status": "error",
                 "response": f"Failed to initialize contract collection: {init_result.get('error')}"
             }
-        logger.info(f"Initialized contract collection for user {user_id}")
 
-    # 6. Check for missing personal fields
-    missing = []
-    for section in schema.get("sections", []):
-        for field in section.get("fields", []):
-            key = field["key"]
-            if not field.get("required", False):
-                continue
-            if field.get("type") == "checkbox":
-                continue  # checkboxes are acknowledgements, not profile data
-            
-            # Resolve value from merged data
-            resolver = _FIELD_MAP.get(key)
-            value = resolver(merged) if resolver else merged.get(key, "")
-            
-            if not value or not str(value).strip():
-                question = _PERSONAL_FIELD_QUESTIONS.get(key, f"Please provide your {field.get('label', key)}.")
-                missing.append({
-                    "key": key,
-                    "label": field.get("label", key),
-                    "question": question,
-                    "schema": field
-                })
-
-    if missing:
-        # Update collection state with missing fields
-        collection_state = state_manager.get_state()
-        if collection_state:
-            collection_state["missing_fields"] = missing
-            collection_state["collecting_field"] = missing[0]["key"]
-            # Update in database
-            db = get_db()
-            db.table("chat_sessions").update({
-                "contract_collection_state": json.dumps(collection_state)
-            }).eq("id", session_id).execute()
-        
-        first = missing[0]
-        total_fields = len(job_details) + len(missing)
-        collected_count = len(job_details)
-        
-        response_md = (
-            f"I've found your employment details! Now I need some personal information.\n\n"
-            f"**Progress**: {collected_count}/{total_fields} fields collected\n\n"
-            f"**{first['label']}**: {first['question']}\n\n"
-            f"_Type 'cancel' to exit._"
-        )
-        
-        return {
-            "status": "missing_fields",
-            "response": response_md,
-            "missing_fields": missing,
-            "collecting_field": first["key"],
-            "collected_count": collected_count,
-            "total_fields": total_fields
-        }
-
-    # 7. All fields present → finalize and render contract
+    # 5. Skip field collection — render contract directly with all available data.
+    #    Missing optional fields (nric, bank details, etc.) show as '—' in the contract.
     finalize_result = state_manager.finalize_collection()
-    
+
     if finalize_result.get("status") == "error":
         return {
             "status": "error",
             "response": f"Failed to finalize contract: {finalize_result.get('error')}"
         }
-    
+
     contract_md, contract_data = _render_contract(merged, schema)
-    
+
     logger.info(f"Contract ready for user {user_id}")
 
     return {
@@ -295,128 +227,57 @@ def process_contract_request(employee_context: Optional[dict] = None, session_id
     }
 
 
-def _extract_job_details_via_rag_strict(user_data: dict, session_id: Optional[str] = None) -> Optional[dict]:
+def _extract_job_details_from_merged(merged_data: dict) -> Optional[dict]:
     """
-    Extract job details from RAG (STRICT MODE - REQUIRED).
-    Returns None if extraction fails or required fields are missing.
-    
-    This is a REQUIRED step - if RAG fails, the process cannot continue.
-    
+    Extract job details directly from merged employee data (DB + context).
+    No RAG call needed — all details are already present in the merged variables.
+
     Args:
-        user_data: Current employee data (must include email)
-        session_id: Session ID for RAG context
-        
+        merged_data: Merged dict from employees table + employee_context
+
     Returns:
-        dict with extracted job details or None if extraction failed
+        dict with job details, or None if required fields are missing
     """
-    name = f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
-    if not name:
-        name = user_data.get("fullName", "")
-    email = user_data.get("email", "")
-    
-    if not email:
-        logger.error("Cannot extract job details: no email provided")
-        return None
-    
     extracted = {}
-    
-    try:
-        # Build comprehensive query for all job details
-        query = (
-            f"Extract employment details for {name} ({email}) from onboarding documents, "
-            f"offer letters, HR records, or employment agreements. "
-            f"Please provide:\n"
-            f"1. Job position/title\n"
-            f"2. Department/team\n"
-            f"3. Start date (employment commencement date)\n"
-            f"4. Salary (if mentioned)\n\n"
-            f"Format the response clearly with field names and values."
+
+    # Position: try multiple key names used across the codebase
+    position = (
+        merged_data.get("position_title")
+        or merged_data.get("role")
+        or merged_data.get("position")
+        or ""
+    )
+    if position:
+        extracted["position_title"] = str(position).strip()
+
+    # Department
+    department = merged_data.get("department", "")
+    if department:
+        extracted["department"] = str(department).strip()
+
+    # Start date
+    start_date = merged_data.get("start_date", "")
+    if start_date:
+        extracted["start_date"] = str(start_date).strip()
+
+    # Salary (optional)
+    salary = merged_data.get("salary", "")
+    if salary:
+        extracted["salary"] = str(salary).strip()
+
+    # Validate required fields
+    required_fields = ["position_title", "department", "start_date"]
+    missing = [f for f in required_fields if not extracted.get(f)]
+
+    if missing:
+        logger.warning(
+            f"Merged data missing required job fields: {missing}. "
+            f"Available keys: {list(merged_data.keys())}"
         )
-        
-        sid = session_id or f"contract_rag_{user_data.get('id', 'unknown')}"
-        response_text, sources = rag.query(sid, query)
-        
-        if not response_text or len(response_text) < 20:
-            logger.warning(f"RAG returned insufficient data for user {email}")
-            return None
-        
-        logger.info(f"RAG response for {email}: {response_text[:200]}...")
-        
-        # Parse the RAG response to extract specific fields
-        # Extract position/title
-        position_patterns = [
-            r'(?:position|title|role)[:\s]+([A-Za-z\s&\-]+?)(?:\n|$|,|\.|;)',
-            r'as\s+(?:a\s+)?([A-Za-z\s&\-]+?(?:engineer|developer|manager|analyst|specialist|designer|consultant|director|lead|coordinator))',
-            r'hired\s+as\s+([A-Za-z\s&\-]+?)(?:\n|$|,|\.|;)',
-        ]
-        for pattern in position_patterns:
-            match = re.search(pattern, response_text, re.IGNORECASE)
-            if match:
-                extracted["position_title"] = match.group(1).strip()
-                logger.info(f"Extracted position: {extracted['position_title']}")
-                break
-        
-        # Extract department
-        dept_patterns = [
-            r'(?:department|team|division)[:\s]+([A-Za-z\s&\-]+?)(?:\n|$|,|\.|;)',
-            r'(?:in|within|at)\s+the\s+([A-Za-z\s&\-]+?)\s+(?:department|team|division)',
-        ]
-        for pattern in dept_patterns:
-            match = re.search(pattern, response_text, re.IGNORECASE)
-            if match:
-                dept = match.group(1).strip()
-                # Filter out common false positives
-                if dept.lower() not in ['the', 'this', 'our', 'company']:
-                    extracted["department"] = dept
-                    logger.info(f"Extracted department: {extracted['department']}")
-                    break
-        
-        # Extract start date
-        date_patterns = [
-            r'start\s+date[:\s]+(\d{4}-\d{2}-\d{2})',
-            r'start\s+date[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-            r'commence(?:ment)?[:\s]+(?:on\s+)?(\d{4}-\d{2}-\d{2})',
-            r'commence(?:ment)?[:\s]+(?:on\s+)?(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-            r'join(?:ing)?[:\s]+(?:on\s+)?(\d{4}-\d{2}-\d{2})',
-            r'join(?:ing)?[:\s]+(?:on\s+)?(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-            r'employment\s+begins[:\s]+(\d{4}-\d{2}-\d{2})',
-            r'employment\s+begins[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-        ]
-        for pattern in date_patterns:
-            match = re.search(pattern, response_text, re.IGNORECASE)
-            if match:
-                extracted["start_date"] = match.group(1)
-                logger.info(f"Extracted start_date: {extracted['start_date']}")
-                break
-        
-        # Extract salary (optional)
-        salary_patterns = [
-            r'salary[:\s]+(?:RM|SGD|\$|MYR|S\$)?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-            r'compensation[:\s]+(?:RM|SGD|\$|MYR|S\$)?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-            r'earning[:\s]+(?:RM|SGD|\$|MYR|S\$)?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-        ]
-        for pattern in salary_patterns:
-            match = re.search(pattern, response_text, re.IGNORECASE)
-            if match:
-                salary_str = match.group(1).replace(',', '')
-                extracted["salary"] = salary_str
-                logger.info(f"Extracted salary: {extracted['salary']}")
-                break
-        
-        # Validate required fields are present
-        required_fields = ["position_title", "department", "start_date"]
-        missing_required = [f for f in required_fields if f not in extracted or not extracted[f]]
-        
-        if missing_required:
-            logger.warning(f"RAG extraction incomplete for {email}. Missing: {missing_required}")
-            return None
-        
-        logger.info(f"RAG extraction successful for {email}: {extracted}")
-        return extracted
-        
-    except Exception as e:
-        logger.error(f"RAG extraction error for {email}: {e}")
         return None
+
+    logger.info(f"Job details extracted from merged data: {extracted}")
+    return extracted
 
 
 def _render_contract(user_data: dict, schema: dict) -> tuple[str, dict]:
@@ -430,7 +291,13 @@ def _render_contract(user_data: dict, schema: dict) -> tuple[str, dict]:
 
     full_name = _FIELD_MAP["fullName"](user_data)
     nric = _FIELD_MAP["nric"](user_data)
-    position = user_data.get("position_title", user_data.get("role", "Employee"))
+    nationality = _FIELD_MAP["nationality"](user_data)
+    position = (
+        user_data.get("position_title")
+        or user_data.get("position")
+        or user_data.get("role")
+        or "Employee"
+    )
     department = user_data.get("department", "")
     start_date = str(user_data.get("start_date", ""))
     salary = user_data.get("salary", "")
@@ -450,7 +317,7 @@ def _render_contract(user_data: dict, schema: dict) -> tuple[str, dict]:
 |-------|---------|
 | **Full Name** | {full_name} |
 | **NRIC / ID** | {nric or '—'} |
-| **Nationality** | {user_data.get('nationality', '—')} |
+| **Nationality** | {nationality or '—'} |
 | **Position** | {position} |
 | **Department** | {department} |
 | **Start Date** | {start_date} |
@@ -502,7 +369,7 @@ _Please review the contract above. Click **Sign** to accept or **Reject** to dec
     contract_data = {
         "employee_name": full_name,
         "nric": nric,
-        "nationality": user_data.get("nationality", ""),
+        "nationality": nationality,
         "position": position,
         "department": department,
         "start_date": start_date,
@@ -926,3 +793,229 @@ def contract_endpoint():
 
     result = process_contract_request(employee_context, session_id)
     return jsonify(result)
+
+
+@bp.route("/sign-contract", methods=["POST"])
+def sign_contract_endpoint():
+    """
+    Sign contract: generates PDF, stores in contracts table.
+    POST /api/employee-chat/sign-contract
+    Body: { employee_id, contract_data, session_id? }
+    """
+    data = request.get_json() or {}
+    employee_id = data.get("employee_id")
+    contract_data = data.get("contract_data", {})
+    session_id = data.get("session_id")
+
+    if not employee_id:
+        return jsonify({"status": "error", "response": "employee_id is required"}), 400
+
+    result = sign_and_store_contract(employee_id, contract_data, session_id)
+
+    status_code = 200
+    if result.get("status") == "error":
+        status_code = 500
+    elif result.get("status") == "already_signed":
+        status_code = 409
+
+    return jsonify(result), status_code
+
+
+# ── Contract signing + PDF generation + DB storage ───────────────
+
+_TEMP_DIR = Path(__file__).resolve().parent.parent.parent / "temp_data"
+_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _check_already_signed(employee_id: str) -> Optional[dict]:
+    """
+    Check if this employee already has a signed/active contract.
+    Returns the contract row if found, None otherwise.
+    """
+    db = get_db()
+    try:
+        result = db.table("contracts") \
+            .select("*") \
+            .eq("employee_id", employee_id) \
+            .in_("status", ["active", "signed"]) \
+            .order("created_at", desc=True) \
+            .limit(1) \
+            .execute()
+        if result.data:
+            return result.data[0]
+    except Exception as e:
+        logger.warning(f"Error checking existing contract for {employee_id}: {e}")
+    return None
+
+
+def sign_and_store_contract(employee_id: str, contract_data: dict, session_id: Optional[str] = None) -> dict:
+    """
+    Finalize contract signing:
+    1. Check for existing signed contract (prevent double-sign)
+    2. Insert a row into the contracts table
+    3. Generate the contract PDF via _generate_contract_pdf
+    4. Store PDF path back into the contracts row
+
+    Args:
+        employee_id: UUID of the employee
+        contract_data: Structured contract data from process_contract_request
+        session_id: Optional chat session ID
+
+    Returns:
+        dict with status and details
+    """
+    # 0. Prevent double-sign
+    existing = _check_already_signed(employee_id)
+    if existing:
+        signed_at = existing.get("employee_signed_at") or existing.get("created_at")
+        return {
+            "status": "already_signed",
+            "response": (
+                f"You have already signed your contract on **{signed_at}**.\n\n"
+                "If you need a copy, check **My Documents** in the sidebar."
+            ),
+            "contract": existing
+        }
+
+    db = get_db()
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    jurisdiction = contract_data.get("jurisdiction", "MY")
+
+    # 1. Build PDF data dict (keys expected by _generate_contract_pdf in documents.py)
+    defaults = _get_jurisdiction_defaults(jurisdiction)
+    pdf_data = {
+        "fullName": contract_data.get("employee_name", ""),
+        "nric": contract_data.get("nric", ""),
+        "passportNo": "",
+        "nationality": contract_data.get("nationality", ""),
+        "dateOfBirth": "",
+        "gender": "",
+        "maritalStatus": "",
+        "race": "",
+        "religion": "",
+        "address1": "",
+        "address2": "",
+        "postcode": "",
+        "city": "",
+        "state": "",
+        "country": "Malaysia" if jurisdiction == "MY" else "Singapore",
+        "personalEmail": "",
+        "workEmail": contract_data.get("email", ""),
+        "mobile": "",
+        "altNumber": "",
+        "emergencyName": "",
+        "emergencyRelationship": "",
+        "emergencyMobile": "",
+        "emergencyAltNumber": "",
+        "jobTitle": contract_data.get("position", ""),
+        "department": contract_data.get("department", ""),
+        "reportingTo": "",
+        "startDate": contract_data.get("start_date", ""),
+        "employmentType": "Full-Time Permanent",
+        "probationPeriod": f"{defaults['probation_months']} months",
+        "workModel": "",
+        "workLocation": "",
+        "monthlySalary": str(contract_data.get("salary", "")),
+        "currency": defaults.get("currency", "MYR"),
+        "bankName": "",
+        "accountHolder": contract_data.get("employee_name", ""),
+        "accountNumber": "",
+        "bankBranch": "",
+        "taxResident": True,
+        "acknowledgeHandbook": True,
+        "acknowledgeIT": True,
+        "acknowledgePrivacy": True,
+        "acknowledgeConfidentiality": True,
+        "finalDeclaration": True,
+        "signatureDate": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "completedAt": now_iso,
+        "id": employee_id,
+    }
+
+    # 2. Generate PDF
+    from app.routes.documents import _generate_contract_pdf
+
+    pdf_path = _TEMP_DIR / f"{employee_id}_contract.pdf"
+    try:
+        _generate_contract_pdf(pdf_data, pdf_path)
+        logger.info(f"Contract PDF generated at {pdf_path}")
+    except Exception as e:
+        logger.error(f"PDF generation failed for {employee_id}: {e}")
+        return {
+            "status": "error",
+            "response": f"Contract signed but PDF generation failed: {e}"
+        }
+
+    # 3. Also store JSON snapshot
+    json_path = _TEMP_DIR / f"{employee_id}_contract.json"
+    try:
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump({
+                **contract_data,
+                "consent_confirmed_at": now_iso,
+                "consent_given_by": employee_id,
+                "completedAt": now_iso,
+            }, f, ensure_ascii=False, indent=2, default=str)
+    except Exception as e:
+        logger.warning(f"JSON snapshot failed for {employee_id}: {e}")
+
+    # 4. Parse salary safely
+    salary_val = None
+    try:
+        raw = str(contract_data.get("salary", "")).replace(",", "")
+        if raw:
+            salary_val = float(raw)
+    except (ValueError, TypeError):
+        pass
+
+    # 5. Insert into contracts table
+    contract_row = {
+        "employee_id": employee_id,
+        "employee_name": contract_data.get("employee_name", ""),
+        "email": contract_data.get("email", ""),
+        "position": contract_data.get("position", ""),
+        "department": contract_data.get("department", ""),
+        "start_date": contract_data.get("start_date") or None,
+        "salary": salary_val,
+        "currency": defaults.get("currency", "MYR"),
+        "jurisdiction": jurisdiction,
+        "nric": contract_data.get("nric", ""),
+        "nationality": contract_data.get("nationality", ""),
+        "company": contract_data.get("company", defaults.get("company_name", "")),
+        "contract_data": json.dumps(contract_data, default=str),
+        "status": "active",
+        "employee_signed_at": now_iso,
+        "pdf_path": str(pdf_path),
+        "json_path": str(json_path),
+        "probation_months": defaults.get("probation_months", 3),
+        "notice_period": defaults.get("notice_period", "1 month"),
+        "work_hours": defaults.get("work_hours", ""),
+        "governing_law": defaults.get("governing_law", ""),
+    }
+
+    try:
+        insert_result = db.table("contracts").insert(contract_row).execute()
+        contract_id = insert_result.data[0]["id"] if insert_result.data else None
+        logger.info(f"Contract stored in DB for {employee_id}, id={contract_id}")
+    except Exception as e:
+        logger.error(f"DB insert failed for contract {employee_id}: {e}")
+        # PDF is already generated, so partial success
+        return {
+            "status": "signed_pdf_only",
+            "response": (
+                "Your contract has been signed and the PDF generated, "
+                "but we could not save it to the database. Please contact HR."
+            ),
+            "pdf_path": str(pdf_path),
+        }
+
+    return {
+        "status": "ok",
+        "response": (
+            f"Your contract has been signed successfully!\n\n"
+            f"**Signed at:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"A PDF copy has been generated. You can download it from **My Documents**."
+        ),
+        "contract_id": contract_id,
+        "pdf_path": str(pdf_path),
+    }

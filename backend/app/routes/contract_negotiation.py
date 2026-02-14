@@ -253,27 +253,72 @@ def _apply_modifications(current_contract: dict, modification: dict) -> dict:
 
 def _check_compliance(proposed_contract: dict, employee_context: dict, modification: dict) -> dict:
     """
-    Use policy_agent to validate the proposed changes.
-    
+    Validate proposed contract changes via RAG policy lookup + policy_agent.
+
+    Each modification is checked in two stages:
+    1. RAG query against policy documents for jurisdiction-specific rules
+    2. Policy agent structural/statutory validation
+
     Args:
         proposed_contract: Contract with proposed modifications
         employee_context: Employee profile data
         modification: The modification request details
-        
+
     Returns:
         dict with compliant flag, issues, and recommendations
     """
     jurisdiction = proposed_contract.get("jurisdiction", "MY")
-    
+    field = modification.get("field", "unknown")
+    new_value = modification.get("new_value", "")
+
     # Prepare employee data for policy check
     employee_data = {
         **proposed_contract,
         "jurisdiction": jurisdiction,
-        "modification_type": modification.get("field"),
-        "modification_value": modification.get("new_value")
+        "modification_type": field,
+        "modification_value": new_value
     }
-    
-    # Call policy_agent's verify_compliance method
+
+    # ── Stage 1: RAG policy document lookup ──────────────────────
+    rag_issues = []
+    rag_recommendations = []
+    try:
+        rag_query = (
+            f"Check company policy and employment law compliance for modifying "
+            f"the '{field}' field to '{new_value}' in a {jurisdiction} employment contract. "
+            f"Is this change allowed? Are there any restrictions, limits, or approval "
+            f"requirements? Cite relevant policy sections or statutory references."
+        )
+        rag_response, rag_sources = rag.query(
+            f"compliance_check_{field}", rag_query
+        )
+
+        if rag_response:
+            # Check for denial / restriction language in RAG response
+            import re as _re
+            denial_patterns = [
+                r'\bnot\s+(?:allowed|permitted|compliant|acceptable)\b',
+                r'\bprohibited\b',
+                r'\bviolat(?:es?|ion)\b',
+                r'\bexceeds?\s+(?:the\s+)?(?:maximum|limit|cap)\b',
+                r'\bbelow\s+(?:the\s+)?minimum\b',
+                r'\brequires?\s+(?:HR|management|director)\s+approval\b',
+            ]
+            for pattern in denial_patterns:
+                if _re.search(pattern, rag_response, _re.IGNORECASE):
+                    rag_issues.append(f"Policy check: {rag_response[:300]}")
+                    break
+
+            # Extract recommendations from RAG
+            if "recommend" in rag_response.lower() or "suggest" in rag_response.lower():
+                rag_recommendations.append(rag_response[:300])
+
+    except Exception as e:
+        # RAG failure is non-blocking — fall through to policy agent
+        import logging
+        logging.getLogger(__name__).warning(f"RAG compliance check failed: {e}")
+
+    # ── Stage 2: Policy agent structural validation ──────────────
     try:
         result = policy_agent._verify_compliance(
             payload={
@@ -282,11 +327,21 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
             },
             context={"jurisdiction": jurisdiction}
         )
-        
+
         compliance_data = result.get("data", {})
-        
+
+        # Merge RAG issues into policy agent results
+        existing_issues = compliance_data.get("issues", [])
+        compliance_data["issues"] = existing_issues + rag_issues
+        existing_recs = compliance_data.get("recommendations", [])
+        compliance_data["recommendations"] = existing_recs + rag_recommendations
+
+        # If RAG found issues, mark as non-compliant
+        if rag_issues:
+            compliance_data["compliant"] = False
+            compliance_data["risk_level"] = "high"
+
         # Add field-specific validation
-        field = modification.get("field")
         if field == "salary":
             salary_validation = _validate_salary_change(
                 proposed_contract.get("salary"),
@@ -296,22 +351,23 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
                 compliance_data["compliant"] = False
                 compliance_data["issues"] = compliance_data.get("issues", []) + salary_validation["issues"]
                 compliance_data["risk_level"] = "high"
-        
+
         elif field == "start_date":
             date_validation = _validate_start_date(proposed_contract.get("start_date"))
             if not date_validation["valid"]:
                 compliance_data["compliant"] = False
                 compliance_data["issues"] = compliance_data.get("issues", []) + date_validation["issues"]
-        
+
         return compliance_data
-        
+
     except Exception as e:
         # Fallback if policy agent fails
+        all_issues = rag_issues + [f"Compliance check failed: {str(e)}"]
         return {
             "compliant": False,
-            "issues": [f"Compliance check failed: {str(e)}"],
+            "issues": all_issues,
             "risk_level": "high",
-            "recommendations": ["Please contact HR for manual review"]
+            "recommendations": rag_recommendations + ["Please contact HR for manual review"]
         }
 
 

@@ -692,8 +692,13 @@ def _generate_contract_pdf(data, out_path: Path):
     pdf.add_page()
 
     def val(key, default=""):
-        v = data.get(key, default).strip()
-        return _safe_text(str(v) if v else default)
+        v = data.get(key, default)
+        # If v is None, use default; otherwise, convert to string and strip if it's a string
+        if v is None:
+            result = default
+        else:
+            result = str(v).strip()
+        return _safe_text(result)
 
     def check(key):
         return "[x]" if data.get(key) else "[ ]"
@@ -754,7 +759,7 @@ def _generate_contract_pdf(data, out_path: Path):
     pdf.set_x(pdf.l_margin)
     pdf.cell(0, 7, "Residential Address", ln=True)
     pdf.set_font("Arial", "", 11)
-    two_col_multicell(f"Address: {val('address1')}".strip() + (f", {val('address2')}".strip() if val('address2') else ""), "")
+    two_col_multicell(f"Address: {val('address1')}" + (f", {val('address2')}" if val('address2') else ""), "")
     two_col_multicell(f"Postcode: {val('postcode')}", f"City: {val('city')}")
     two_col_multicell(f"State: {val('state')}", f"Country: {val('country')}")
     pdf.ln(3)

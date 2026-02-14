@@ -20,7 +20,8 @@ from app.agents.prompts import AgentType
 from app.agents.orchestrator import get_orchestrator
 
 bp = Blueprint("employee_chat", __name__, url_prefix="/api/employee-chat")
-
+import logging
+logger = logging.getLogger(__name__)
 
 # ── Predefined responses (no LLM call) ──────────────────────────
 
@@ -78,6 +79,36 @@ def _is_contract_modification_request(message: str) -> bool:
         r'\b(can i|could i|would it be possible)\b.*\b(change|modify|get)\b'
     ]
     return any(re.search(pattern, message, re.IGNORECASE) for pattern in keywords)
+
+
+def _is_contract_relevant(message: str) -> bool:
+    """Check if a message is relevant to contract review / negotiation context."""
+    import re
+    contract_keywords = [
+        r'\b(contract|agreement|terms|sign|signing|reject|decline|accept)\b',
+        r'\b(salary|pay|compensation|wage|bonus|allowance)\b',
+        r'\b(start date|commencement|join|joining)\b',
+        r'\b(position|role|title|department|team|division)\b',
+        r'\b(probation|notice period|leave|annual leave|sick leave)\b',
+        r'\b(working hours|overtime|benefits|insurance|medical)\b',
+        r'\b(clause|section|paragraph|provision|entitlement)\b',
+        r'\b(change|modify|update|adjust|negotiate|revise)\b',
+        r'\b(ready|proceed|agree|disagree|question|clarify|explain)\b',
+        r'\b(epf|socso|eis|cpf|contribution|deduction|tax)\b',
+        r'\b(bank|account|nric|passport)\b',
+    ]
+    return any(re.search(p, message, re.IGNORECASE) for p in contract_keywords)
+
+
+CONTRACT_OFF_TOPIC_RESPONSE = (
+    "You're currently in **contract negotiation mode**. "
+    "I can only assist with questions related to your contract right now.\n\n"
+    "Here's what I can help with:\n"
+    "- **Review** your contract details (salary, position, start date, etc.)\n"
+    "- **Request changes** to contract terms (e.g. \"change my salary to 6000\")\n"
+    "- **Sign** or **reject** the contract\n\n"
+    "If you'd like to discuss something else, please start a **New Chat** first."
+)
 
 
 def _respond_in_contract_context(message: str, contract_json_path) -> str:
@@ -197,7 +228,6 @@ def _build_profile_response(employee_context: dict | None) -> str:
         ("Start Date", user_data.get("start_date", "N/A")),
         ("Nationality", user_data.get("nationality", "N/A")),
     ]
-    
     # Add optional fields if present
     if user_data.get("nric"):
         rows.append(("NRIC", user_data["nric"]))
@@ -367,6 +397,16 @@ def employee_chat():
                     _save_message(session_id, "assistant", error_msg)
                     return jsonify({"error": error_msg}), 500
             else:
+                # In negotiation mode — only allow contract-relevant messages
+                if not _is_contract_relevant(message):
+                    _save_message(session_id, "assistant", CONTRACT_OFF_TOPIC_RESPONSE)
+                    return jsonify({
+                        "session_id": session_id,
+                        "response": CONTRACT_OFF_TOPIC_RESPONSE,
+                        "intent": "contract_off_topic",
+                        "agent_used": "contract_agent"
+                    })
+
                 # Respond in contract context without modifying
                 response_text = _respond_in_contract_context(message, contract_json_path)
                 _save_message(session_id, "assistant", response_text)
@@ -431,6 +471,7 @@ def employee_chat():
 
         try:
             result = process_contract_request(employee_context, session_id)
+            logger.info("Start processing contract request")
         except Exception as e:
             import traceback
             traceback.print_exc()
