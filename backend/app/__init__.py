@@ -50,6 +50,7 @@ def create_app():
         employee_chat,
         employee_contract,
         contract_negotiation,
+        training,
     )
     from app.routes import onboarding_workflow
     from app.routes import multiagent_onboarding
@@ -69,6 +70,7 @@ def create_app():
     app.register_blueprint(contract_negotiation.bp)
     app.register_blueprint(multiagent_onboarding.bp)
     app.register_blueprint(document_reminders.bp)
+    app.register_blueprint(training.bp)
 
     # # Blueprints
     # from app.routes import chat, documents, onboarding, slack

@@ -300,6 +300,23 @@ def sign_contract_pipeline():
                 .eq("id", employee_id) \
                 .execute()
 
+            # ─────────────────────────────────────────────────────────────
+            # Auto-assign training based on department
+            # ─────────────────────────────────────────────────────────────
+            try:
+                from app.routes.training import _assign_training_to_employee
+
+                department = profile.get("department", "")
+                training_result = _assign_training_to_employee(employee_id, department)
+
+                current_app.logger.info(
+                    f"Auto-assigned {training_result['template']} training "
+                    f"({training_result['training_count']} items) to {employee_id}"
+                )
+            except Exception as e:
+                # Don't fail contract signing if training assignment fails
+                current_app.logger.error(f"Failed to auto-assign training to {employee_id}: {e}")
+
         return jsonify({
             "status": "ok",
             "allowed": recommended_action == "allow_sign",
@@ -399,18 +416,112 @@ def download_contract_json(employee_id):
 
 @bp.route("/download-contract-pdf/<employee_id>", methods=["GET"])
 def download_contract_pdf(employee_id):
-    """Serve the signed contract JSON file from TEMP_DIR as a download."""
+    """Generate (if needed) and serve the signed contract PDF as a download."""
     from flask import send_file
+    from app.routes.documents import _generate_contract_pdf
     _BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    TEMP_DIR = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
-    TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    
-    path = TEMP_DIR / f"{employee_id}_contract.pdf"
-    logger.info(path)
-    if not path.exists():
-        return jsonify({"status": "error", "message": "Signed contract not found"}), 404
+    TEMP_DIR_LOCAL = Path(os.environ.get("TEMP_DATA_DIR", str(_BASE_DIR / "temp_data")))
+    TEMP_DIR_LOCAL.mkdir(parents=True, exist_ok=True)
+
+    pdf_path = TEMP_DIR_LOCAL / f"{employee_id}_contract.pdf"
+    logger.info(pdf_path)
+
+    # If PDF doesn't exist, generate it from DB / JSON data
+    if not pdf_path.exists():
+        try:
+            db = get_db()
+            user_result = db.table("users").select("*").eq("id", employee_id).execute()
+
+            if user_result.data and len(user_result.data) > 0:
+                user = user_result.data[0]
+                nationality = (user.get("nationality") or "").lower()
+                jurisdiction = "SG" if "singapore" in nationality or "singaporean" in nationality else "MY"
+
+                data = {
+                    "fullName": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                    "nric": user.get("nric", ""),
+                    "passportNo": "",
+                    "nationality": user.get("nationality", "Malaysian"),
+                    "dateOfBirth": user.get("date_of_birth", ""),
+                    "gender": "",
+                    "maritalStatus": "",
+                    "race": "",
+                    "religion": "",
+                    "address1": user.get("address", ""),
+                    "address2": "",
+                    "postcode": "",
+                    "city": "",
+                    "state": "",
+                    "country": "Malaysia" if jurisdiction == "MY" else "Singapore",
+                    "personalEmail": "",
+                    "workEmail": user.get("email", ""),
+                    "mobile": user.get("phone", ""),
+                    "altNumber": "",
+                    "emergencyName": user.get("emergency_contact_name", ""),
+                    "emergencyRelationship": user.get("emergency_contact_relation", ""),
+                    "emergencyMobile": user.get("emergency_contact_phone", ""),
+                    "emergencyAltNumber": "",
+                    "jobTitle": user.get("position_title", user.get("role", "")),
+                    "department": user.get("department", ""),
+                    "reportingTo": "",
+                    "startDate": str(user.get("start_date", "")),
+                    "employmentType": "Full-Time Permanent",
+                    "probationMonths": 3,
+                    "workHours": "9:00 AM - 6:00 PM (Mon-Fri)",
+                    "monthlySalary": str(user.get("salary", "")),
+                    "currency": "MYR" if jurisdiction == "MY" else "SGD",
+                    "overtimeRate": "1.5x hourly rate",
+                    "noticePeriod": "1 month",
+                    "annualLeave": 14,
+                    "sickLeave": 14,
+                    "hospitalizationLeave": 60,
+                    "maternityLeave": 60 if jurisdiction == "MY" else 112,
+                    "paternityLeave": 7,
+                    "bankName": user.get("bank_name", ""),
+                    "accountHolder": user.get("bank_account_holder", ""),
+                    "accountNumber": user.get("bank_account_number", ""),
+                    "taxResident": "malaysian" in nationality,
+                    "acknowledgeHandbook": True,
+                    "acknowledgeIT": True,
+                    "acknowledgePrivacy": True,
+                    "acknowledgeConfidentiality": True,
+                    "finalDeclaration": True,
+                    "signature": user.get("signature", ""),
+                    "signatureDate": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                    "id": employee_id,
+                    "completedAt": datetime.now(timezone.utc).isoformat(),
+                }
+
+                # Merge signature from JSON file if available
+                json_path = TEMP_DIR_LOCAL / f"{employee_id}_contract.json"
+                if json_path.exists():
+                    try:
+                        with open(json_path, "r", encoding="utf-8") as f:
+                            json_data = json.load(f)
+                        if json_data.get("signature"):
+                            data["signature"] = json_data["signature"]
+                        if json_data.get("completedAt"):
+                            data["completedAt"] = json_data["completedAt"]
+                        if json_data.get("signatureDate"):
+                            data["signatureDate"] = json_data["signatureDate"]
+                    except Exception as e:
+                        logger.warning(f"Could not merge signature from JSON file: {e}")
+            else:
+                # Fallback to JSON file
+                json_path = TEMP_DIR_LOCAL / f"{employee_id}_contract.json"
+                if not json_path.exists():
+                    return jsonify({"status": "error", "message": "Contract data not found"}), 404
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+            _generate_contract_pdf(data, pdf_path)
+
+        except Exception as e:
+            logger.error(f"Failed to generate contract PDF: {e}")
+            return jsonify({"status": "error", "message": "Failed to generate contract PDF"}), 500
+
     return send_file(
-        path,
+        str(pdf_path),
         as_attachment=True,
         download_name=f"contract_{employee_id}.pdf",
         mimetype="application/pdf"
