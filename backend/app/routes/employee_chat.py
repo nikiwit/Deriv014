@@ -111,66 +111,296 @@ CONTRACT_OFF_TOPIC_RESPONSE = (
 )
 
 
-def _respond_in_contract_context(message: str, contract_json_path) -> str:
-    """Respond to questions about the contract without modifications."""
+# from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+
+def _iso_to_readable(ts: Optional[str]) -> str:
+    if not ts:
+        return ""
+    try:
+        # handle ISO timestamps like "2026-02-15T02:03:00.446954"
+        dt = datetime.fromisoformat(ts)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ts
+
+
+def _safe(obj: Dict[str, Any], *keys, default=""):
+    """Traverse nested dicts safely. Example: _safe(contract, 'personal_details', 'fullName')"""
+    cur = obj
+    for k in keys:
+        if not isinstance(cur, dict):
+            return default
+        cur = cur.get(k, default)
+    return default if cur is None else cur
+
+
+def _summarize_modification_history(history: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    if not history:
+        return {"total": 0, "approved": 0, "rejected": 0, "last": None}
+    total = len(history)
+    approved = sum(1 for h in history if h.get("approved") is True)
+    rejected = sum(1 for h in history if h.get("approved") is False)
+    last = history[-1]  # assume chronological
+    # build short last-summary
+    last_summary = None
+    try:
+        mod = last.get("modification", {})
+        last_summary = {
+            "timestamp": last.get("timestamp"),
+            "field": mod.get("field"),
+            "new_value": mod.get("new_value"),
+            "raw_request": mod.get("raw_request"),
+            "approved": last.get("approved"),
+            "rejection_reason": last.get("rejection_reason") or last.get("rejection_reasons") or [],
+        }
+    except Exception:
+        last_summary = {"raw": str(last)}
+    return {"total": total, "approved": approved, "rejected": rejected, "last": last_summary}
+
+
+def _build_contract_summary_md(contract_data: Dict[str, Any]) -> str:
+    """Build a full markdown contract summary from contract JSON data."""
+    # Top-level fields
+    employee_id = contract_data.get("employee_id") or contract_data.get("employeeId") or ""
+    session_id = contract_data.get("session_id") or contract_data.get("sessionId") or ""
+    status = contract_data.get("status", "")
+    jurisdiction = contract_data.get("jurisdiction", contract_data.get("jurisdiction_code", "MY"))
+    created_at = _iso_to_readable(contract_data.get("created_at") or contract_data.get("createdAt"))
+    last_updated = _iso_to_readable(contract_data.get("last_updated") or contract_data.get("lastUpdated"))
+    finalized_at = _iso_to_readable(contract_data.get("finalized_at") or contract_data.get("finalizedAt"))
+
+    # Personal / banking / employment nested objects
+    personal = contract_data.get("personal_details", {}) or {}
+    banking = contract_data.get("banking_details", {}) or contract_data.get("bank_details", {}) or {}
+    employment = contract_data.get("employment_details", {}) or {}
+
+    # personal fields (handle multiple possible key names)
+    employee_name = (
+        personal.get("fullName")
+        or personal.get("full_name")
+        or contract_data.get("employee_name")
+        or contract_data.get("full_name")
+        or ""
+    )
+    email = personal.get("email") or contract_data.get("email") or ""
+    nationality = personal.get("nationality") or contract_data.get("nationality") or ""
+    nric = personal.get("nric") or contract_data.get("nric") or ""
+    dob = personal.get("dateOfBirth") or personal.get("date_of_birth") or contract_data.get("date_of_birth") or ""
+
+    # banking
+    bank_name = banking.get("bankName") or banking.get("bank_name") or ""
+    bank_holder = banking.get("accountHolder") or banking.get("account_holder") or banking.get("bank_account_holder") or ""
+    bank_account = banking.get("accountNumber") or banking.get("account_number") or banking.get("bank_account_number") or ""
+
+    # employment
+    position = employment.get("position_title") or employment.get("position") or ""
+    department = employment.get("department") or ""
+    start_date = employment.get("start_date") or ""
+    salary = employment.get("salary") or ""
+    work_location = employment.get("work_location") or contract_data.get("work_location") or ""
+    work_hours = employment.get("work_hours") or contract_data.get("work_hours") or ""
+    annual_leave = employment.get("annual_leave") or employment.get("leave_annual_days") or _safe(contract_data, "leave_annual_days")
+    sick_leave = employment.get("sick_leave") or employment.get("leave_sick_days") or _safe(contract_data, "leave_sick_days")
+    probation = employment.get("probation_months") or contract_data.get("probation_months") or ""
+
+    # other useful fields
+    medical_coverage = contract_data.get("medical_coverage") or _safe(contract_data, "medicalCoverage") or ""
+    collection_progress = contract_data.get("collection_progress") or {}
+    total_fields = collection_progress.get("total_fields")
+    collected_fields = collection_progress.get("collected_fields")
+    missing_fields = collection_progress.get("missing_fields") or []
+
+    # modification history summary
+    modification_history = contract_data.get("modification_history") or contract_data.get("modifications") or []
+    mod_summary = _summarize_modification_history(modification_history)
+
+    # currency by jurisdiction (simple mapping)
+    currency_map = {"MY": "RM", "SG": "SGD", "SGP": "SGD", "US": "USD"}
+    currency = currency_map.get((jurisdiction or "").upper(), "RM" if (jurisdiction or "").upper() == "MY" else "USD")
+
+    # Build markdown
+    lines: List[str] = []
+    lines.append("# Employment Contract Summary\n")
+
+    lines.append(f"- **Employee ID:** `{employee_id}`")
+    # if session_id:
+    #     lines.append(f"- **Session ID:** `{session_id}`")
+    if status:
+        lines.append(f"- **Status:** **{status}**")
+    if jurisdiction:
+        lines.append(f"- **Jurisdiction:** {jurisdiction}")
+    if created_at:
+        lines.append(f"- **Created at:** {created_at}")
+    if finalized_at:
+        lines.append(f"- **Finalized at:** {finalized_at}")
+    if last_updated:
+        lines.append(f"- **Last updated:** {last_updated}")
+
+    lines.append("")  # blank
+
+    # Personal details
+    lines.append("## Personal details")
+    if employee_name:
+        lines.append(f"- **Name:** {employee_name}")
+    if email:
+        lines.append(f"- **Email:** {email}")
+    if nationality:
+        lines.append(f"- **Nationality:** {nationality}")
+    if nric:
+        lines.append(f"- **NRIC / ID:** {nric}")
+    if dob:
+        lines.append(f"- **Date of birth:** {dob}")
+
+    lines.append("")  # blank
+
+    # Employment details
+    lines.append("## Employment details")
+    if position:
+        lines.append(f"- **Position:** {position}")
+    if department:
+        lines.append(f"- **Department:** {department}")
+    if start_date:
+        lines.append(f"- **Start date:** {start_date}")
+    if salary:
+        lines.append(f"- **Salary:** {currency} {salary}")
+    if work_location:
+        lines.append(f"- **Work location:** {work_location}")
+    if work_hours:
+        lines.append(f"- **Work hours:** {work_hours}")
+    if annual_leave:
+        lines.append(f"- **Annual leave:** {annual_leave} days")
+    if sick_leave:
+        lines.append(f"- **Sick leave:** {sick_leave} days")
+    if probation:
+        lines.append(f"- **Probation:** {probation} months")
+
+    lines.append("")  # blank
+
+    # Banking
+    if bank_name or bank_holder or bank_account:
+        lines.append("## Banking details")
+        if bank_name:
+            lines.append(f"- **Bank:** {bank_name}")
+        if bank_holder:
+            lines.append(f"- **Account holder:** {bank_holder}")
+        if bank_account:
+            lines.append(f"- **Account number:** {bank_account}")
+        lines.append("")
+
+    # Medical coverage
+    if medical_coverage:
+        lines.append("## Medical coverage")
+        lines.append(f"- **Medical coverage:** {medical_coverage}")
+        lines.append("")
+
+    # Collection progress
+    # lines.append("## Data collection progress")
+    # if isinstance(total_fields, int) and isinstance(collected_fields, int):
+    #     try:
+    #         pct = int((collected_fields / total_fields) * 100) if total_fields else 0
+    #     except Exception:
+    #         pct = 0
+    #     lines.append(f"- **Fields collected:** {collected_fields} / {total_fields} ({pct}%)")
+    # else:
+    #     # fallback to whatever data exists
+    #     if total_fields is not None:
+    #         lines.append(f"- **Total fields:** {total_fields}")
+    #     if collected_fields is not None:
+    #         lines.append(f"- **Collected fields:** {collected_fields}")
+    # if missing_fields:
+    #     lines.append(f"- **Missing fields:** {', '.join(map(str, missing_fields))}")
+    # lines.append("")
+
+    # Modification history summary
+    lines.append("## Modification history")
+    lines.append(f"- **Total requests:** {mod_summary['total']}")
+    lines.append(f"- **Approved:** {mod_summary['approved']}")
+    lines.append(f"- **Rejected:** {mod_summary['rejected']}")
+    if mod_summary["last"]:
+        last = mod_summary["last"]
+        last_ts = _iso_to_readable(last.get("timestamp"))
+        lines.append(f"- **Last request:** {last_ts or 'unknown'}")
+        if last.get("raw_request"):
+            lines.append(f"  - Request: {last.get('raw_request')}")
+        if last.get("field"):
+            lines.append(f"  - Field: {last.get('field')}")
+        if last.get("new_value") is not None:
+            lines.append(f"  - Proposed new value: {last.get('new_value')}")
+        lines.append(f"  - Approved: {last.get('approved')}")
+        if last.get("rejection_reason"):
+            # show up to 3 rejection reasons in short form
+            reasons = last.get("rejection_reason") or []
+            lines.append(f"  - Rejection reason(s): {', '.join(r[:200] for r in reasons[:3])}")
+    lines.append("")
+
+    # Raw / debug section (optional short)
+    lines.append("---")
+    lines.append("_You can request changes or click **Sign Contract** when ready._")
+
+    return "\n".join(lines)
+
+def _respond_in_contract_context(message: str, contract_json_path):
+    """
+    Respond to questions about the contract without modifications.
+    Returns either a string (simple answer) or a dict with
+    status/action/contract_data to trigger the full contract display.
+    """
     import json
     from pathlib import Path
-    
-    # Load contract data if it exists
+
     if isinstance(contract_json_path, str):
         contract_json_path = Path(contract_json_path)
-    
+
     if contract_json_path.exists():
         try:
             with open(contract_json_path, encoding="utf-8") as f:
                 contract_data = json.load(f)
-            
-            # Build a response based on the question
+
             message_lower = message.lower()
-            
+
             if "salary" in message_lower or "pay" in message_lower:
-                salary = contract_data.get("salary", "not specified")
+                emp = contract_data.get("employment_details", {})
+                salary = emp.get("salary") or contract_data.get("salary", "not specified")
                 currency = "RM" if contract_data.get("jurisdiction") == "MY" else "SGD"
                 return f"Your contract salary is **{currency} {salary}**.\n\nIf you'd like to negotiate this, please let me know what you'd like to change it to."
-            
+
             elif "start date" in message_lower or "when do i start" in message_lower:
-                start_date = contract_data.get("start_date", "not specified")
+                emp = contract_data.get("employment_details", {})
+                start_date = emp.get("start_date") or contract_data.get("start_date", "not specified")
                 return f"Your contract start date is **{start_date}**.\n\nIf you'd like to change this, please let me know your preferred start date."
-            
+
             elif "position" in message_lower or "role" in message_lower or "title" in message_lower:
-                position = contract_data.get("position", "not specified")
+                emp = contract_data.get("employment_details", {})
+                position = emp.get("position_title") or contract_data.get("position", "not specified")
                 return f"Your position is **{position}**.\n\nIf you'd like to discuss this, please let me know."
-            
+
             elif "department" in message_lower:
-                department = contract_data.get("department", "not specified")
+                emp = contract_data.get("employment_details", {})
+                department = emp.get("department") or contract_data.get("department", "not specified")
                 return f"Your department is **{department}**.\n\nIf you'd like to change this, please let me know."
-            
+
             elif "sign" in message_lower or "ready" in message_lower:
                 return "Great! You can sign your contract by clicking the **Sign Contract** button below, or I can help you with any changes you'd like to make first."
-            
+
+            elif "show" in message_lower or "see" in message_lower or "view" in message_lower or "display" in message_lower:
+                # Return full contract display with Sign/Reject buttons
+                summary_md = _build_contract_summary_md(contract_data)
+                return {
+                    "show_contract": True,
+                    "response": summary_md,
+                    "contract_data": contract_data,
+                }
+
             else:
-                # General response about the contract
-                employee_name = contract_data.get("employee_name", "")
-                position = contract_data.get("position", "")
-                department = contract_data.get("department", "")
-                
-                return f"""Your contract is ready for review and signing.
+                # General response — show the full contract
+                summary_md = _build_contract_summary_md(contract_data)
+                return summary_md
 
-**Contract Details:**
-- **Name:** {employee_name}
-- **Position:** {position}
-- **Department:** {department}
-
-You can:
-- Ask me specific questions about any contract term
-- Request changes to salary, start date, position, etc.
-- Sign the contract when you're ready
-
-What would you like to know or change?"""
-        
         except Exception as e:
             return f"I'm having trouble reading your contract file. Error: {str(e)}\n\nPlease contact HR for assistance."
-    
+
     return "Your contract is being prepared. Please let me know if you have any questions about the contract signing process."
 
 
@@ -383,13 +613,20 @@ def employee_chat():
                         contract_json_path=contract_json_path
                     )
                     _save_message(session_id, "assistant", result["response"])
-                    return jsonify({
+
+                    payload = {
                         "session_id": session_id,
                         "response": result["response"],
                         "intent": "contract_negotiation",
                         "agent_used": "contract_negotiation",
                         **{k: v for k, v in result.items() if k not in ("response",)}
-                    })
+                    }
+                    # When modification is accepted, also provide contract_data
+                    # so the frontend can re-display the contract with Sign/Reject
+                    if result.get("status") == "modification_accepted" and result.get("updated_contract"):
+                        payload["contract_data"] = result["updated_contract"]
+
+                    return jsonify(payload)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -408,7 +645,23 @@ def employee_chat():
                     })
 
                 # Respond in contract context without modifying
-                response_text = _respond_in_contract_context(message, contract_json_path)
+                ctx_result = _respond_in_contract_context(message, contract_json_path)
+
+                # _respond_in_contract_context returns a dict when it wants
+                # the frontend to re-display the full contract with Sign/Reject
+                if isinstance(ctx_result, dict) and ctx_result.get("show_contract"):
+                    _save_message(session_id, "assistant", ctx_result["response"])
+                    return jsonify({
+                        "session_id": session_id,
+                        "response": ctx_result["response"],
+                        "status": "contract_ready",
+                        "action": "show_contract",
+                        "contract_data": ctx_result["contract_data"],
+                        "intent": "contract_context",
+                        "agent_used": "contract_agent"
+                    })
+
+                response_text = ctx_result if isinstance(ctx_result, str) else ctx_result.get("response", "")
                 _save_message(session_id, "assistant", response_text)
                 return jsonify({
                     "session_id": session_id,

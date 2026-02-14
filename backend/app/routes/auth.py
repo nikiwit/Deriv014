@@ -101,8 +101,8 @@ def create_user():
     if missing:
         return jsonify({"error": f"Missing required fields: {missing}"}), 400
 
-    if data["role"] not in ("hr_admin", "employee"):
-        return jsonify({"error": "Role must be 'hr_admin' or 'employee'"}), 400
+    if data["role"] not in ("hr_admin", "employee", "pending_employee"):
+        return jsonify({"error": "Role must be 'hr_admin', 'employee', or 'pending_employee'"}), 400
 
     sb = get_db()
 

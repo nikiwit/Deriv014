@@ -4,10 +4,14 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import os
 
 from app.database import get_db
 
 bp = Blueprint("onboarding_workflow", __name__, url_prefix="/api/onboarding-workflow")
+
+# Also register offer endpoints without prefix
+offer_bp = Blueprint("offer", __name__, url_prefix="/api/offer")
 
 
 @bp.route("/check-nric", methods=["POST"])
@@ -643,3 +647,323 @@ def create_employee():
             },
         }
     ), 201
+
+
+@bp.route("/generate-offer-approval", methods=["POST"])
+def generate_offer_approval():
+    """Generate offer approval JSON and create user with pending_employee role"""
+    data = request.get_json() or {}
+    
+    # Required fields
+    full_name = data.get("full_name", "").strip()
+    email = data.get("email", "").strip().lower()
+    first_name = data.get("first_name", "").strip()
+    last_name = data.get("last_name", "").strip()
+    position_title = data.get("position_title", "").strip()
+    department = data.get("department", "").strip()
+    start_date = data.get("start_date", "")
+    salary = data.get("salary", "")
+    
+    if not full_name or not email or not position_title:
+        return jsonify({
+            "success": False,
+            "error": "full_name, email, and position_title are required"
+        }), 400
+    
+    # Generate employee ID
+    employee_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    
+    # Prepare offer approval data
+    offer_data = {
+        "employee_id": employee_id,
+        "full_name": full_name,
+        "email": email,
+        "first_name": first_name,
+        "last_name": last_name,
+        "nric": data.get("nric", ""),
+        "position_title": position_title,
+        "position": data.get("position", position_title),
+        "department": department,
+        "start_date": start_date,
+        "salary": salary,
+        "nationality": data.get("nationality", "Malaysian"),
+        "date_of_birth": data.get("date_of_birth", ""),
+        "work_location": data.get("work_location", ""),
+        "work_hours": data.get("work_hours", ""),
+        "leave_annual_days": data.get("leave_annual_days", 14),
+        "leave_sick_days": data.get("leave_sick_days", 14),
+        "public_holidays_policy": data.get("public_holidays_policy", ""),
+        "bank_name": data.get("bank_name", ""),
+        "bank_account_holder": data.get("bank_account_holder", ""),
+        "bank_account_number": data.get("bank_account_number", ""),
+        "jurisdiction": data.get("jurisdiction", "MY"),
+        "bonus": data.get("bonus", ""),
+        "probation_months": data.get("probation_months", 3),
+        "created_at": now,
+        "status": "pending"
+    }
+    
+    # Create JSON file in backend/temp_data
+    backend_dir = Path(__file__).parent.parent.parent
+    temp_data_dir = backend_dir / "temp_data"
+    temp_data_dir.mkdir(exist_ok=True)
+    
+    json_filename = f"{employee_id}_offer_approval.json"
+    json_filepath = temp_data_dir / json_filename
+    
+    try:
+        with open(json_filepath, "w") as f:
+            json.dump(offer_data, f, indent=2)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to create JSON file: {str(e)}"
+        }), 500
+    
+    # Create user in users table with pending_employee role
+    db = get_db()
+    offer_url = f"/offer/{employee_id}"
+    
+    try:
+        # Check if user already exists
+        existing = db.table("users").select("id").eq("email", email).execute()
+        if existing.data:
+            return jsonify({
+                "success": False,
+                "error": "User with this email already exists"
+            }), 409
+
+        # Create user — only columns that exist in the users table
+        user_data = {
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": "pending_employee",
+            "department": department,
+            "employee_id": employee_id,
+            "nationality": data.get("nationality", "Malaysian"),
+            "start_date": start_date or None,
+            "onboarding_complete": False,
+            "nric": data.get("nric", ""),
+        }
+
+        result = db.table("users").insert(user_data).execute()
+        user_id = result.data[0]["id"] if result.data else employee_id
+
+        # Update offer_data JSON with the user_id for reference
+        offer_data["user_id"] = user_id
+        with open(json_filepath, "w") as f:
+            json.dump(offer_data, f, indent=2)
+
+        return jsonify({
+            "success": True,
+            "employee_id": employee_id,
+            "user_id": user_id,
+            "offer_url": offer_url,
+            "json_path": str(json_filepath),
+            "message": "Offer approval generated and user created with pending_employee role"
+        }), 201
+
+    except Exception as e:
+        # Clean up JSON file if user creation fails
+        if json_filepath.exists():
+            json_filepath.unlink()
+        return jsonify({
+            "success": False,
+            "error": f"Failed to create user: {str(e)}"
+        }), 500
+
+
+# ── OFFER LETTER DISPLAY & ACTIONS ──────────────────────────────────
+
+@offer_bp.route("/<employee_id>", methods=["GET"])
+def get_offer_letter(employee_id):
+    """Display offer letter details by employee ID"""
+    backend_dir = Path(__file__).parent.parent.parent
+    json_filepath = backend_dir / "temp_data" / f"{employee_id}_offer_approval.json"
+    
+    if not json_filepath.exists():
+        return jsonify({
+            "success": False,
+            "error": "Offer letter not found"
+        }), 404
+    
+    try:
+        with open(json_filepath, "r") as f:
+            offer_data = json.load(f)
+        
+        return jsonify({
+            "success": True,
+            "employee_id": employee_id,
+            "offer_data": offer_data,
+            "actions": {
+                "accept_url": f"/api/offer/{employee_id}/accept",
+                "reject_url": f"/api/offer/{employee_id}/reject"
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to read offer letter: {str(e)}"
+        }), 500
+
+
+@offer_bp.route("/<employee_id>/accept", methods=["POST"])
+def accept_offer_letter(employee_id):
+    """Accept offer letter - create employees record and update user role"""
+    db = get_db()
+
+    # Load the offer JSON to get all employee details
+    backend_dir = Path(__file__).parent.parent.parent
+    json_filepath = backend_dir / "temp_data" / f"{employee_id}_offer_approval.json"
+
+    if not json_filepath.exists():
+        return jsonify({
+            "success": False,
+            "error": "Offer letter data not found"
+        }), 404
+
+    try:
+        with open(json_filepath, "r") as f:
+            offer_data = json.load(f)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to read offer data: {str(e)}"
+        }), 500
+
+    if offer_data.get("status") == "accepted":
+        return jsonify({
+            "success": False,
+            "error": "This offer has already been accepted"
+        }), 400
+
+    now = datetime.utcnow().isoformat()
+
+    try:
+        # 1) Check if employee already exists in employees table
+        existing_emp = db.table("employees").select("id").eq("email", offer_data.get("email", "")).execute()
+        if existing_emp.data:
+            new_employee_id = existing_emp.data[0]["id"]
+        else:
+            # Create record in employees table from offer JSON data
+            new_employee_id = str(uuid.uuid4())
+            db.table("employees").insert({
+                "id": new_employee_id,
+                "email": offer_data.get("email", ""),
+                "full_name": offer_data.get("full_name", ""),
+                "nric": offer_data.get("nric") or None,
+                "jurisdiction": offer_data.get("jurisdiction", "MY"),
+                "position": offer_data.get("position_title") or offer_data.get("position", ""),
+                "department": offer_data.get("department", ""),
+                "start_date": offer_data.get("start_date") or None,
+                "bank_name": offer_data.get("bank_name", ""),
+                "bank_account": offer_data.get("bank_account_number", ""),
+            }).execute()
+
+        # 2) Update user role from pending_employee → employee
+        user_id = offer_data.get("user_id", employee_id)
+        db.table("users").update({
+            "role": "employee",
+            "employee_id": new_employee_id,
+            "onboarding_complete": False,
+        }).eq("employee_id", employee_id).execute()
+
+        # 3) Update JSON file status
+        offer_data["status"] = "accepted"
+        offer_data["accepted_at"] = now
+        offer_data["employees_table_id"] = new_employee_id
+        with open(json_filepath, "w") as f:
+            json.dump(offer_data, f, indent=2)
+
+        return jsonify({
+            "success": True,
+            "message": "Offer accepted! Employee record created.",
+            "employee_id": new_employee_id,
+            "updated_role": "employee"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to accept offer: {str(e)}"
+        }), 500
+
+
+@offer_bp.route("/<employee_id>/reject", methods=["POST"])
+def reject_offer_letter(employee_id):
+    """Reject offer letter - create dispute and notify HR"""
+    data = request.get_json() or {}
+    reason = data.get("reason", "Not specified")
+    
+    db = get_db()
+    
+    # Check if user exists
+    user_resp = db.table("users").select("id, email, first_name, last_name").eq("id", employee_id).execute()
+    if not user_resp.data:
+        return jsonify({
+            "success": False,
+            "error": "User not found"
+        }), 404
+    
+    user = user_resp.data[0]
+    
+    # Update JSON file status
+    backend_dir = Path(__file__).parent.parent.parent
+    json_filepath = backend_dir / "temp_data" / f"{employee_id}_offer_approval.json"
+    
+    if json_filepath.exists():
+        try:
+            with open(json_filepath, "r") as f:
+                offer_data = json.load(f)
+            offer_data["status"] = "rejected"
+            offer_data["rejected_at"] = datetime.utcnow().isoformat()
+            offer_data["rejection_reason"] = reason
+            with open(json_filepath, "w") as f:
+                json.dump(offer_data, f, indent=2)
+        except Exception as e:
+            print(f"Failed to update JSON file: {e}")
+    
+    # Create dispute record
+    dispute_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow().isoformat()
+    
+    try:
+        db.table("offer_disputes").insert({
+            "id": dispute_id,
+            "employee_id": employee_id,
+            "dispute_reason": reason,
+            "dispute_details": reason,
+            "status": "open",
+            "created_at": timestamp
+        }).execute()
+        
+        # Notify HR
+        db.table("hr_notifications").insert({
+            "id": str(uuid.uuid4()),
+            "type": "offer_rejected",
+            "nric": "",
+            "passport_no": "",
+            "name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+            "email": user["email"],
+            "phone": "",
+            "message": f"Candidate rejected offer. Reason: {reason}",
+            "jurisdiction": "MY",
+            "status": "pending",
+            "created_at": timestamp
+        }).execute()
+        
+        return jsonify({
+            "success": True,
+            "message": "Offer rejected. HR has been notified and will contact you.",
+            "employee_id": employee_id,
+            "dispute_id": dispute_id
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to reject offer: {str(e)}"
+        }), 500

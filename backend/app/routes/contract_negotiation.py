@@ -11,6 +11,8 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 from flask import Blueprint
+import logging 
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.agents.policy_agent import PolicyAgent
@@ -94,6 +96,8 @@ def handle_contract_negotiation(
         
         with open(contract_json_path, "w", encoding="utf-8") as f:
             json.dump(proposed_contract, f, indent=2)
+        logger.info(f"Path is {contract_json_path}")
+        print()
         
         response_md = _generate_approval_response(modification, proposed_contract)
         
@@ -182,7 +186,7 @@ def _parse_modification_request(message: str, session_id: str) -> Dict[str, Any]
                 modification["new_value"] = next_month
     
     elif re.search(r'\b(position|role|title|job title)\b', message_lower):
-        modification["field"] = "position"
+        modification["field"] = "position_title"
         # Extract quoted text or text after "to"
         quoted = re.findall(r'"([^"]+)"', message)
         if quoted:
@@ -212,18 +216,152 @@ def _parse_modification_request(message: str, session_id: str) -> Dict[str, Any]
         if numbers:
             modification["new_value"] = numbers[0]
     
-    # If we couldn't parse it, use RAG as fallback
+    elif re.search(r'\b(annual leave|annual leaves|vacation days|leave days)\b', message_lower):
+        modification["field"] = "annual_leave"
+        # Extract numbers (days)
+        numbers = re.findall(r'(\d+)\s*(?:day|days)', message_lower)
+        if numbers:
+            modification["new_value"] = numbers[0]
+    
+    elif re.search(r'\b(sick leave|sick leaves|medical leave)\b', message_lower):
+        modification["field"] = "sick_leave"
+        # Extract numbers (days)
+        numbers = re.findall(r'(\d+)\s*(?:day|days)', message_lower)
+        if numbers:
+            modification["new_value"] = numbers[0]
+
+    # ── Personal data fields ──────────────────────────────────────
+    elif re.search(r'\b(full\s*name|my\s*name|employee\s*name)\b', message_lower):
+        modification["field"] = "full_name"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            to_match = re.search(r'\b(?:to|as|is)\s+([A-Z][A-Za-z\s]+?)(?:\.|$|,)', message)
+            if to_match:
+                modification["new_value"] = to_match.group(1).strip()
+
+    elif re.search(r'\b(email|e-mail|mail\s*address)\b', message_lower):
+        modification["field"] = "email"
+        email_match = re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', message)
+        if email_match:
+            modification["new_value"] = email_match[0]
+
+    elif re.search(r'\b(nric|ic\s*number|identity\s*card)\b', message_lower):
+        modification["field"] = "nric"
+        nric_match = re.findall(r'\d{6}-\d{2}-\d{4}', message)
+        if nric_match:
+            modification["new_value"] = nric_match[0]
+        else:
+            # Try plain digits format
+            nric_match = re.findall(r'\b(\d{12})\b', message)
+            if nric_match:
+                modification["new_value"] = nric_match[0]
+
+    elif re.search(r'\b(nationality|citizen|citizenship)\b', message_lower):
+        modification["field"] = "nationality"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            to_match = re.search(r'\b(?:to|is|as)\s+([A-Z][A-Za-z\s]+?)(?:\.|$|,)', message)
+            if to_match:
+                modification["new_value"] = to_match.group(1).strip()
+
+    elif re.search(r'\b(date\s*of\s*birth|dob|birthday|birth\s*date)\b', message_lower):
+        modification["field"] = "date_of_birth"
+        date_patterns = [
+            r'\d{4}-\d{2}-\d{2}',
+            r'\d{1,2}/\d{1,2}/\d{4}',
+            r'\d{1,2}-\d{1,2}-\d{4}',
+        ]
+        for pattern in date_patterns:
+            dates = re.findall(pattern, message)
+            if dates:
+                modification["new_value"] = dates[0]
+                break
+
+    elif re.search(r'\b(bank\s*name|bank)\b', message_lower) and not re.search(r'\b(account|number|holder)\b', message_lower):
+        modification["field"] = "bank_name"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            to_match = re.search(r'\b(?:to|is|as)\s+([A-Z][A-Za-z\s]+?)(?:\.|$|,)', message)
+            if to_match:
+                modification["new_value"] = to_match.group(1).strip()
+
+    elif re.search(r'\b(account\s*holder|holder\s*name|account\s*name)\b', message_lower):
+        modification["field"] = "bank_account_holder"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            to_match = re.search(r'\b(?:to|is|as)\s+([A-Z][A-Za-z\s]+?)(?:\.|$|,)', message)
+            if to_match:
+                modification["new_value"] = to_match.group(1).strip()
+
+    elif re.search(r'\b(account\s*number|bank\s*account)\b', message_lower):
+        modification["field"] = "bank_account_number"
+        numbers = re.findall(r'\b(\d{8,20})\b', message)
+        if numbers:
+            modification["new_value"] = numbers[0]
+
+    elif re.search(r'\b(work\s*location|office\s*location|workplace|work\s*site)\b', message_lower):
+        modification["field"] = "work_location"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            to_match = re.search(r'\b(?:to|at|is)\s+([A-Z][A-Za-z\s,]+?)(?:\.|$)', message)
+            if to_match:
+                modification["new_value"] = to_match.group(1).strip()
+
+    elif re.search(r'\b(work\s*hours|working\s*hours|work\s*schedule|work\s*time)\b', message_lower):
+        modification["field"] = "work_hours"
+        quoted = re.findall(r'"([^"]+)"', message)
+        if quoted:
+            modification["new_value"] = quoted[0]
+        else:
+            time_match = re.search(r'(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?\s*(?:to|-)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)?)', message)
+            if time_match:
+                modification["new_value"] = time_match.group(1).strip()
+
+    # If we couldn't parse it, use RAG as fallback and try to extract from RAG response
     if not modification["field"] or not modification["new_value"]:
         try:
             query = (
                 f"Extract the contract field name and new value from this modification request: '{message}'. "
-                f"Identify what contract field the employee wants to change and what they want to change it to."
+                f"Respond ONLY in this exact format:\n"
+                f"Field: <field_name>\n"
+                f"Value: <new_value>\n"
+                f"Example: Field: annual_leave\\nValue: 8"
             )
             rag_response, _ = rag.query(session_id, query)
-            # Store RAG response for context
             modification["rag_context"] = rag_response
-        except Exception:
-            pass
+            
+            # Try to extract field and value from RAG response
+            field_match = re.search(r'(?:Field|Contract Field)[:\s]+([^\n]+)', rag_response, re.IGNORECASE)
+            value_match = re.search(r'(?:Value|New Value)[:\s]+([^\n]+)', rag_response, re.IGNORECASE)
+            
+            if field_match:
+                field_name = field_match.group(1).strip().lower()
+                # Clean up field name - remove common words and convert to snake_case
+                field_name = re.sub(r'\s+', '_', field_name)
+                field_name = field_name.replace('contract_', '').replace('of_', '').replace('the_', '')
+                modification["field"] = field_name
+                
+            if value_match:
+                value = value_match.group(1).strip()
+                # Extract just the number/value if it has extra words
+                number_match = re.search(r'(\d+)', value)
+                if number_match:
+                    modification["new_value"] = number_match.group(1)
+                else:
+                    modification["new_value"] = value
+                    
+        except Exception as e:
+            logger.warning(f"RAG extraction failed: {e}")
     
     return modification
 
@@ -231,6 +369,7 @@ def _parse_modification_request(message: str, session_id: str) -> Dict[str, Any]
 def _apply_modifications(current_contract: dict, modification: dict) -> dict:
     """
     Apply the requested modification to the contract.
+    Handles both flat and nested contract structures.
     
     Args:
         current_contract: Current contract data
@@ -239,15 +378,79 @@ def _apply_modifications(current_contract: dict, modification: dict) -> dict:
     Returns:
         Modified contract dictionary
     """
-    proposed = current_contract.copy()
+    import copy
+    proposed = copy.deepcopy(current_contract)
     
     field = modification.get("field")
     new_value = modification.get("new_value")
     
-    if field and new_value:
-        proposed[field] = new_value
-        proposed["last_modified"] = datetime.datetime.now().isoformat()
+    if not field or new_value is None:
+        logger.warning(f"Cannot apply modification - field: {field}, new_value: {new_value}")
+        return proposed
     
+    # Map of field names to their location in the nested structure
+    field_mapping = {
+        # Employment details
+        "salary": ("employment_details", "salary"),
+        "start_date": ("employment_details", "start_date"),
+        "position_title": ("employment_details", "position_title"),
+        "position": ("employment_details", "position_title"),
+        "department": ("employment_details", "department"),
+        "probation_months": ("employment_details", "probation_months"),
+        "annual_leave": ("employment_details", "annual_leave"),
+        "sick_leave": ("employment_details", "sick_leave"),
+        "work_location": ("employment_details", "work_location"),
+        "work_hours": ("employment_details", "work_hours"),
+        # Personal details
+        "full_name": ("personal_details", "fullName"),
+        "email": ("personal_details", "email"),
+        "nric": ("personal_details", "nric"),
+        "nationality": ("personal_details", "nationality"),
+        "date_of_birth": ("personal_details", "date_of_birth"),
+        "bank_name": ("personal_details", "bank_name"),
+        "bank_account_holder": ("personal_details", "bank_account_holder"),
+        "bank_account_number": ("personal_details", "bank_account_number"),
+    }
+    
+    # Flat-key aliases so both nested and top-level stay in sync
+    flat_aliases = {
+        "salary": "salary",
+        "start_date": "start_date",
+        "position_title": "position",
+        "position": "position",
+        "department": "department",
+        "full_name": "employee_name",
+        "email": "email",
+        "nric": "nric",
+        "nationality": "nationality",
+        "date_of_birth": "date_of_birth",
+        "work_location": "work_location",
+        "work_hours": "work_hours",
+        "annual_leave": "annual_leave",
+        "sick_leave": "sick_leave",
+        "probation_months": "probation_months",
+        "bank_name": "bank_name",
+        "bank_account_holder": "bank_account_holder",
+        "bank_account_number": "bank_account_number",
+    }
+
+    # Check if field is in the mapping
+    if field in field_mapping:
+        parent_key, child_key = field_mapping[field]
+        if parent_key not in proposed:
+            proposed[parent_key] = {}
+        proposed[parent_key][child_key] = new_value
+        logger.info(f"Applied modification: {parent_key}.{child_key} = {new_value}")
+        # Also update the flat top-level key if it exists or should exist
+        if field in flat_aliases:
+            proposed[flat_aliases[field]] = new_value
+    else:
+        # Try to set it directly (for flat fields or unknown fields)
+        proposed[field] = new_value
+        logger.info(f"Applied modification: {field} = {new_value}")
+
+    proposed["last_updated"] = datetime.datetime.now().isoformat()
+
     return proposed
 
 
@@ -343,20 +546,51 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
 
         # Add field-specific validation
         if field == "salary":
-            salary_validation = _validate_salary_change(
-                proposed_contract.get("salary"),
-                jurisdiction
+            # Try to get salary from nested structure first
+            salary = (
+                proposed_contract.get("employment_details", {}).get("salary") or
+                proposed_contract.get("salary")
             )
+            salary_validation = _validate_salary_change(salary, jurisdiction)
             if not salary_validation["valid"]:
                 compliance_data["compliant"] = False
                 compliance_data["issues"] = compliance_data.get("issues", []) + salary_validation["issues"]
                 compliance_data["risk_level"] = "high"
 
         elif field == "start_date":
-            date_validation = _validate_start_date(proposed_contract.get("start_date"))
+            # Try to get start_date from nested structure first
+            start_date = (
+                proposed_contract.get("employment_details", {}).get("start_date") or
+                proposed_contract.get("start_date")
+            )
+            date_validation = _validate_start_date(start_date)
             if not date_validation["valid"]:
                 compliance_data["compliant"] = False
                 compliance_data["issues"] = compliance_data.get("issues", []) + date_validation["issues"]
+        
+        elif field == "annual_leave":
+            # Try to get annual_leave from nested structure first
+            annual_leave = (
+                proposed_contract.get("employment_details", {}).get("annual_leave") or
+                proposed_contract.get("annual_leave")
+            )
+            leave_validation = _validate_annual_leave(annual_leave, jurisdiction)
+            if not leave_validation["valid"]:
+                compliance_data["compliant"] = False
+                compliance_data["issues"] = compliance_data.get("issues", []) + leave_validation["issues"]
+                compliance_data["risk_level"] = "high"
+        
+        elif field == "sick_leave":
+            # Try to get sick_leave from nested structure first
+            sick_leave = (
+                proposed_contract.get("employment_details", {}).get("sick_leave") or
+                proposed_contract.get("sick_leave")
+            )
+            leave_validation = _validate_sick_leave(sick_leave, jurisdiction)
+            if not leave_validation["valid"]:
+                compliance_data["compliant"] = False
+                compliance_data["issues"] = compliance_data.get("issues", []) + leave_validation["issues"]
+                compliance_data["risk_level"] = "high"
 
         return compliance_data
 
@@ -436,6 +670,65 @@ def _validate_start_date(start_date: str) -> dict:
     }
 
 
+def _validate_annual_leave(days: str, jurisdiction: str) -> dict:
+    """Validate annual leave days against statutory minimums."""
+    issues = []
+    
+    try:
+        days_value = int(str(days))
+        
+        if jurisdiction == "MY":
+            # Malaysia: Minimum 8 days for employees with less than 2 years, 
+            # 12 days for 2-5 years, 16 days for 5+ years
+            if days_value < 8:
+                issues.append(f"Annual leave of {days_value} days is below Malaysia minimum (8 days for new employees)")
+        elif jurisdiction == "SG":
+            # Singapore: Minimum 7 days for first year
+            if days_value < 7:
+                issues.append(f"Annual leave of {days_value} days is below Singapore minimum (7 days)")
+        
+        # Check for unreasonably high values
+        if days_value > 50:
+            issues.append(f"Annual leave of {days_value} days is unusually high. Please verify this is correct.")
+        
+    except (ValueError, TypeError):
+        issues.append("Invalid annual leave format. Please provide a numeric value.")
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues
+    }
+
+
+def _validate_sick_leave(days: str, jurisdiction: str) -> dict:
+    """Validate sick leave days against statutory minimums."""
+    issues = []
+    
+    try:
+        days_value = int(str(days))
+        
+        if jurisdiction == "MY":
+            # Malaysia: Minimum 14 days sick leave per year
+            if days_value < 14:
+                issues.append(f"Sick leave of {days_value} days is below Malaysia minimum (14 days)")
+        elif jurisdiction == "SG":
+            # Singapore: Typically 14 days outpatient + 60 days hospitalization
+            if days_value < 14:
+                issues.append(f"Sick leave of {days_value} days is below Singapore guideline (14 days)")
+        
+        # Check for unreasonably high values
+        if days_value > 100:
+            issues.append(f"Sick leave of {days_value} days is unusually high. Please verify this is correct.")
+        
+    except (ValueError, TypeError):
+        issues.append("Invalid sick leave format. Please provide a numeric value.")
+    
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues
+    }
+
+
 def _generate_approval_response(modification: dict, updated_contract: dict) -> str:
     """Generate markdown response for approved modification."""
     field = modification.get("field", "contract")
@@ -443,20 +736,89 @@ def _generate_approval_response(modification: dict, updated_contract: dict) -> s
     
     field_display = field.replace('_', ' ').title()
     
+    # Extract values from nested structure
+    employment_details = updated_contract.get("employment_details", {})
+    personal_details = updated_contract.get("personal_details", {})
+    
     # Build updated contract summary
     summary_items = []
-    if updated_contract.get("employee_name"):
-        summary_items.append(f"- **Employee:** {updated_contract['employee_name']}")
-    if updated_contract.get("position"):
-        summary_items.append(f"- **Position:** {updated_contract['position']}")
-    if updated_contract.get("department"):
-        summary_items.append(f"- **Department:** {updated_contract['department']}")
-    if updated_contract.get("start_date"):
-        summary_items.append(f"- **Start Date:** {updated_contract['start_date']}")
-    if updated_contract.get("salary"):
+
+    # ── Personal Details ──
+    employee_name = (
+        updated_contract.get("employee_name") or
+        personal_details.get("fullName") or
+        updated_contract.get("full_name")
+    )
+    if employee_name:
+        summary_items.append(f"- **Employee:** {employee_name}")
+
+    email = personal_details.get("email") or updated_contract.get("email")
+    if email:
+        summary_items.append(f"- **Email:** {email}")
+
+    nationality = personal_details.get("nationality") or updated_contract.get("nationality")
+    if nationality:
+        summary_items.append(f"- **Nationality:** {nationality}")
+
+    nric = personal_details.get("nric") or updated_contract.get("nric")
+    if nric:
+        summary_items.append(f"- **NRIC:** {nric}")
+
+    dob = personal_details.get("date_of_birth") or updated_contract.get("date_of_birth")
+    if dob:
+        summary_items.append(f"- **Date of Birth:** {dob}")
+
+    # ── Employment Details ──
+    position = employment_details.get("position_title") or updated_contract.get("position")
+    if position:
+        summary_items.append(f"- **Position:** {position}")
+
+    department = employment_details.get("department") or updated_contract.get("department")
+    if department:
+        summary_items.append(f"- **Department:** {department}")
+
+    start_date = employment_details.get("start_date") or updated_contract.get("start_date")
+    if start_date:
+        summary_items.append(f"- **Start Date:** {start_date}")
+
+    salary = employment_details.get("salary") or updated_contract.get("salary")
+    if salary:
         currency = "RM" if updated_contract.get("jurisdiction") == "MY" else "SGD"
-        summary_items.append(f"- **Salary:** {currency} {updated_contract['salary']}")
-    
+        summary_items.append(f"- **Salary:** {currency} {salary}")
+
+    work_location = employment_details.get("work_location") or updated_contract.get("work_location")
+    if work_location:
+        summary_items.append(f"- **Work Location:** {work_location}")
+
+    work_hours = employment_details.get("work_hours") or updated_contract.get("work_hours")
+    if work_hours:
+        summary_items.append(f"- **Work Hours:** {work_hours}")
+
+    annual_leave = employment_details.get("annual_leave")
+    if annual_leave:
+        summary_items.append(f"- **Annual Leave:** {annual_leave} days")
+
+    sick_leave = employment_details.get("sick_leave")
+    if sick_leave:
+        summary_items.append(f"- **Sick Leave:** {sick_leave} days")
+
+    probation = employment_details.get("probation_months")
+    if probation:
+        summary_items.append(f"- **Probation Period:** {probation} months")
+
+    # ── Banking Details ──
+    bank_name = personal_details.get("bank_name") or updated_contract.get("bank_name")
+    if bank_name:
+        summary_items.append(f"- **Bank:** {bank_name}")
+
+    bank_holder = personal_details.get("bank_account_holder") or updated_contract.get("bank_account_holder")
+    if bank_holder:
+        summary_items.append(f"- **Account Holder:** {bank_holder}")
+
+    bank_account = personal_details.get("bank_account_number") or updated_contract.get("bank_account_number")
+    if bank_account:
+        summary_items.append(f"- **Account Number:** {bank_account}")
+
     summary_md = "\n".join(summary_items) if summary_items else "_(No details available)_"
     
     return f"""## Contract Modification Approved ✅

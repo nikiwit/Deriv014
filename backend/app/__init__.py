@@ -63,6 +63,7 @@ def create_app():
     app.register_blueprint(auth.bp)
     app.register_blueprint(contract_sign.bp)
     app.register_blueprint(onboarding_workflow.bp)
+    app.register_blueprint(onboarding_workflow.offer_bp)
     app.register_blueprint(employee_chat.bp)
     app.register_blueprint(employee_contract.bp)
     app.register_blueprint(contract_negotiation.bp)
