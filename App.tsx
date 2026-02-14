@@ -149,6 +149,7 @@ import { MyProfile } from './components/employee/MyProfile';
 import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
 import { HRAgent } from './components/HRAgent';
 import { EmployeeTrainingDashboard } from './components/EmployeeTrainingDashboard';
+import { DocumentReminders } from './components/DocumentReminders';
 import { MyTraining } from './components/employee/MyTraining';
 import { TrainingProvider } from './contexts/TrainingContext';
 import { EmployeeOfferPage } from './components/onboarding/EmployeeOfferPage';
@@ -271,6 +272,8 @@ function AppContent() {
           return <HRAgent />;
         case 'employee_training':
           return <EmployeeTrainingDashboard />;
+        case 'document_reminders':
+          return <DocumentReminders />;
         default:
           return <Dashboard />;
       }

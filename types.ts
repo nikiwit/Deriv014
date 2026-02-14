@@ -223,6 +223,7 @@ export type ViewState =
   | "candidate"
   | "new_employee"
   | "hr_agent"
+  | "document_reminders"
   // Auth views
   | "login"
   // Employee views
@@ -431,4 +432,102 @@ export interface IntegrationConfig {
   extraId?: string; // For WhatsApp Phone Number ID or Telegram Chat ID tracking
   connected: boolean;
   lastOffset?: number; // For Telegram Polling
+}
+
+
+// ============================================
+// Training Types
+// ============================================
+
+export type TrainingCategory =
+  | "it_systems"
+  | "compliance"
+  | "orientation"
+  | "role_specific"
+  | "soft_skills"
+  | "security";
+
+export type TrainingItemStatus = "locked" | "available" | "in_progress" | "completed";
+export type TrainingFormat = "video" | "document" | "quiz" | "interactive" | "live_session";
+
+export interface TrainingItem {
+  id: string;
+  title: string;
+  description: string;
+  category: TrainingCategory;
+  status: TrainingItemStatus;
+  format: TrainingFormat;
+  estimatedMinutes: number;
+  completedAt?: string;
+  dueDate?: string;
+  score?: number;
+  required: boolean;
+  order: number;
+}
+
+export interface TrainingCategoryInfo {
+  id: TrainingCategory;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  description: string;
+}
+
+export interface EmployeeTrainingProgress {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  role: string;
+  startDate: string;
+  items: TrainingItem[];
+  overallProgress: number;
+  status: "not_started" | "in_progress" | "completed" | "overdue";
+  lastActivityDate?: string;
+}
+
+export interface TrainingCompletionTrend {
+  month: string;
+  completed: number;
+  inProgress: number;
+  overdue: number;
+}
+
+// ============================================
+// Document Reminders Types
+// ============================================
+
+export type DocumentType = "contract" | "passport" | "visa" | "employment_pass" | "work_permit";
+export type DocumentExpiryStatus = "valid" | "expiring_90" | "expiring_60" | "expiring_30" | "expired";
+
+export interface DocumentInfo {
+  id: string;
+  document_type: DocumentType;
+  document_number: string;
+  issue_date: string;
+  expiry_date: string;
+  computed_status: DocumentExpiryStatus;
+  days_until_expiry: number;
+  issuing_authority: string;
+  notes: string;
+}
+
+export interface EmployeeDocumentGroup {
+  employee_id: string;
+  employee_name: string;
+  employee_email: string;
+  employee_department: string;
+  employee_position: string;
+  jurisdiction: string;
+  contract: DocumentInfo;
+  immigration?: DocumentInfo;
+}
+
+export interface DocumentReminderStats {
+  total_tracked: number;
+  expired: number;
+  expiring_soon: number;
+  expiring_60: number;
+  expiring_90: number;
+  valid: number;
+  chart_data: { month: string; count: number }[];
 }
