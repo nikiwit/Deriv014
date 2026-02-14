@@ -150,6 +150,7 @@ import { EmployeeChatAssistant } from './components/EmployeeChatAssistant';
 import { HRAgent } from './components/HRAgent';
 import { EmployeeTrainingDashboard } from './components/EmployeeTrainingDashboard';
 import { MyTraining } from './components/employee/MyTraining';
+import { TrainingProvider } from './contexts/TrainingContext';
 import { ViewState, User, UserRole } from './types';
 
 // Helper: load user profile from localStorage if exists
@@ -302,7 +303,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <TrainingProvider>
+        <AppContent />
+      </TrainingProvider>
     </AuthProvider>
   );
 }

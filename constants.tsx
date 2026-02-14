@@ -184,7 +184,7 @@ export const DEMO_USERS: UserType[] = [
     firstName: 'John',
     lastName: 'Doe',
     role: 'employee',
-    department: 'Engineering',
+    department: 'Finance',
     employeeId: 'EMP-2024-001',
     startDate: '2024-01-15',
     // onboardingComplete: false,

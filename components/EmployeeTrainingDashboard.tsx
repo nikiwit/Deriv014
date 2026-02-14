@@ -13,10 +13,10 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { EmployeeTrainingProgress, TrainingCategory } from '../types';
 import {
-  MOCK_EMPLOYEE_TRAINING_PROGRESS,
   MOCK_TRAINING_COMPLETION_TREND,
   TRAINING_CATEGORY_CONFIG,
 } from '../constants';
+import { useTraining } from '../contexts/TrainingContext';
 import { Card } from './design-system/Card';
 import { Heading, Text } from './design-system/Typography';
 
@@ -30,11 +30,12 @@ const statusConfig: Record<EmployeeTrainingProgress['status'], { label: string; 
 };
 
 export const EmployeeTrainingDashboard: React.FC = () => {
+  const { getAllProgress } = useTraining();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const employees = MOCK_EMPLOYEE_TRAINING_PROGRESS;
+  const employees = getAllProgress();
   const totalEnrolled = employees.length;
   const completedCount = employees.filter(e => e.status === 'completed').length;
   const completionRate = Math.round((completedCount / totalEnrolled) * 100);

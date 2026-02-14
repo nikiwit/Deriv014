@@ -11,48 +11,25 @@ import {
   X,
   Trophy,
 } from 'lucide-react';
-import { TrainingItem, TrainingCategory, TrainingItemStatus } from '../../types';
-import { DEFAULT_TRAINING_ITEMS, TRAINING_CATEGORY_CONFIG, TRAINING_FORMAT_CONFIG } from '../../constants';
-
-// Initialize mock items with varied statuses
-function initializeItems(): TrainingItem[] {
-  return DEFAULT_TRAINING_ITEMS.map((t, idx) => ({
-    ...t,
-    id: `training_${idx}`,
-    status: (idx < 7 ? 'completed' : idx === 7 ? 'in_progress' : idx === 8 ? 'available' : 'locked') as TrainingItemStatus,
-    completedAt: idx < 7 ? '2026-02-01T10:00:00Z' : undefined,
-    score: idx < 7 && t.format === 'quiz' ? 85 + Math.floor(Math.random() * 15) : undefined,
-  }));
-}
+import { TrainingItem, TrainingCategory } from '../../types';
+import { TRAINING_CATEGORY_CONFIG, TRAINING_FORMAT_CONFIG } from '../../constants';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTraining } from '../../contexts/TrainingContext';
 
 export const MyTraining: React.FC = () => {
-  const [items, setItems] = useState<TrainingItem[]>(initializeItems);
+  const { user } = useAuth();
+  const { getItems, completeItem } = useTraining();
   const [selectedItem, setSelectedItem] = useState<TrainingItem | null>(null);
 
+  const employeeId = user?.employeeId || 'EMP-2024-001';
+  const items = getItems(employeeId);
+
   const completedCount = items.filter(t => t.status === 'completed').length;
-  const progress = Math.round((completedCount / items.length) * 100);
+  const progress = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
   const totalMinutes = items.filter(t => t.status !== 'completed').reduce((sum, t) => sum + t.estimatedMinutes, 0);
 
   const handleCompleteItem = (itemId: string) => {
-    setItems(prev => {
-      const updated = prev.map(t => {
-        if (t.id === itemId) {
-          return {
-            ...t,
-            status: 'completed' as TrainingItemStatus,
-            completedAt: new Date().toISOString(),
-            score: t.format === 'quiz' ? 85 + Math.floor(Math.random() * 15) : undefined,
-          };
-        }
-        return t;
-      });
-      // Unlock next item
-      const completedIdx = updated.findIndex(t => t.id === itemId);
-      if (completedIdx < updated.length - 1 && updated[completedIdx + 1].status === 'locked') {
-        updated[completedIdx + 1] = { ...updated[completedIdx + 1], status: 'available' };
-      }
-      return updated;
-    });
+    completeItem(employeeId, itemId);
     setSelectedItem(null);
   };
 
