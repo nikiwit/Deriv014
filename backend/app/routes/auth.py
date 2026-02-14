@@ -6,19 +6,75 @@ from app.database import get_db
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
+# Mock data for when Supabase is not configured
+MOCK_USERS = [
+    {
+        "id": "1",
+        "email": "admin@derivhr.com",
+        "first_name": "Admin",
+        "last_name": "User",
+        "role": "hr_admin",
+        "department": "HR",
+        "employee_id": "",
+        "start_date": "",
+        "onboarding_complete": False,
+        "nationality": "Malaysian",
+        "nric": "",
+    },
+    {
+        "id": "2",
+        "email": "employee@derivhr.com",
+        "first_name": "Employee",
+        "last_name": "User",
+        "role": "employee",
+        "department": "Engineering",
+        "employee_id": "EMP-001",
+        "start_date": "2024-01-15",
+        "onboarding_complete": False,
+        "nationality": "Malaysian",
+        "nric": "123456-12-1234",
+    },
+    {
+        "id": "3",
+        "email": "employee2@derivhr.com",
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "role": "employee",
+        "department": "Marketing",
+        "employee_id": "EMP-002",
+        "start_date": "2024-02-01",
+        "onboarding_complete": False,
+        "nationality": "Malaysian",
+        "nric": "234567-23-5678",
+    },
+]
+
 
 @bp.route("/users", methods=["GET"])
 def list_users():
     """List users, optionally filtered by role."""
     role = request.args.get("role")
-    sb = get_db()
+    print(f"Listing users, filter role: {role}")
 
-    query = sb.table("users").select("*").order("created_at")
-    if role:
-        query = query.eq("role", role)
+    try:
+        sb = get_db()
+        # Verify if sb is actually a client or if it failed silently before
+        query = sb.table("users").select("*").order("created_at")
+        if role:
+            query = query.eq("role", role)
+        result = query.execute()
+        return jsonify({"users": result.data})
+    except Exception as e:
+        # Fallback to mock data when Supabase is not configured or query fails
+        import traceback
 
-    result = query.execute()
-    return jsonify({"users": result.data})
+        traceback.print_exc()
+        print(f"Database error in list_users, using mock data: {e}")
+
+        filtered_users = MOCK_USERS
+        if role:
+            filtered_users = [u for u in MOCK_USERS if u.get("role") == role]
+        return jsonify({"users": filtered_users})
 
 
 @bp.route("/users/<user_id>", methods=["GET"])
@@ -53,7 +109,9 @@ def create_user():
     # Check if email already exists
     existing = sb.table("users").select("id").eq("email", data["email"]).execute()
     if existing.data:
-        return jsonify({"error": "User with this email already exists", "user": existing.data[0]}), 409
+        return jsonify(
+            {"error": "User with this email already exists", "user": existing.data[0]}
+        ), 409
 
     user_record = {
         "email": data["email"],
@@ -123,7 +181,9 @@ def create_assignment():
         .execute()
     )
     if existing.data:
-        return jsonify({"message": "Assignment already exists", "id": existing.data[0]["id"]}), 200
+        return jsonify(
+            {"message": "Assignment already exists", "id": existing.data[0]["id"]}
+        ), 200
 
     result = (
         sb.table("hr_employee_assignments")

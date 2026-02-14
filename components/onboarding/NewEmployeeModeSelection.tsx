@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   X,
   LayoutGrid,
@@ -19,34 +19,81 @@ import {
   Fingerprint,
   Mail,
   Globe,
-  Loader2
-} from 'lucide-react';
-import { analyzeOnboarding, parseResume } from '../../services/geminiService';
-import { createEmployee } from '../../services/api';
-import { OnboardingData, OnboardingJourney } from '../../types';
+  Loader2,
+} from "lucide-react";
+import { analyzeOnboarding, parseResume } from "../../services/geminiService";
+import { createEmployee } from "../../services/api";
+import { OnboardingData, OnboardingJourney } from "../../types";
+import { MarkdownRenderer } from "../MarkdownRenderer";
 
 interface NewEmployeeModeSelectionProps {
   isOpen: boolean;
   onClose: () => void;
-  onModeSelect: (mode: 'form' | 'ai') => void;
+  onModeSelect: (mode: "form" | "ai") => void;
 }
 
 // Modal for selecting onboarding mode
-export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> = ({
-  isOpen,
-  onClose,
-  onModeSelect
-}) => {
+export const NewEmployeeModeSelection: React.FC<
+  NewEmployeeModeSelectionProps
+> = ({ isOpen, onClose, onModeSelect }) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const parsedData = await parseResume(file);
+
+      // Save parsed data to localStorage so the form picks it up
+      try {
+        // Merge with existing or default structure
+        const existing = localStorage.getItem("onboardingProfile");
+        const base = existing
+          ? JSON.parse(existing)
+          : {
+              fullName: "",
+              email: "",
+              role: "",
+              department: "",
+              startDate: "",
+              nationality: "Malaysian",
+              salary: "",
+              nric: "",
+            };
+
+        const merged = { ...base, ...parsedData };
+        localStorage.setItem("onboardingProfile", JSON.stringify(merged));
+      } catch (err) {
+        console.warn("Failed to save parsed resume data:", err);
+      }
+
+      // Navigate to form
+      onModeSelect("form");
+    } catch (error) {
+      console.error("Resume parsing error:", error);
+      alert("Failed to parse resume. Please try entering details manually.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative bg-white rounded-3xl shadow-2xl max-w-2xl w-full mx-4 animate-slide-in-up overflow-hidden">
         {/* Header */}
@@ -57,11 +104,15 @@ export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> =
                 <Users className="text-white" size={24} />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white">New Employee Onboarding</h2>
-                <p className="text-white/80 text-sm font-medium">Choose how you'd like to create the employee profile</p>
+                <h2 className="text-2xl font-black text-white">
+                  New Employee Onboarding
+                </h2>
+                <p className="text-white/80 text-sm font-medium">
+                  Choose how you'd like to create the employee profile
+                </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={onClose}
               className="p-2 hover:bg-white/10 rounded-xl transition-colors"
             >
@@ -72,47 +123,82 @@ export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> =
 
         {/* Mode Options */}
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Form Mode */}
-          <button
-            onClick={() => onModeSelect('form')}
-            className="group relative p-6 border-2 border-slate-200 rounded-2xl hover:border-derivhr-500 hover:bg-derivhr-50 transition-all text-left"
-          >
-            <div className="absolute top-4 right-4">
-              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center group-hover:bg-derivhr-100 transition-colors">
-                <LayoutGrid className="text-slate-500 group-hover:text-derivhr-500" size={16} />
+          {/* Form Mode (Upload CV) */}
+          <div className="relative group">
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={handleUploadClick}
+              disabled={isUploading}
+              className="w-full h-full p-6 border-2 border-slate-200 rounded-2xl hover:border-derivhr-500 hover:bg-derivhr-50 transition-all text-left relative disabled:opacity-70 disabled:cursor-wait"
+            >
+              <div className="absolute top-4 right-4">
+                <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center group-hover:bg-derivhr-100 transition-colors">
+                  {isUploading ? (
+                    <Loader2
+                      className="animate-spin text-derivhr-500"
+                      size={16}
+                    />
+                  ) : (
+                    <LayoutGrid
+                      className="text-slate-500 group-hover:text-derivhr-500"
+                      size={16}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-white group-hover:shadow-lg transition-all">
-              <FileText className="text-slate-600" size={28} />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Form Mode</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Traditional form-based data entry. Fill in the employee details manually step by step.
-            </p>
-            <ul className="space-y-2">
-              <li className="flex items-center text-xs text-slate-600">
-                <CheckCircle2 size={14} className="text-jade-500 mr-2" />
-                Full form wizard with validation
-              </li>
-              <li className="flex items-center text-xs text-slate-600">
-                <CheckCircle2 size={14} className="text-jade-500 mr-2" />
-                Resume upload & auto-fill
-              </li>
-              <li className="flex items-center text-xs text-slate-600">
-                <CheckCircle2 size={14} className="text-jade-500 mr-2" />
-                4-step process
-              </li>
-            </ul>
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <span className="inline-flex items-center text-sm font-bold text-derivhr-600 group-hover:translate-x-1 transition-transform">
-                Select Form Mode <ArrowRight size={16} className="ml-1" />
-              </span>
-            </div>
-          </button>
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-white group-hover:shadow-lg transition-all">
+                <Upload className="text-slate-600" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">
+                Upload CV/Resume
+              </h3>
+              <p className="text-sm text-slate-500 mb-4">
+                {isUploading
+                  ? "Extracting data..."
+                  : "Upload a CV or Resume to auto-fill employee details."}
+              </p>
+              <ul className="space-y-2 mb-8">
+                <li className="flex items-center text-xs text-slate-600">
+                  <CheckCircle2 size={14} className="text-jade-500 mr-2" />
+                  Resume upload & auto-fill
+                </li>
+                <li className="flex items-center text-xs text-slate-600">
+                  <CheckCircle2 size={14} className="text-jade-500 mr-2" />
+                  Full form wizard with validation
+                </li>
+                <li className="flex items-center text-xs text-slate-600">
+                  <CheckCircle2 size={14} className="text-jade-500 mr-2" />
+                  4-step process
+                </li>
+              </ul>
+
+              <div className="absolute bottom-6 left-6 right-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                <span className="inline-flex items-center text-sm font-bold text-derivhr-600 group-hover:translate-x-1 transition-transform">
+                  Upload File <ArrowRight size={16} className="ml-1" />
+                </span>
+              </div>
+            </button>
+            {/* Secondary Action: Manual Entry */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onModeSelect("form");
+              }}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 translate-y-full text-[10px] text-slate-400 hover:text-derivhr-500 hover:underline font-medium py-2"
+            >
+              Or enter details manually
+            </button>
+          </div>
 
           {/* AI Assisted Mode */}
           <button
-            onClick={() => onModeSelect('ai')}
+            onClick={() => onModeSelect("ai")}
             className="group relative p-6 border-2 border-purple-200 rounded-2xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
           >
             <div className="absolute top-4 right-4">
@@ -123,9 +209,12 @@ export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> =
             <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-white group-hover:shadow-lg transition-all">
               <Bot className="text-purple-600" size={28} />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">AI Assisted</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">
+              AI Assisted (Guided)
+            </h3>
             <p className="text-sm text-slate-500 mb-4">
-              AI-powered conversational interface. Answer questions to create employee profile naturally.
+              AI-powered conversational interface. Answer questions to create
+              employee profile naturally.
             </p>
             <ul className="space-y-2">
               <li className="flex items-center text-xs text-slate-600">
@@ -143,7 +232,7 @@ export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> =
             </ul>
             <div className="mt-4 pt-4 border-t border-purple-100">
               <span className="inline-flex items-center text-sm font-bold text-purple-600 group-hover:translate-x-1 transition-transform">
-                Select AI Mode <ArrowRight size={16} className="ml-1" />
+                Select AI Guided <ArrowRight size={16} className="ml-1" />
               </span>
             </div>
           </button>
@@ -152,7 +241,8 @@ export const NewEmployeeModeSelection: React.FC<NewEmployeeModeSelectionProps> =
         {/* Footer */}
         <div className="px-8 py-4 bg-slate-50 border-t border-slate-100">
           <p className="text-xs text-slate-500 text-center">
-            Both modes will create an employee profile that can be used to generate offer letters and contracts.
+            Both modes will create an employee profile that can be used to
+            generate offer letters and contracts.
           </p>
         </div>
       </div>
@@ -169,7 +259,7 @@ interface AIOnboardingProps {
 
 interface ChatMessage {
   id: string;
-  sender: 'ai' | 'user';
+  sender: "ai" | "user";
   text: string;
   step?: number;
 }
@@ -177,24 +267,29 @@ interface ChatMessage {
 export const AIOnboarding: React.FC<AIOnboardingProps> = ({
   onSubmit,
   onCancel,
-  existingEmployees = []
+  existingEmployees = [],
 }) => {
   const [step, setStep] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', sender: 'ai', text: "Hello! I'm DerivHR's AI Onboarding Assistant. 🤖\n\nI'll help you create an employee profile through a conversational interface. This data will be used to generate an offer letter automatically.\n\nLet's get started! What is the **employee's full name**?", step: 0 }
+    {
+      id: "0",
+      sender: "ai",
+      text: "Hello! I'm DerivHR's AI Onboarding Assistant. 🤖\n\nI'll help you create an employee profile through a conversational interface. This data will be used to generate an offer letter automatically.\n\nLet's get started! What is the **employee's full name**?",
+      step: 0,
+    },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<string>('');
+  const [analysis, setAnalysis] = useState<string>("");
   const [formData, setFormData] = useState<OnboardingData>({
-    fullName: '',
-    email: '',
-    role: '',
-    department: '',
-    startDate: '',
-    nationality: 'Malaysian',
-    salary: '',
-    nric: ''
+    fullName: "",
+    email: "",
+    role: "",
+    department: "",
+    startDate: "",
+    nationality: "Malaysian",
+    salary: "",
+    nric: "",
   });
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -208,9 +303,9 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value;
     if (step === 7) {
-      val = val.replace(/\D/g, '');
-      if (val.length > 6) val = val.slice(0, 6) + '-' + val.slice(6);
-      if (val.length > 9) val = val.slice(0, 9) + '-' + val.slice(9);
+      val = val.replace(/\D/g, "");
+      if (val.length > 6) val = val.slice(0, 6) + "-" + val.slice(6);
+      if (val.length > 9) val = val.slice(0, 9) + "-" + val.slice(9);
       val = val.slice(0, 14);
     }
     setInput(val);
@@ -219,27 +314,35 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
   const nextStep = async (value: string) => {
     if (!value) return;
 
-    const userMsg: ChatMessage = { id: Date.now().toString(), sender: 'user', text: value };
-    
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      sender: "user",
+      text: value,
+    };
+
     // Validate NRIC
     if (step === 7) {
       const nricRegex = /^\d{6}-?\d{2}-?\d{4}$/;
       if (!nricRegex.test(value)) {
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
           userMsg,
-          { id: Date.now().toString(), sender: 'ai', text: "That doesn't look like a valid NRIC format (e.g. 910101-14-1234). Please double check." }
+          {
+            id: Date.now().toString(),
+            sender: "ai",
+            text: "That doesn't look like a valid NRIC format (e.g. 910101-14-1234). Please double check.",
+          },
         ]);
-        setInput('');
+        setInput("");
         return;
       }
     }
 
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
 
     const newData = { ...formData };
-    let nextPrompt = '';
+    let nextPrompt = "";
     let nextStepNum = step + 1;
 
     switch (step) {
@@ -264,12 +367,12 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         nextPrompt = `Is the candidate **Malaysian** or **Non-Malaysian**? 🇲🇾🌍`;
         break;
       case 5:
-        newData.nationality = value as 'Malaysian' | 'Non-Malaysian';
+        newData.nationality = value as "Malaysian" | "Non-Malaysian";
         nextPrompt = `When is their **start date**? 🗓️`;
         break;
       case 6:
         newData.startDate = value;
-        if (newData.nationality === 'Malaysian') {
+        if (newData.nationality === "Malaysian") {
           nextPrompt = `Since they're Malaysian, please enter their **NRIC number** for EPF/SOCSO.`;
           nextStepNum = 7;
         } else {
@@ -291,9 +394,17 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     setFormData(newData);
     setStep(nextStepNum);
 
-    if (step !== 6 || newData.nationality === 'Malaysian') {
+    if (step !== 6 || newData.nationality === "Malaysian") {
       setTimeout(() => {
-        setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'ai', text: nextPrompt, step: nextStepNum }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: "ai",
+            text: nextPrompt,
+            step: nextStepNum,
+          },
+        ]);
       }, 600);
     }
   };
@@ -311,58 +422,74 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       const created = await createEmployee({
         email: data.email,
         full_name: data.fullName,
-        jurisdiction: data.nationality === 'Malaysian' ? 'MY' : 'SG',
+        jurisdiction: data.nationality === "Malaysian" ? "MY" : "SG",
         position: data.role,
         department: data.department,
         start_date: data.startDate,
-        nric: data.nric || '',
+        nric: data.nric || "",
       });
       backendId = created.id;
     } catch (err) {
-      console.error('Backend employee creation failed:', err);
+      console.error("Backend employee creation failed:", err);
     }
 
     // Store data in localStorage for offer letter generation
     try {
-      localStorage.setItem('preliminaryEmployeeData', JSON.stringify({
-        ...data,
-        employeeId: backendId,
-        createdAt: new Date().toISOString()
-      }));
+      localStorage.setItem(
+        "preliminaryEmployeeData",
+        JSON.stringify({
+          ...data,
+          employeeId: backendId,
+          createdAt: new Date().toISOString(),
+        }),
+      );
     } catch (e) {
-      console.warn('Failed to save preliminary data:', e);
+      console.warn("Failed to save preliminary data:", e);
     }
 
     // Add completion message
     setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        sender: 'ai', 
-        text: `🎉 Perfect! I've collected all the preliminary employee data and created the onboarding record.\n\n**Summary:**\n- Name: ${data.fullName}\n- Email: ${data.email}\n- Role: ${data.role}\n- Department: ${data.department}\n- Start Date: ${data.startDate}\n- Salary: ${data.salary} MYR\n\nYou can now generate the **Offer Letter** from the Documents section!`,
-        step: 9 
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          sender: "ai",
+          text: `🎉 Perfect! I've collected all the preliminary employee data and created the onboarding record.\n\n**Summary:**\n- Name: ${data.fullName}\n- Email: ${data.email}\n- Role: ${data.role}\n- Department: ${data.department}\n- Start Date: ${data.startDate}\n- Salary: ${data.salary} MYR\n\nYou can now generate the **Offer Letter** from the Documents section!`,
+          step: 9,
+        },
+      ]);
     }, 1500);
   };
 
   const handleRestart = () => {
     setStep(0);
-    setMessages([{ id: '0', sender: 'ai', text: "Ready for the next one! What is the **employee's full name**?", step: 0 }]);
-    setAnalysis('');
+    setMessages([
+      {
+        id: "0",
+        sender: "ai",
+        text: "Ready for the next one! What is the **employee's full name**?",
+        step: 0,
+      },
+    ]);
+    setAnalysis("");
     setFormData({
-      fullName: '',
-      email: '',
-      role: '',
-      department: '',
-      startDate: '',
-      nationality: 'Malaysian',
-      salary: '',
-      nric: ''
+      fullName: "",
+      email: "",
+      role: "",
+      department: "",
+      startDate: "",
+      nationality: "Malaysian",
+      salary: "",
+      nric: "",
     });
   };
 
   const handleFinish = () => {
     // Pass the collected data back
-    onSubmit(formData, analysis || 'Employee profile created via AI assisted onboarding');
+    onSubmit(
+      formData,
+      analysis || "Employee profile created via AI assisted onboarding",
+    );
   };
 
   const renderControls = () => {
@@ -372,13 +499,13 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       return (
         <div className="flex space-x-3 animate-fade-in">
           <button
-            onClick={() => nextStep('Malaysian')}
+            onClick={() => nextStep("Malaysian")}
             className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:border-derivhr-500 hover:bg-derivhr-50 rounded-xl font-bold text-slate-700 shadow-sm transition-all flex items-center justify-center space-x-2"
           >
             <span>🇲🇾</span> <span>Malaysian</span>
           </button>
           <button
-            onClick={() => nextStep('Non-Malaysian')}
+            onClick={() => nextStep("Non-Malaysian")}
             className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:border-purple-500 hover:bg-purple-50 rounded-xl font-bold text-slate-700 shadow-sm transition-all flex items-center justify-center space-x-2"
           >
             <span>🌍</span> <span>Non-Malaysian</span>
@@ -409,13 +536,17 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
 
     return (
       <div className="flex items-center space-x-3 bg-white border border-slate-200 rounded-xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all">
-        {step === 7 && <Fingerprint className="text-slate-400 ml-2" size={20} />}
+        {step === 7 && (
+          <Fingerprint className="text-slate-400 ml-2" size={20} />
+        )}
         <input
           value={input}
           onChange={handleInput}
-          onKeyDown={(e) => e.key === 'Enter' && nextStep(input)}
+          onKeyDown={(e) => e.key === "Enter" && nextStep(input)}
           autoFocus
-          placeholder={step === 7 ? "e.g. 910101-14-1234" : "Type your answer..."}
+          placeholder={
+            step === 7 ? "e.g. 910101-14-1234" : "Type your answer..."
+          }
           className="flex-1 bg-transparent border-none text-slate-900 px-4 py-2 focus:ring-0 placeholder-slate-400 text-lg font-medium"
           maxLength={step === 7 ? 14 : undefined}
         />
@@ -440,11 +571,18 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
               <Sparkles className="text-white" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">AI Assisted Onboarding</h2>
-              <p className="text-white/80 text-sm font-medium">Conversational data collection for offer letter generation</p>
+              <h2 className="text-2xl font-black text-white">
+                AI Assisted Onboarding
+              </h2>
+              <p className="text-white/80 text-sm font-medium">
+                Conversational data collection for offer letter generation
+              </p>
             </div>
           </div>
-          <button onClick={onCancel} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+          <button
+            onClick={onCancel}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+          >
             <X className="text-white" size={20} />
           </button>
         </div>
@@ -453,19 +591,27 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       {/* Chat Area */}
       <div className="p-6 h-[400px] overflow-y-auto space-y-4" ref={scrollRef}>
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
-              msg.sender === 'user'
-                ? 'bg-purple-600 text-white rounded-br-none'
-                : 'bg-slate-100 text-slate-800 rounded-bl-none'
-            }`}>
-              {msg.sender === 'ai' && (
+          <div
+            key={msg.id}
+            className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                msg.sender === "user"
+                  ? "bg-purple-600 text-white rounded-br-none"
+                  : "bg-slate-100 text-slate-800 rounded-bl-none"
+              }`}
+            >
+              {msg.sender === "ai" && (
                 <div className="flex items-center space-x-2 mb-2">
                   <Bot size={12} className="text-purple-500" />
-                  <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest">AI Assistant</span>
+                  <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest">
+                    AI Assistant
+                  </span>
                 </div>
               )}
-              <p className="whitespace-pre-wrap">{msg.text}</p>
+              {/* Render message with Markdown */}
+              <MarkdownRenderer content={msg.text} className="text-sm" />
             </div>
           </div>
         ))}
@@ -474,7 +620,9 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
           <div className="flex justify-start animate-pulse">
             <div className="bg-slate-100 p-4 rounded-2xl rounded-bl-none flex items-center space-x-3">
               <Loader2 className="animate-spin text-purple-500" size={18} />
-              <span className="text-sm text-slate-500 font-bold">Processing...</span>
+              <span className="text-sm text-slate-500 font-bold">
+                Processing...
+              </span>
             </div>
           </div>
         )}
@@ -483,7 +631,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
       {/* Input Area */}
       <div className="p-6 border-t border-slate-100">
         {renderControls()}
-        
+
         {step >= 8 && (
           <div className="flex justify-center space-x-3 mt-4">
             <button
@@ -525,60 +673,68 @@ interface OfferLetterGeneratorProps {
 export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
   preliminaryData,
   onGenerate,
-  onCancel
+  onCancel,
 }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    candidateName: preliminaryData?.fullName || '',
-    position: preliminaryData?.role || '',
-    department: preliminaryData?.department || '',
-    startDate: preliminaryData?.startDate || '',
-    salary: preliminaryData?.salary || '',
-    bonus: '10',
-    allowances: '',
-    probationMonths: '3',
-    workHours: '9:00 AM - 6:00 PM',
-    workLocation: 'Kuala Lumpur, Malaysia',
-    hrContact: 'hr@company.com'
+    candidateName: preliminaryData?.fullName || "",
+    nric: preliminaryData?.nric || "",
+    position: preliminaryData?.role || "",
+    department: preliminaryData?.department || "",
+    startDate: preliminaryData?.startDate || "",
+    salary: preliminaryData?.salary || "",
+    bonus: "10",
+    allowances: "",
+    probationMonths: "3",
+    workHours: "9:00 AM - 6:00 PM",
+    workLocation: "Kuala Lumpur, Malaysia",
+    hrContact: "hr@company.com",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleGenerate = async () => {
     setLoading(true);
     try {
       // Call the backend to generate offer letter
-      const response = await fetch('http://localhost:5001/api/documents/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document_type: 'offer_letter',
-          employee_name: formData.candidateName,
-          position: formData.position,
-          department: formData.department,
-          jurisdiction: preliminaryData?.nationality === 'Malaysian' ? 'MY' : 'SG',
-          start_date: formData.startDate,
-          salary: parseFloat(formData.salary),
-          bonus: formData.bonus,
-          allowances: formData.allowances,
-          probation_months: parseInt(formData.probationMonths),
-          work_hours: formData.workHours,
-          work_location: formData.workLocation,
-          hr_contact: formData.hrContact
-        })
-      });
+      const response = await fetch(
+        "/api/documents/generate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            document_type: "offer_letter",
+            employee_name: formData.candidateName,
+            nric: formData.nric,
+            position: formData.position,
+            department: formData.department,
+            jurisdiction:
+              preliminaryData?.nationality === "Malaysian" ? "MY" : "SG",
+            start_date: formData.startDate,
+            salary: parseFloat(formData.salary),
+            bonus: formData.bonus,
+            allowances: formData.allowances,
+            probation_months: parseInt(formData.probationMonths),
+            work_hours: formData.workHours,
+            work_location: formData.workLocation,
+            hr_contact: formData.hrContact,
+          }),
+        },
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to generate offer letter');
+        throw new Error("Failed to generate offer letter");
       }
 
       const result = await response.json();
       onGenerate(result);
     } catch (error) {
-      console.error('Error generating offer letter:', error);
-      alert('Failed to generate offer letter. Please try again.');
+      console.error("Error generating offer letter:", error);
+      alert("Failed to generate offer letter. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -587,8 +743,13 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
   if (!preliminaryData) {
     return (
       <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-        <p className="text-slate-500">No preliminary data available. Please complete the onboarding first.</p>
-        <button onClick={onCancel} className="mt-4 px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold">
+        <p className="text-slate-500">
+          No preliminary data available. Please complete the onboarding first.
+        </p>
+        <button
+          onClick={onCancel}
+          className="mt-4 px-6 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold"
+        >
           Go Back
         </button>
       </div>
@@ -605,11 +766,18 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
               <FileText className="text-white" size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">Generate Offer Letter</h2>
-              <p className="text-white/80 text-sm font-medium">Using data from {preliminaryData.fullName}'s profile</p>
+              <h2 className="text-2xl font-black text-white">
+                Generate Offer Letter
+              </h2>
+              <p className="text-white/80 text-sm font-medium">
+                Using data from {preliminaryData.fullName}'s profile
+              </p>
             </div>
           </div>
-          <button onClick={onCancel} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+          <button
+            onClick={onCancel}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+          >
             <X className="text-white" size={20} />
           </button>
         </div>
@@ -619,12 +787,27 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
       <div className="p-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Candidate Name</label>
+            <label className="text-sm font-bold text-slate-700">
+              Candidate Name
+            </label>
             <input
               type="text"
               name="candidateName"
               value={formData.candidateName}
               onChange={handleChange}
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-derivhr-500/20 focus:border-derivhr-500 outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">
+              NRIC / Passport No
+            </label>
+            <input
+              type="text"
+              name="nric"
+              value={formData.nric}
+              onChange={handleChange}
+              placeholder="e.g. 910101-14-1234 or A12345678"
               className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-derivhr-500/20 focus:border-derivhr-500 outline-none"
             />
           </div>
@@ -639,7 +822,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Department</label>
+            <label className="text-sm font-bold text-slate-700">
+              Department
+            </label>
             <input
               type="text"
               name="department"
@@ -649,7 +834,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Start Date</label>
+            <label className="text-sm font-bold text-slate-700">
+              Start Date
+            </label>
             <input
               type="date"
               name="startDate"
@@ -659,7 +846,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Monthly Salary (MYR)</label>
+            <label className="text-sm font-bold text-slate-700">
+              Monthly Salary (MYR)
+            </label>
             <input
               type="number"
               name="salary"
@@ -669,7 +858,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Bonus (%)</label>
+            <label className="text-sm font-bold text-slate-700">
+              Bonus (%)
+            </label>
             <input
               type="number"
               name="bonus"
@@ -679,7 +870,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Probation (months)</label>
+            <label className="text-sm font-bold text-slate-700">
+              Probation (months)
+            </label>
             <select
               name="probationMonths"
               value={formData.probationMonths}
@@ -693,7 +886,9 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Work Location</label>
+            <label className="text-sm font-bold text-slate-700">
+              Work Location
+            </label>
             <input
               type="text"
               name="workLocation"
@@ -711,8 +906,8 @@ export const OfferLetterGenerator: React.FC<OfferLetterGeneratorProps> = ({
             <span className="text-sm font-bold text-blue-700">Data Source</span>
           </div>
           <p className="text-xs text-blue-600">
-            This form is pre-filled with data from the preliminary employee profile. 
-            You can edit any field before generating the offer letter.
+            This form is pre-filled with data from the preliminary employee
+            profile. You can edit any field before generating the offer letter.
           </p>
         </div>
       </div>

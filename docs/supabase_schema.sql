@@ -210,3 +210,25 @@ CREATE TABLE IF NOT EXISTS hr_employee_assignments (
     UNIQUE(hr_user_id, employee_user_id)
 );
 
+-- Employee Documents (Expiry Tracking)
+CREATE TABLE IF NOT EXISTS employee_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES employees(id),
+    document_type TEXT NOT NULL,           -- 'contract', 'passport', 'visa', 'employment_pass', 'work_permit'
+    document_number TEXT,
+    issue_date DATE,
+    expiry_date DATE NOT NULL,
+    status TEXT DEFAULT 'valid',           -- computed: 'valid', 'expiring_30', 'expiring_60', 'expiring_90', 'expired'
+    jurisdiction TEXT,
+    issuing_authority TEXT,
+    notes TEXT,
+    renewed_at TIMESTAMP WITH TIME ZONE,
+    previous_document_id UUID REFERENCES employee_documents(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_employee_documents_expiry ON employee_documents(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_employee_documents_employee ON employee_documents(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_documents_status ON employee_documents(status);
+

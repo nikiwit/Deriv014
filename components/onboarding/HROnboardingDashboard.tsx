@@ -14,9 +14,17 @@ import {
   ChevronRight,
   Sparkles,
   RefreshCw,
+  Link as LinkIcon,
+  Eye,
+  Copy,
+  Mail,
+  Phone,
+  Calendar,
+  DollarSign,
+  Building2,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5001';
+const API_BASE = '';
 
 interface OnboardingState {
   id: string;
@@ -53,6 +61,21 @@ export const HROnboardingDashboard: React.FC = () => {
   const [showNewOfferModal, setShowNewOfferModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<OnboardingState | null>(null);
   const [sendingReminder, setSendingReminder] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'offer_pending' | 'offer_accepted' | 'offer_rejected'>('all');
+
+  // Filter offers based on active tab
+  const filteredOffers = pendingOffers.filter(offer => {
+    if (activeTab === 'all') return true;
+    return offer.status === activeTab;
+  });
+
+  // Get tab counts
+  const tabCounts = {
+    all: pendingOffers.length,
+    offer_pending: pendingOffers.filter(o => o.status === 'offer_pending').length,
+    offer_accepted: pendingOffers.filter(o => o.status === 'offer_accepted').length,
+    offer_rejected: pendingOffers.filter(o => o.status === 'offer_rejected').length,
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -201,12 +224,40 @@ export const HROnboardingDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Tabs for filtering */}
+      <div className="flex gap-2 border-b border-slate-200 pb-2">
+        {[
+          { key: 'all', label: 'All', count: tabCounts.all, icon: Users },
+          { key: 'offer_pending', label: 'Pending', count: tabCounts.offer_pending, icon: Clock },
+          { key: 'offer_accepted', label: 'Accepted', count: tabCounts.offer_accepted, icon: CheckCircle2 },
+          { key: 'offer_rejected', label: 'Rejected', count: tabCounts.offer_rejected, icon: XCircle },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as typeof activeTab)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              activeTab === tab.key
+                ? 'bg-derivhr-500 text-white'
+                : 'text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+            <span className={`px-2 py-0.5 rounded-full text-xs ${
+              activeTab === tab.key ? 'bg-white/20' : 'bg-slate-200'
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
         <div className="p-4 bg-slate-50 border-b border-slate-100">
           <h2 className="font-bold text-slate-800">Active Offers & Onboarding</h2>
         </div>
 
-        {pendingOffers.length === 0 ? (
+        {filteredOffers.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users size={24} className="text-slate-400" />
@@ -221,7 +272,7 @@ export const HROnboardingDashboard: React.FC = () => {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {pendingOffers.map((offer) => (
+            {filteredOffers.map((offer) => (
               <div
                 key={offer.id}
                 className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -253,7 +304,36 @@ export const HROnboardingDashboard: React.FC = () => {
                     </p>
                     <p className="text-xs text-slate-400">Start: {offer.start_date || 'TBD'}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {/* Generate Link Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const link = `${window.location.origin}/login?offer_id=${offer.offer_id}`;
+                        navigator.clipboard.writeText(link);
+                        alert(`Offer link copied to clipboard!\n\n${link}`);
+                      }}
+                      className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                      title="Copy Offer Link"
+                    >
+                      <LinkIcon size={16} />
+                    </button>
+                    
+                    {/* View Offer Letter Button - Show for all except rejected */}
+                    {offer.status !== 'offer_rejected' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/employee/offer/${offer.offer_id}`, '_blank');
+                        }}
+                        className="p-2 text-slate-400 hover:text-derivhr-500 hover:bg-derivhr-50 rounded-lg transition-all"
+                        title="View Offer Letter"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    )}
+                    
+                    {/* Send Reminder Button - Only for pending */}
                     {offer.status === 'offer_pending' && (
                       <button
                         onClick={(e) => {
@@ -264,9 +344,10 @@ export const HROnboardingDashboard: React.FC = () => {
                         className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                         title="Send Reminder"
                       >
-                        <Bell size={18} />
+                        <Bell size={16} />
                       </button>
                     )}
+                    
                     <ChevronRight size={18} className="text-slate-400" />
                   </div>
                 </div>

@@ -1,8 +1,9 @@
+import datetime
 import json
 import os
 import uuid
-import datetime
 
+import google.generativeai as genai
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 from app.database import get_db
@@ -10,6 +11,68 @@ from app.models import EmployeeProfile
 from app.workflow import OnboardingWorkflow
 
 bp = Blueprint("onboarding", __name__, url_prefix="/api/onboarding")
+
+
+@bp.route("/parse-resume", methods=["POST"])
+def parse_resume():
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    api_key = current_app.config.get("GEMINI_API_KEY")
+    if not api_key:
+        return jsonify(
+            {"error": "Server configuration error: Missing Gemini API Key"}
+        ), 500
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        # Read file into memory
+        file_content = file.read()
+        mime_type = file.content_type or "application/pdf"
+
+        prompt = """
+        Extract the following candidate information from this resume.
+        Return the result as a raw JSON object (no markdown code blocks) with these keys:
+        - fullName (string)
+        - email (string)
+        - role (string, infer the most likely job title applied for or current title)
+        - department (string, infer a likely department e.g. Engineering, Sales, Marketing)
+        - nric (string, if Malaysian NRIC format is found)
+        - nationality (string, 'Malaysian' or 'Non-Malaysian' - infer from address/NRIC/Universities)
+        - salary (string, only if explicitly mentioned, else empty string)
+
+        If a field cannot be found, leave it as an empty string.
+        JSON ONLY. No intro or outro text.
+        """
+
+        response = model.generate_content(
+            [
+                {"mime_type": mime_type, "data": file_content},
+                prompt,
+            ]
+        )
+
+        text = response.text
+        # Clean up code blocks
+        json_str = text.replace("```json", "").replace("```", "").strip()
+
+        # Find JSON object boundaries
+        start = json_str.find("{")
+        end = json_str.rfind("}")
+        if start != -1 and end != -1:
+            json_str = json_str[start : end + 1]
+
+        data = json.loads(json_str)
+        return jsonify(data)
+
+    except Exception as e:
+        current_app.logger.error(f"Resume parsing failed: {e}")
+        return jsonify({"error": f"Failed to parse resume: {str(e)}"}), 500
 
 
 def _append_profile_to_md(profile, employee_id):
@@ -22,24 +85,25 @@ def _append_profile_to_md(profile, employee_id):
 
 ## Employee {employee_id[:8]}
 id: {employee_id}
-firstName: {profile.full_name.split()[0] if profile.full_name else ''}
-lastName: {' '.join(profile.full_name.split()[1:]) if profile.full_name else ''}
+firstName: {profile.full_name.split()[0] if profile.full_name else ""}
+lastName: {" ".join(profile.full_name.split()[1:]) if profile.full_name else ""}
 email: {profile.email}
-phone: {profile.phone or 'N/A'}
+phone: {profile.phone or "N/A"}
 nationality: {profile.jurisdiction}
-nric: {profile.nric or 'N/A'}
-position: {profile.position or 'N/A'}
-department: {profile.department or 'N/A'}
-startDate: {profile.start_date or 'N/A'}
-bankName: {profile.bank_name or 'N/A'}
-bankAccount: {profile.bank_account or 'N/A'}
-emergencyContact: {profile.emergency_contact_name or 'N/A'}
-emergencyContactPhone: {profile.emergency_contact_phone or 'N/A'}
-emergencyContactRelationship: {profile.emergency_contact_relation or 'N/A'}
+nric: {profile.nric or "N/A"}
+position: {profile.position or "N/A"}
+department: {profile.department or "N/A"}
+startDate: {profile.start_date or "N/A"}
+bankName: {profile.bank_name or "N/A"}
+bankAccount: {profile.bank_account or "N/A"}
+emergencyContact: {profile.emergency_contact_name or "N/A"}
+emergencyContactPhone: {profile.emergency_contact_phone or "N/A"}
+emergencyContactRelationship: {profile.emergency_contact_relation or "N/A"}
 complianceStatus: Onboarding
 """
     with open(profiles_path, "a", encoding="utf-8") as f:
         f.write(block)
+
 
 # Required documents per jurisdiction (T5)
 REQUIRED_DOCS = {
@@ -88,30 +152,31 @@ def create_employee():
     if existing.data:
         return jsonify({"error": "Employee with this email already exists"}), 409
 
-    db.table("employees").insert({
-        "id": employee_id,
-        "email": profile.email,
-        "full_name": profile.full_name,
-        "nric": profile.nric,
-        "jurisdiction": profile.jurisdiction,
-        "position": profile.position,
-        "department": profile.department,
-        "start_date": profile.start_date,
-        "phone": profile.phone,
-        "address": profile.address,
-        "bank_name": profile.bank_name,
-        "bank_account": profile.bank_account,
-        "emergency_contact_name": profile.emergency_contact_name,
-        "emergency_contact_phone": profile.emergency_contact_phone,
-        "emergency_contact_relation": profile.emergency_contact_relation,
-    }).execute()
+    db.table("employees").insert(
+        {
+            "id": employee_id,
+            "email": profile.email,
+            "full_name": profile.full_name,
+            "nric": profile.nric,
+            "jurisdiction": profile.jurisdiction,
+            "position": profile.position,
+            "department": profile.department,
+            "start_date": profile.start_date,
+            "phone": profile.phone,
+            "address": profile.address,
+            "bank_name": profile.bank_name,
+            "bank_account": profile.bank_account,
+            "emergency_contact_name": profile.emergency_contact_name,
+            "emergency_contact_phone": profile.emergency_contact_phone,
+            "emergency_contact_relation": profile.emergency_contact_relation,
+        }
+    ).execute()
 
     # Initialize onboarding checklist
     for doc_name in REQUIRED_DOCS.get(profile.jurisdiction, REQUIRED_DOCS["MY"]):
-        db.table("onboarding_documents").insert({
-            "employee_id": employee_id,
-            "document_name": doc_name
-        }).execute()
+        db.table("onboarding_documents").insert(
+            {"employee_id": employee_id, "document_name": doc_name}
+        ).execute()
 
     # db.commit() # Not needed
 
@@ -124,14 +189,19 @@ def create_employee():
     # Execute workflow to auto-generate documents
     generated_documents = []
     workflow_errors = []
-    
+
     try:
-        template_dir = current_app.config.get("TEMPLATE_DIR", os.path.join(os.path.dirname(__file__), "..", "templates"))
-        output_dir = current_app.config.get("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "..", "generated_documents"))
-        
+        template_dir = current_app.config.get(
+            "TEMPLATE_DIR", os.path.join(os.path.dirname(__file__), "..", "templates")
+        )
+        output_dir = current_app.config.get(
+            "OUTPUT_DIR",
+            os.path.join(os.path.dirname(__file__), "..", "generated_documents"),
+        )
+
         workflow = OnboardingWorkflow(template_dir, output_dir, db)
         result = workflow.execute(profile)
-        
+
         if result.success:
             generated_documents = [
                 {
@@ -139,14 +209,16 @@ def create_employee():
                     "document_type": doc.document_type,
                     "file_path": doc.file_path,
                     "created_at": doc.created_at,
-                    "status": doc.status
+                    "status": doc.status,
                 }
                 for doc in result.documents
             ]
         else:
             workflow_errors = result.errors
-            current_app.logger.warning(f"Workflow completed with errors: {result.errors}")
-            
+            current_app.logger.warning(
+                f"Workflow completed with errors: {result.errors}"
+            )
+
     except Exception as e:
         workflow_errors.append(f"Workflow execution failed: {str(e)}")
         current_app.logger.error(f"Workflow execution error: {e}")
@@ -154,15 +226,21 @@ def create_employee():
     # Auto-create user account in Supabase and assign to HR manager
     supabase_user_id = None
     try:
-        sb = db # Use the same client
+        sb = db  # Use the same client
         name_parts = profile.full_name.split() if profile.full_name else [""]
         first_name = name_parts[0]
         last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
 
         # Generate employee_id like EMP-YYYY-NNN
         import datetime
+
         year = datetime.datetime.now().year
-        count_result = sb.table("users").select("id", count="exact").eq("role", "employee").execute()
+        count_result = (
+            sb.table("users")
+            .select("id", count="exact")
+            .eq("role", "employee")
+            .execute()
+        )
         emp_count = (count_result.count or 0) + 1
         generated_employee_id = f"EMP-{year}-{emp_count:03d}"
 
@@ -175,7 +253,9 @@ def create_employee():
             "employee_id": generated_employee_id,
             "start_date": profile.start_date or "",
             "onboarding_complete": False,
-            "nationality": "Malaysian" if profile.jurisdiction == "MY" else "Non-Malaysian",
+            "nationality": "Malaysian"
+            if profile.jurisdiction == "MY"
+            else "Non-Malaysian",
             "nric": profile.nric or "",
         }
 
@@ -199,37 +279,41 @@ def create_employee():
                 .execute()
             )
             if not existing_assignment.data:
-                sb.table("hr_employee_assignments").insert({
-                    "hr_user_id": hr_user_id,
-                    "employee_user_id": supabase_user_id,
-                }).execute()
+                sb.table("hr_employee_assignments").insert(
+                    {
+                        "hr_user_id": hr_user_id,
+                        "employee_user_id": supabase_user_id,
+                    }
+                ).execute()
 
     except Exception as e:
         current_app.logger.warning(f"Failed to create Supabase user: {e}")
 
-    return jsonify({
-        "id": employee_id,
-        "email": profile.email,
-        "full_name": profile.full_name,
-        "jurisdiction": profile.jurisdiction,
-        "status": "onboarding",
-        "checklist_url": f"/api/onboarding/employees/{employee_id}/checklist",
-        "generated_documents": generated_documents,
-        "workflow_errors": workflow_errors,
-        "supabase_user_id": supabase_user_id,
-        "message": f"Onboarding initiated. Generated {len(generated_documents)} documents automatically."
-    }), 201
+    return jsonify(
+        {
+            "id": employee_id,
+            "email": profile.email,
+            "full_name": profile.full_name,
+            "jurisdiction": profile.jurisdiction,
+            "status": "onboarding",
+            "checklist_url": f"/api/onboarding/employees/{employee_id}/checklist",
+            "generated_documents": generated_documents,
+            "workflow_errors": workflow_errors,
+            "supabase_user_id": supabase_user_id,
+            "message": f"Onboarding initiated. Generated {len(generated_documents)} documents automatically.",
+        }
+    ), 201
 
 
 @bp.route("/employees/<employee_id>", methods=["GET"])
 def get_employee(employee_id):
     """Get employee profile."""
     db = get_db()
-    
+
     response = db.table("employees").select("*").eq("id", employee_id).execute()
     if not response.data:
         return jsonify({"error": "Employee not found"}), 404
-        
+
     emp = response.data[0]
 
     return jsonify(emp)
@@ -243,7 +327,7 @@ def update_employee(employee_id):
         return jsonify({"error": "Request body is required"}), 400
 
     db = get_db()
-    
+
     # Check if employee exists
     response = db.table("employees").select("id").eq("id", employee_id).execute()
     if not response.data:
@@ -251,13 +335,24 @@ def update_employee(employee_id):
 
     # Only allow updating specific fields
     allowed = {
-        "full_name", "phone", "address", "bank_name", "bank_account",
-        "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
-        "nric", "position", "department", "start_date",
+        "full_name",
+        "phone",
+        "address",
+        "bank_name",
+        "bank_account",
+        "emergency_contact_name",
+        "emergency_contact_phone",
+        "emergency_contact_relation",
+        "nric",
+        "position",
+        "department",
+        "start_date",
     }
     updates = {k: v for k, v in data.items() if k in allowed and v}
     if not updates:
-        return jsonify({"error": f"No valid fields to update. Allowed: {sorted(allowed)}"}), 400
+        return jsonify(
+            {"error": f"No valid fields to update. Allowed: {sorted(allowed)}"}
+        ), 400
 
     # Add timestamp
     updates["updated_at"] = datetime.datetime.now().isoformat()
@@ -271,16 +366,25 @@ def update_employee(employee_id):
 def get_checklist(employee_id):
     """Get onboarding document checklist with submission status."""
     db = get_db()
-    
-    emp_resp = db.table("employees").select("full_name, jurisdiction, status").eq("id", employee_id).execute()
+
+    emp_resp = (
+        db.table("employees")
+        .select("full_name, jurisdiction, status")
+        .eq("id", employee_id)
+        .execute()
+    )
     if not emp_resp.data:
         return jsonify({"error": "Employee not found"}), 404
     emp = emp_resp.data[0]
 
-    docs_resp = db.table("onboarding_documents").select(
-        "id, document_name, required, submitted, submitted_at, notes"
-    ).eq("employee_id", employee_id).order("id").execute()
-    
+    docs_resp = (
+        db.table("onboarding_documents")
+        .select("id, document_name, required, submitted, submitted_at, notes")
+        .eq("employee_id", employee_id)
+        .order("id")
+        .execute()
+    )
+
     items = [
         {
             "id": d["id"],
@@ -296,15 +400,17 @@ def get_checklist(employee_id):
     total = len(items)
     submitted = sum(1 for d in items if d["submitted"])
 
-    return jsonify({
-        "employee_id": employee_id,
-        "employee_name": emp["full_name"],
-        "jurisdiction": emp["jurisdiction"],
-        "onboarding_status": emp["status"],
-        "progress": f"{submitted}/{total}",
-        "complete": submitted == total,
-        "documents": items,
-    })
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "employee_name": emp["full_name"],
+            "jurisdiction": emp["jurisdiction"],
+            "onboarding_status": emp["status"],
+            "progress": f"{submitted}/{total}",
+            "complete": submitted == total,
+            "documents": items,
+        }
+    )
 
 
 @bp.route("/employees/<employee_id>/checklist/<int:doc_id>", methods=["PUT"])
@@ -314,78 +420,111 @@ def update_checklist_item(employee_id, doc_id):
     db = get_db()
 
     # Verify doc exists
-    doc_resp = db.table("onboarding_documents").select("id").eq("id", doc_id).eq("employee_id", employee_id).execute()
+    doc_resp = (
+        db.table("onboarding_documents")
+        .select("id")
+        .eq("id", doc_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
     if not doc_resp.data:
         return jsonify({"error": "Document not found"}), 404
 
     submitted = data.get("submitted", True)
     notes = data.get("notes", "")
 
-    db.table("onboarding_documents").update({
-        "submitted": 1 if submitted else 0,
-        "submitted_at": datetime.datetime.now().isoformat(),
-        "notes": notes
-    }).eq("id", doc_id).execute()
+    db.table("onboarding_documents").update(
+        {
+            "submitted": 1 if submitted else 0,
+            "submitted_at": datetime.datetime.now().isoformat(),
+            "notes": notes,
+        }
+    ).eq("id", doc_id).execute()
 
     # Check remaining
-    remaining_resp = db.table("onboarding_documents").select("id", count="exact").eq("employee_id", employee_id).eq("required", True).eq("submitted", False).execute()
+    remaining_resp = (
+        db.table("onboarding_documents")
+        .select("id", count="exact")
+        .eq("employee_id", employee_id)
+        .eq("required", True)
+        .eq("submitted", False)
+        .execute()
+    )
     remaining = remaining_resp.count
 
     if remaining == 0:
-        db.table("employees").update({
-            "status": "active",
-            "updated_at": datetime.datetime.now().isoformat()
-        }).eq("id", employee_id).execute()
+        db.table("employees").update(
+            {"status": "active", "updated_at": datetime.datetime.now().isoformat()}
+        ).eq("id", employee_id).execute()
 
-    return jsonify({
-        "doc_id": doc_id,
-        "submitted": bool(submitted),
-        "remaining_required": remaining,
-        "onboarding_complete": remaining == 0,
-    })
+    return jsonify(
+        {
+            "doc_id": doc_id,
+            "submitted": bool(submitted),
+            "remaining_required": remaining,
+            "onboarding_complete": remaining == 0,
+        }
+    )
 
 
 @bp.route("/employees", methods=["GET"])
 def list_employees():
     """List all employees with onboarding progress."""
-    db = get_db()
-    
-    # Fetch all employees
-    emp_resp = db.table("employees").select(
-        "id, email, full_name, jurisdiction, position, department, status, created_at"
-    ).order("created_at", desc=True).execute()
-    
-    employees = emp_resp.data
-    if not employees:
-        return jsonify({"employees": []})
-        
-    # Fetch all doc stats (optimize: could be improved with a view or RPC)
-    # For now, fetch all docs for these employees? Or just iterate if N is small.
-    # Let's try to fetch all docs relevant to these employees.
-    emp_ids = [e["id"] for e in employees]
-    # Supabase 'in' filter
-    docs_resp = db.table("onboarding_documents").select("employee_id, submitted").in_("employee_id", emp_ids).execute()
-    
-    # Aggregate
-    stats = {} # emp_id -> {total: 0, submitted: 0}
-    for d in docs_resp.data:
-        eid = d["employee_id"]
-        if eid not in stats:
-            stats[eid] = {"total": 0, "submitted": 0}
-        stats[eid]["total"] += 1
-        if d["submitted"]:
-            stats[eid]["submitted"] += 1
-            
-    result = []
-    for emp in employees:
-        eid = emp["id"]
-        s = stats.get(eid, {"total": 0, "submitted": 0})
-        result.append({
-            **emp,
-            "progress": f"{s['submitted']}/{s['total']}",
-        })
+    try:
+        db = get_db()
 
-    return jsonify({"employees": result})
+        # Fetch all employees
+        emp_resp = (
+            db.table("employees")
+            .select(
+                "id, email, full_name, jurisdiction, position, department, status, created_at"
+            )
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        employees = emp_resp.data
+        if not employees:
+            return jsonify({"employees": []})
+
+        # Fetch all doc stats (optimize: could be improved with a view or RPC)
+        # For now, fetch all docs for these employees? Or just iterate if N is small.
+        # Let's try to fetch all docs relevant to these employees.
+        emp_ids = [e["id"] for e in employees]
+        # Supabase 'in' filter
+        docs_resp = (
+            db.table("onboarding_documents")
+            .select("employee_id, submitted")
+            .in_("employee_id", emp_ids)
+            .execute()
+        )
+
+        # Aggregate
+        stats = {}  # emp_id -> {total: 0, submitted: 0}
+        for d in docs_resp.data:
+            eid = d["employee_id"]
+            if eid not in stats:
+                stats[eid] = {"total": 0, "submitted": 0}
+            stats[eid]["total"] += 1
+            if d["submitted"]:
+                stats[eid]["submitted"] += 1
+
+        result = []
+        for emp in employees:
+            eid = emp["id"]
+            s = stats.get(eid, {"total": 0, "submitted": 0})
+            result.append(
+                {
+                    **emp,
+                    "progress": f"{s['submitted']}/{s['total']}",
+                }
+            )
+
+        return jsonify({"employees": result})
+    except Exception as e:
+        current_app.logger.error(f"List employees failed: {e}")
+        # Return empty list on error to prevent frontend crash
+        return jsonify({"employees": []})
 
 
 @bp.route("/templates/<template_name>", methods=["GET"])
@@ -423,18 +562,24 @@ def get_template(template_name):
 def get_employee_documents(employee_id):
     """Get all generated documents for an employee."""
     db = get_db()
-    
+
     # Verify employee exists
-    emp_resp = db.table("employees").select("id, full_name").eq("id", employee_id).execute()
+    emp_resp = (
+        db.table("employees").select("id, full_name").eq("id", employee_id).execute()
+    )
     if not emp_resp.data:
         return jsonify({"error": "Employee not found"}), 404
     emp = emp_resp.data[0]
-    
+
     # Get generated documents
-    docs_resp = db.table("generated_documents").select(
-        "id, document_type, file_path, created_at, status"
-    ).eq("employee_id", employee_id).order("created_at", desc=True).execute()
-    
+    docs_resp = (
+        db.table("generated_documents")
+        .select("id, document_type, file_path, created_at, status")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+
     documents = [
         {
             "id": doc["id"],
@@ -442,48 +587,50 @@ def get_employee_documents(employee_id):
             "file_path": doc["file_path"],
             "created_at": doc["created_at"],
             "status": doc["status"],
-            "download_url": f"/api/onboarding/documents/{doc['id']}/download"
+            "download_url": f"/api/onboarding/documents/{doc['id']}/download",
         }
         for doc in docs_resp.data
     ]
-    
-    return jsonify({
-        "employee_id": employee_id,
-        "employee_name": emp["full_name"],
-        "documents": documents,
-        "total": len(documents)
-    })
+
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "employee_name": emp["full_name"],
+            "documents": documents,
+            "total": len(documents),
+        }
+    )
 
 
 @bp.route("/documents/<document_id>/download", methods=["GET"])
 def download_document(document_id):
     """Download a generated document."""
     db = get_db()
-    
-    doc_resp = db.table("generated_documents").select(
-        "file_path, document_type, employee_name"
-    ).eq("id", document_id).execute()
-    
+
+    doc_resp = (
+        db.table("generated_documents")
+        .select("file_path, document_type, employee_name")
+        .eq("id", document_id)
+        .execute()
+    )
+
     if not doc_resp.data:
         return jsonify({"error": "Document not found"}), 404
-    
+
     doc = doc_resp.data[0]
-    
+
     file_path = doc["file_path"]
     if not os.path.exists(file_path):
         return jsonify({"error": "File not found on server"}), 404
-    
+
     # Generate a user-friendly filename
     document_type = doc["document_type"].replace("_", " ").title()
     employee_name = doc["employee_name"].replace(" ", "_")
     filename = f"{employee_name}_{document_type}.pdf"
-    
+
     return send_file(
         file_path,
         as_attachment=True,
         download_name=filename,
-        mimetype='application/pdf'
+        mimetype="application/pdf",
     )
-
-
-

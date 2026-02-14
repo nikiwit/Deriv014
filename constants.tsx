@@ -1,6 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare, Sparkles, GraduationCap, Monitor, Shield, Building2, Briefcase, Users2, KeyRound, Video, HelpCircle, Gamepad2, Radio } from 'lucide-react';
-import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask, TrainingCategory, TrainingCategoryInfo, TrainingItem, TrainingFormat, EmployeeTrainingProgress, TrainingCompletionTrend } from './types';
+import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare, Sparkles, GraduationCap, Monitor, Shield, Building2, Briefcase, Users2, KeyRound, Video, HelpCircle, Gamepad2, Radio, FileWarning } from 'lucide-react';
+import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask, TrainingCategory, TrainingCategoryInfo, TrainingItem, TrainingFormat, EmployeeTrainingProgress, TrainingCompletionTrend, EmployeeDocumentGroup } from './types';
 
 export const NAVIGATION_ITEMS = [
   { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
@@ -13,6 +13,7 @@ export const NAVIGATION_ITEMS = [
   { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
   { id: 'planning', label: 'Workforce AI', icon: <TrendingUp size={20} /> },
   { id: 'employee_training', label: 'Employee Training', icon: <GraduationCap size={20} /> },
+  { id: 'document_reminders', label: 'Document Reminders', icon: <FileWarning size={20} /> },
   { id: 'training', label: 'Model Lab', icon: <TestTube2 size={20} /> },
 ];
 
@@ -391,4 +392,146 @@ export const MOCK_TRAINING_COMPLETION_TREND: TrainingCompletionTrend[] = [
   { month: 'Dec', completed: 22, inProgress: 6,  overdue: 1 },
   { month: 'Jan', completed: 25, inProgress: 9,  overdue: 2 },
   { month: 'Feb', completed: 28, inProgress: 7,  overdue: 3 },
+];
+
+// ============================================
+// Document Reminders Mock Data
+// ============================================
+
+export const MOCK_EMPLOYEE_DOCUMENTS: EmployeeDocumentGroup[] = [
+  {
+    employee_id: 'EMP-2024-001',
+    employee_name: 'John Doe',
+    employee_email: 'john@derivhr.com',
+    employee_department: 'Engineering',
+    employee_position: 'Software Engineer',
+    jurisdiction: 'MY',
+    contract: {
+      id: 'doc_c_001', document_type: 'contract', document_number: 'CTR-MY-2024-0045',
+      issue_date: '2024-01-15', expiry_date: '2026-01-15',
+      computed_status: 'expired', days_until_expiry: -30,
+      issuing_authority: 'Deriv Solutions Sdn Bhd', notes: 'Renewal in progress',
+    },
+    immigration: {
+      id: 'doc_i_001', document_type: 'employment_pass', document_number: 'EP-MY-2024-7821',
+      issue_date: '2024-01-15', expiry_date: '2026-03-01',
+      computed_status: 'expiring_30', days_until_expiry: 15,
+      issuing_authority: 'Immigration Dept Malaysia', notes: '',
+    },
+  },
+  {
+    employee_id: 'EMP-2025-003',
+    employee_name: 'Ahmad Razak',
+    employee_email: 'ahmad@derivhr.com',
+    employee_department: 'Finance',
+    employee_position: 'Financial Analyst',
+    jurisdiction: 'MY',
+    contract: {
+      id: 'doc_c_002', document_type: 'contract', document_number: 'CTR-MY-2025-0112',
+      issue_date: '2025-11-01', expiry_date: '2027-11-01',
+      computed_status: 'valid', days_until_expiry: 625,
+      issuing_authority: 'Deriv Solutions Sdn Bhd', notes: '',
+    },
+    immigration: {
+      id: 'doc_i_002', document_type: 'employment_pass', document_number: 'EP-MY-2024-9876',
+      issue_date: '2024-06-01', expiry_date: '2026-06-01',
+      computed_status: 'valid', days_until_expiry: 107,
+      issuing_authority: 'Immigration Dept Malaysia', notes: 'Dependent pass linked',
+    },
+  },
+  {
+    employee_id: 'EMP-2025-007',
+    employee_name: 'Priya Nair',
+    employee_email: 'priya@derivhr.com',
+    employee_department: 'Engineering',
+    employee_position: 'QA Engineer',
+    jurisdiction: 'SG',
+    contract: {
+      id: 'doc_c_003', document_type: 'contract', document_number: 'CTR-SG-2025-0034',
+      issue_date: '2025-12-15', expiry_date: '2027-12-15',
+      computed_status: 'valid', days_until_expiry: 669,
+      issuing_authority: 'Deriv Solutions Pte Ltd', notes: '',
+    },
+    immigration: {
+      id: 'doc_i_003', document_type: 'visa', document_number: 'V-SG-2024-5432',
+      issue_date: '2024-01-15', expiry_date: '2026-04-13',
+      computed_status: 'expiring_60', days_until_expiry: 58,
+      issuing_authority: 'MOM Singapore', notes: 'S Pass holder',
+    },
+  },
+  {
+    employee_id: 'EMP-2026-001',
+    employee_name: 'Wei Lin Tan',
+    employee_email: 'weilin@derivhr.com',
+    employee_department: 'Product',
+    employee_position: 'Product Manager',
+    jurisdiction: 'MY',
+    contract: {
+      id: 'doc_c_004', document_type: 'contract', document_number: 'CTR-MY-2026-0003',
+      issue_date: '2026-01-10', expiry_date: '2028-01-10',
+      computed_status: 'valid', days_until_expiry: 695,
+      issuing_authority: 'Deriv Solutions Sdn Bhd', notes: '',
+    },
+    immigration: {
+      id: 'doc_i_004', document_type: 'work_permit', document_number: 'WP-MY-2025-1111',
+      issue_date: '2025-01-10', expiry_date: '2027-01-10',
+      computed_status: 'valid', days_until_expiry: 330,
+      issuing_authority: 'Immigration Dept Malaysia', notes: '',
+    },
+  },
+  {
+    employee_id: 'EMP-2023-042',
+    employee_name: 'Jane Smith',
+    employee_email: 'jane@derivhr.com',
+    employee_department: 'Marketing',
+    employee_position: 'Marketing Specialist',
+    jurisdiction: 'MY',
+    contract: {
+      id: 'doc_c_005', document_type: 'contract', document_number: 'CTR-MY-2023-0088',
+      issue_date: '2023-06-01', expiry_date: '2026-06-01',
+      computed_status: 'valid', days_until_expiry: 107,
+      issuing_authority: 'Deriv Solutions Sdn Bhd', notes: 'Renewal discussion scheduled',
+    },
+    immigration: {
+      id: 'doc_p_005', document_type: 'passport', document_number: 'A12345678',
+      issue_date: '2020-03-10', expiry_date: '2030-03-10',
+      computed_status: 'valid', days_until_expiry: 1485,
+      issuing_authority: 'Jabatan Imigresen Malaysia', notes: '',
+    },
+  },
+  {
+    employee_id: 'EMP-2026-002',
+    employee_name: 'Siti Aisyah',
+    employee_email: 'siti@derivhr.com',
+    employee_department: 'Human Resources',
+    employee_position: 'HR Executive',
+    jurisdiction: 'MY',
+    contract: {
+      id: 'doc_c_006', document_type: 'contract', document_number: 'CTR-MY-2026-0008',
+      issue_date: '2026-02-01', expiry_date: '2028-02-01',
+      computed_status: 'valid', days_until_expiry: 717,
+      issuing_authority: 'Deriv Solutions Sdn Bhd', notes: '',
+    },
+    immigration: {
+      id: 'doc_p_006', document_type: 'passport', document_number: 'B98765432',
+      issue_date: '2022-08-15', expiry_date: '2032-08-15',
+      computed_status: 'valid', days_until_expiry: 2373,
+      issuing_authority: 'Jabatan Imigresen Malaysia', notes: '',
+    },
+  },
+];
+
+export const MOCK_DOCUMENT_EXPIRY_TREND: { month: string; count: number }[] = [
+  { month: 'Mar 2026', count: 2 },
+  { month: 'Apr 2026', count: 1 },
+  { month: 'May 2026', count: 0 },
+  { month: 'Jun 2026', count: 2 },
+  { month: 'Jul 2026', count: 0 },
+  { month: 'Aug 2026', count: 1 },
+  { month: 'Sep 2026', count: 0 },
+  { month: 'Oct 2026', count: 0 },
+  { month: 'Nov 2026', count: 1 },
+  { month: 'Dec 2026', count: 2 },
+  { month: 'Jan 2027', count: 2 },
+  { month: 'Feb 2027', count: 0 },
 ];
