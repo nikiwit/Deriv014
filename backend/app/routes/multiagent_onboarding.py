@@ -12,7 +12,9 @@ Complete onboarding workflow:
 import uuid
 import datetime
 import os
+import json
 from flask import Blueprint, current_app, jsonify, request, send_file
+from supabase import create_client, Client
 
 from app.database import get_db
 from app.agents import MultiAgentOrchestrator, get_orchestrator, WorkflowType
@@ -359,6 +361,55 @@ def respond_to_offer(offer_id):
                 },
             )
 
+            # Create user account for auto-login
+            user_data = None
+            auto_login = False
+            try:
+                supabase_url = current_app.config.get("SUPABASE_URL")
+                supabase_key = current_app.config.get("SUPABASE_KEY")
+                if supabase_url and supabase_key:
+                    sb: Client = create_client(supabase_url, supabase_key)
+                    employee_email = offer_record.get("email", "")
+                    employee_name = offer_record.get("employee_name", "")
+
+                    # Check if user already exists
+                    existing_user = (
+                        sb.table("users")
+                        .select(
+                            "id, email, first_name, last_name, role, department, employee_id"
+                        )
+                        .eq("email", employee_email)
+                        .execute()
+                    )
+
+                    if existing_user.data:
+                        user_data = existing_user.data[0]
+                        auto_login = True
+                else:
+                    # Create new user
+                    name_parts = employee_name.split(" ", 1)
+                    first_name = name_parts[0]
+                    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                    user_record = {
+                        "email": employee_email,
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "role": "employee",
+                        "department": offer_record.get("department", ""),
+                        "employee_id": employee_id,
+                        "position_title": offer_record.get("position", ""),
+                        "onboarding_complete": False,
+                        "created_at": datetime.datetime.now().isoformat(),
+                    }
+
+                    user_result = sb.table("users").insert(user_record).execute()
+                    if user_result.data:
+                        user_data = user_result.data[0]
+                        auto_login = True
+            except Exception as e:
+                current_app.logger.warning(f"Failed to create user for auto-login: {e}")
+
             return jsonify(
                 {
                     "success": True,
@@ -378,6 +429,8 @@ def respond_to_offer(offer_id):
                         "Sign employment contract",
                     ],
                     "agents_involved": result.agents_involved,
+                    "auto_login": auto_login,
+                    "user": user_data,
                 }
             ), 200
         else:
@@ -955,8 +1008,24 @@ def get_employee_tasks(employee_id):
 @bp.route("/employee/<employee_id>/tasks/<task_id>", methods=["POST"])
 def update_employee_task(employee_id, task_id):
     """Update a specific onboarding task."""
-    data = request.get_json() or {}
-    new_status = data.get("status", "completed")
+    # Handle both JSON and FormData requests
+    content_type = request.content_type or ""
+
+    signature_data = None
+    uploaded_file = None
+
+    if "multipart/form-data" in content_type:
+        # Handle FormData with signature and/or file
+        data = request.form.to_dict()
+        signature_data = data.get("signature")
+        if "file" in request.files:
+            uploaded_file = request.files["file"]
+    else:
+        data = request.get_json() or {}
+
+    new_status = (
+        data.get("status", "completed") if isinstance(data, dict) else "completed"
+    )
 
     db = get_db()
 
@@ -991,6 +1060,73 @@ def update_employee_task(employee_id, task_id):
 
         update_data[field] = datetime.now().isoformat()
 
+        # Save signature if provided
+        if signature_data:
+            # Store signature in documents table or onboarding state
+            # For now, save as a signed document record
+            doc_data = {
+                "employee_id": employee_id,
+                "document_type": task_id,
+                "file_name": f"signature_{task_id}.png",
+                "file_data": signature_data,  # Base64 encoded
+                "signed_at": datetime.now().isoformat(),
+                "jurisdiction": "MY",  # Default, could be determined from employee
+            }
+            # Check if signature already exists
+            existing = (
+                db.table("onboarding_documents")
+                .select("id")
+                .eq("employee_id", employee_id)
+                .eq("document_type", task_id)
+                .execute()
+            )
+            if existing.data:
+                db.table("onboarding_documents").update(doc_data).eq(
+                    "employee_id", employee_id
+                ).eq("document_type", task_id).execute()
+            else:
+                db.table("onboarding_documents").insert(doc_data).execute()
+
+            # Mark contract as signed
+            if task_id == "doc_contract":
+                update_data["contract_signed_at"] = datetime.now().isoformat()
+            elif task_id == "doc_offer":
+                update_data["offer_signed_at"] = datetime.now().isoformat()
+
+    # Handle file upload
+    if uploaded_file:
+        from datetime import datetime
+        import base64
+
+        # Read file content
+        file_content = uploaded_file.read()
+        file_base64 = base64.b64encode(file_content).decode("utf-8")
+
+        # Save to documents table
+        doc_data = {
+            "employee_id": employee_id,
+            "document_type": task_id,
+            "file_name": uploaded_file.filename,
+            "file_data": file_base64,
+            "uploaded_at": datetime.now().isoformat(),
+            "jurisdiction": "MY",
+        }
+
+        # Check if document already exists
+        existing = (
+            db.table("onboarding_documents")
+            .select("id")
+            .eq("employee_id", employee_id)
+            .eq("document_type", task_id)
+            .execute()
+        )
+        if existing.data:
+            db.table("onboarding_documents").update(doc_data).eq(
+                "employee_id", employee_id
+            ).eq("document_type", task_id).execute()
+        else:
+            db.table("onboarding_documents").insert(doc_data).execute()
+
     if update_data:
         db.table("onboarding_states").update(update_data).eq(
             "employee_id", employee_id
@@ -1003,3 +1139,901 @@ def update_employee_task(employee_id, task_id):
             "status": new_status,
         }
     ), 200
+
+
+# ============================================
+# PENDING EMPLOYEES FOR IDENTITY VERIFICATION
+# ============================================
+
+
+@bp.route("/pending-employees", methods=["GET"])
+def get_pending_employees():
+    """Get list of employees who have signed offers but haven't completed onboarding."""
+    db = get_db()
+
+    # Get onboarding states with signed offers but incomplete onboarding
+    result = db.table("onboarding_states").select("*").execute()
+
+    pending_employees = []
+    for state in result.data:
+        employee_id = state.get("employee_id")
+        if not employee_id:
+            continue
+
+        # Get employee details
+        emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
+        if not emp_resp.data:
+            continue
+
+        employee = emp_resp.data[0]
+
+        # Check if offer is signed but onboarding not complete
+        offer_signed = (
+            state.get("offer_signed_at") or state.get("offer_response") == "accepted"
+        )
+        progress = state.get("onboarding_progress", 0)
+
+        if offer_signed and progress < 100:
+            pending_employees.append(
+                {
+                    "employee_id": employee_id,
+                    "name": employee.get("full_name", employee.get("name", "")),
+                    "email": employee.get("email", ""),
+                    "position": employee.get("position", ""),
+                    "department": employee.get("department", ""),
+                    "start_date": employee.get("start_date", ""),
+                    "progress": progress,
+                }
+            )
+
+    return jsonify(
+        {"employees": pending_employees, "count": len(pending_employees)}
+    ), 200
+
+
+@bp.route("/verify-identity", methods=["POST"])
+def verify_employee_identity():
+    """Verify employee identity using NRIC and return onboarding access."""
+    data = request.get_json() or {}
+    employee_id = data.get("employee_id")
+    nric = data.get("nric", "").strip()
+
+    if not employee_id or not nric:
+        return jsonify({"error": "Employee ID and NRIC are required"}), 400
+
+    db = get_db()
+
+    # Get employee
+    emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
+    if not emp_resp.data:
+        return jsonify({"error": "Employee not found"}), 404
+
+    employee = emp_resp.data[0]
+
+    # Verify NRIC (check last 4 digits or full match)
+    employee_nric = employee.get("nric", "")
+
+    # Allow last 4 digits or full NRIC match
+    nric_match = False
+    if employee_nric:
+        employee_nric_clean = employee_nric.replace("-", "").replace(" ", "").upper()
+        nric_clean = nric.replace("-", "").replace(" ", "").upper()
+
+        if employee_nric_clean == nric_clean:
+            nric_match = True
+        elif len(nric_clean) >= 4 and employee_nric_clean.endswith(nric_clean):
+            nric_match = True
+
+    if not nric_match:
+        return jsonify({"error": "Invalid NRIC. Please check and try again."}), 401
+
+    # Get onboarding state
+    state_resp = (
+        db.table("onboarding_states")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    onboarding_state = state_resp.data[0] if state_resp.data else {}
+
+    # Return employee data and onboarding access
+    return jsonify(
+        {
+            "success": True,
+            "employee": {
+                "id": employee.get("id"),
+                "name": employee.get("full_name", employee.get("name", "")),
+                "email": employee.get("email", ""),
+                "position": employee.get("position", ""),
+                "department": employee.get("department", ""),
+                "start_date": employee.get("start_date", ""),
+            },
+            "onboarding_state": onboarding_state,
+        }
+    ), 200
+
+
+# ============================================
+# ENHANCED ENDPOINTS (PHASE 1.2, 1.3, 1.5)
+# ============================================
+
+
+@bp.route("/employee/<employee_id>/upload", methods=["POST"])
+def upload_document(employee_id):
+    """Handle file upload for onboarding documents."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+    doc_type = request.form.get("doc_type", "identity")
+
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Create upload directory
+    upload_dir = os.path.join(
+        current_app.config.get("GENERATED_DOCS_DIR", "instance/generated_docs"),
+        "onboarding",
+        employee_id,
+    )
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1]
+    file_id = str(uuid.uuid4())
+    filename = f"{doc_type}_{file_id}{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    # Save file
+    file.save(filepath)
+
+    db = get_db()
+    now = datetime.datetime.now().isoformat()
+
+    # Save document record
+    doc_id = str(uuid.uuid4())
+    try:
+        db.table("onboarding_documents").insert(
+            {
+                "id": doc_id,
+                "employee_id": employee_id,
+                "document_type": doc_type,
+                "document_name": file.filename,
+                "file_path": filepath,
+                "file_name": filename,
+                "file_size": os.path.getsize(filepath),
+                "mime_type": file.content_type,
+                "submitted": True,
+                "submitted_at": now,
+                "created_at": now,
+            }
+        ).execute()
+    except Exception as e:
+        # Table might not exist in Supabase, try alternative
+        pass
+
+    return jsonify(
+        {
+            "success": True,
+            "document_id": doc_id,
+            "filename": filename,
+            "file_path": filepath,
+            "uploaded_at": now,
+        }
+    ), 201
+
+
+@bp.route("/employee/<employee_id>/forms/<form_type>", methods=["POST"])
+def submit_onboarding_form(employee_id, form_type):
+    """Submit onboarding form data (Tax, Bank Details, Personal Info)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Form data required"}), 400
+
+    db = get_db()
+    now = datetime.datetime.now().isoformat()
+
+    # Map form types to task completions
+    form_to_task = {
+        "personal_info": "doc_personal_info",
+        "bank_details": "doc_bank",
+        "tax_declaration": "doc_tax",
+    }
+
+    # Save form data
+    form_id = str(uuid.uuid4())
+    try:
+        db.table("onboarding_forms").insert(
+            {
+                "id": form_id,
+                "employee_id": employee_id,
+                "form_type": form_type,
+                "form_name": form_type.replace("_", " ").title(),
+                "form_data": json.dumps(data),
+                "completed": True,
+                "completed_at": now,
+                "created_at": now,
+            }
+        ).execute()
+    except Exception as e:
+        pass
+
+    # Update employee record with form data
+    employee_updates = {}
+    if form_type == "personal_info":
+        employee_updates = {
+            "phone": data.get("phone", ""),
+            "address": data.get("address", ""),
+            "emergency_contact_name": data.get("emergency_contact_name", ""),
+            "emergency_contact_phone": data.get("emergency_contact_phone", ""),
+            "emergency_contact_relation": data.get("emergency_contact_relation", ""),
+            "date_of_birth": data.get("date_of_birth", ""),
+            "gender": data.get("gender", ""),
+            "marital_status": data.get("marital_status", ""),
+        }
+    elif form_type == "bank_details":
+        employee_updates = {
+            "bank_name": data.get("bank_name", ""),
+            "bank_account": data.get("bank_account", ""),
+        }
+    elif form_type == "tax_declaration":
+        employee_updates = {
+            "tax_id": data.get("tax_id", ""),
+            "epf_no": data.get("epf_no", ""),
+        }
+
+    if employee_updates:
+        employee_updates["updated_at"] = now
+        try:
+            db.table("employees").update(employee_updates).eq(
+                "id", employee_id
+            ).execute()
+        except:
+            pass
+
+    # Check if all required forms completed
+    return jsonify(
+        {
+            "success": True,
+            "form_id": form_id,
+            "form_type": form_type,
+            "completed_at": now,
+            "next_task": form_to_task.get(form_type),
+        }
+    ), 200
+
+
+# ============================================
+# ENHANCED TASK ENDPOINT (PHASE 1.5)
+# ============================================
+
+
+@bp.route("/employee/<employee_id>/tasks-definition", methods=["GET"])
+def get_task_definitions(employee_id):
+    """Get full task definitions with dependencies."""
+    # These match the frontend TASK_DEPENDENCIES
+    task_definitions = [
+        {
+            "id": "doc_identity",
+            "title": "Upload Identity Document",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 5,
+            "dependencies": [],
+        },
+        {
+            "id": "doc_personal_info",
+            "title": "Complete Personal Information",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["doc_identity"],
+        },
+        {
+            "id": "doc_offer",
+            "title": "Accept Offer Letter",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "doc_contract",
+            "title": "Sign Employment Contract",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 15,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "doc_tax",
+            "title": "Complete Tax Forms",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "doc_bank",
+            "title": "Submit Bank Details",
+            "category": "documentation",
+            "priority": "required",
+            "estimated_minutes": 5,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "it_policy",
+            "title": "Accept IT Policy",
+            "category": "it_setup",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["doc_contract"],
+        },
+        {
+            "id": "it_2fa",
+            "title": "Setup 2FA",
+            "category": "it_setup",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["it_policy"],
+        },
+        {
+            "id": "it_email",
+            "title": "Configure Email & Slack",
+            "category": "it_setup",
+            "priority": "required",
+            "estimated_minutes": 15,
+            "dependencies": ["it_2fa"],
+        },
+        {
+            "id": "comp_harassment",
+            "title": "Anti-Harassment Training",
+            "category": "compliance",
+            "priority": "required",
+            "estimated_minutes": 30,
+            "dependencies": ["doc_contract"],
+        },
+        {
+            "id": "comp_pdpa",
+            "title": "Acknowledge PDPA",
+            "category": "compliance",
+            "priority": "required",
+            "estimated_minutes": 10,
+            "dependencies": ["comp_harassment"],
+        },
+        {
+            "id": "comp_safety",
+            "title": "Health & Safety",
+            "category": "compliance",
+            "priority": "required",
+            "estimated_minutes": 20,
+            "dependencies": ["comp_pdpa"],
+        },
+        {
+            "id": "train_overview",
+            "title": "Company Overview",
+            "category": "training",
+            "priority": "recommended",
+            "estimated_minutes": 15,
+            "dependencies": ["it_email"],
+        },
+        {
+            "id": "train_role",
+            "title": "Role Training",
+            "category": "training",
+            "priority": "recommended",
+            "estimated_minutes": 60,
+            "dependencies": ["train_overview"],
+        },
+        {
+            "id": "culture_slack",
+            "title": "Join Slack Groups",
+            "category": "culture",
+            "priority": "optional",
+            "estimated_minutes": 5,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "culture_buddy",
+            "title": "Coffee Chat with Buddy",
+            "category": "culture",
+            "priority": "recommended",
+            "estimated_minutes": 5,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "culture_profile",
+            "title": "Complete Profile",
+            "category": "culture",
+            "priority": "optional",
+            "estimated_minutes": 10,
+            "dependencies": ["it_email"],
+        },
+        {
+            "id": "culture_org_chart",
+            "title": "Explore Org Chart",
+            "category": "culture",
+            "priority": "optional",
+            "estimated_minutes": 10,
+            "dependencies": ["doc_personal_info"],
+        },
+        {
+            "id": "culture_team_intro",
+            "title": "Meet Your Team",
+            "category": "culture",
+            "priority": "recommended",
+            "estimated_minutes": 15,
+            "dependencies": ["doc_personal_info"],
+        },
+    ]
+
+    # Get current progress from database
+    db = get_db()
+    completed_tasks = set()
+
+    try:
+        # Try to get completed tasks from onboarding_states
+        state_resp = (
+            db.table("onboarding_states")
+            .select("*")
+            .eq("employee_id", employee_id)
+            .execute()
+        )
+        if state_resp.data and state_resp.data[0]:
+            state = state_resp.data[0]
+            if state.get("offer_response") == "accepted":
+                completed_tasks.add("doc_offer")
+            if state.get("documents_generated_at"):
+                completed_tasks.add("doc_identity")
+            if state.get("forms_completed_at"):
+                completed_tasks.add("doc_contract")
+                completed_tasks.add("doc_personal_info")
+    except:
+        pass
+
+    # Determine unlocked tasks based on dependencies
+    def is_unlocked(task_id, deps):
+        if not deps:
+            return True
+        return all(d in completed_tasks for d in deps)
+
+    tasks_with_status = []
+    for task in task_definitions:
+        task_id = task["id"]
+        status = (
+            "completed"
+            if task_id in completed_tasks
+            else "available"
+            if is_unlocked(task_id, task.get("dependencies", []))
+            else "locked"
+        )
+        tasks_with_status.append({**task, "status": status})
+
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "tasks": tasks_with_status,
+            "completed_count": len(completed_tasks),
+            "total_count": len(task_definitions),
+        }
+    ), 200
+
+
+# ============================================
+# REMINDERS (PHASE 2.5)
+# ============================================
+
+
+@bp.route("/employee/<employee_id>/reminders", methods=["GET"])
+def get_reminders(employee_id):
+    """Get pending reminders for an employee."""
+    db = get_db()
+
+    # Get task definitions with due dates
+    state_resp = (
+        db.table("onboarding_states")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    reminders = []
+    now = datetime.datetime.now()
+
+    # Calculate pending tasks with due dates
+    task_due_dates = {
+        "doc_identity": 1,
+        "doc_personal_info": 1,
+        "doc_offer": 3,
+        "doc_contract": 5,
+        "doc_tax": 7,
+        "doc_bank": 7,
+        "it_policy": 5,
+        "it_2fa": 3,
+        "it_email": 3,
+        "comp_harassment": 14,
+        "comp_pdpa": 10,
+        "comp_safety": 14,
+    }
+
+    for task_id, days in task_due_dates.items():
+        due = now + datetime.timedelta(days=days)
+        reminders.append(
+            {
+                "task_id": task_id,
+                "due_in_days": days,
+                "due_date": due.isoformat(),
+                "overdue": days < 0,
+            }
+        )
+
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "reminders": reminders,
+        }
+    ), 200
+
+
+@bp.route("/reminders/send", methods=["POST"])
+def send_onboarding_reminder():
+    """Trigger reminder for onboarding tasks."""
+    data = request.get_json()
+    employee_id = data.get("employee_id")
+    task_id = data.get("task_id")
+
+    if not employee_id:
+        return jsonify({"error": "employee_id required"}), 400
+
+    # Get employee details
+    db = get_db()
+    emp_resp = db.table("employees").select("*").eq("id", employee_id).execute()
+
+    if not emp_resp.data:
+        return jsonify({"error": "Employee not found"}), 404
+
+    employee = emp_resp.data[0]
+
+    # Dispatch to AgentixAgent for reminder
+    try:
+        orchestrator = get_orchestrator()
+        result = orchestrator.dispatch_to_agent(
+            "agentix_agent",
+            "send_reminder",
+            {
+                "employee_id": employee_id,
+                "employee_email": employee.get("email"),
+                "task_id": task_id,
+                "channel": data.get("channel", "email"),
+            },
+        )
+        return jsonify(
+            {
+                "success": True,
+                "sent": result.success,
+                "message": f"Reminder sent to {employee.get('email')}"
+                if result.success
+                else "Failed to send",
+            }
+        ), 200
+    except:
+        # If agent not available, return mock success
+        return jsonify(
+            {
+                "success": True,
+                "sent": True,
+                "message": f"Reminder would be sent to {employee.get('email')}",
+                "note": "AgentixAgent not available",
+            }
+        ), 200
+
+
+# ============================================
+# FEEDBACK (PHASE 3.5)
+# ============================================
+
+
+@bp.route("/employee/<employee_id>/feedback", methods=["POST"])
+def submit_feedback(employee_id):
+    """Submit post-onboarding feedback."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Feedback data required"}), 400
+
+    db = get_db()
+    now = datetime.datetime.now().isoformat()
+
+    feedback_id = str(uuid.uuid4())
+
+    try:
+        # Try to insert into feedback table
+        db.table("onboarding_feedback").insert(
+            {
+                "id": feedback_id,
+                "employee_id": employee_id,
+                "rating_overall": data.get("rating_overall"),
+                "rating_clarity": data.get("rating_clarity"),
+                "rating_support": data.get("rating_support"),
+                "rating_tools": data.get("rating_tools"),
+                "would_recommend": data.get("would_recommend"),
+                "feedback_text": data.get("feedback_text", ""),
+                "suggestions": data.get("suggestions", ""),
+                "submitted_at": now,
+            }
+        ).execute()
+    except:
+        # Table might not exist
+        pass
+
+    return jsonify(
+        {
+            "success": True,
+            "feedback_id": feedback_id,
+            "submitted_at": now,
+        }
+    ), 201
+
+
+@bp.route("/feedback", methods=["GET"])
+def get_all_feedback():
+    """Get all onboarding feedback (for HR)."""
+    db = get_db()
+
+    try:
+        resp = (
+            db.table("onboarding_feedback")
+            .select("*")
+            .order("submitted_at", desc=True)
+            .execute()
+        )
+        feedback_list = resp.data or []
+    except:
+        feedback_list = []
+
+    # Calculate averages
+    if feedback_list:
+        avg_overall = sum(f.get("rating_overall", 0) for f in feedback_list) / len(
+            feedback_list
+        )
+        avg_clarity = sum(f.get("rating_clarity", 0) for f in feedback_list) / len(
+            feedback_list
+        )
+        avg_support = sum(f.get("rating_support", 0) for f in feedback_list) / len(
+            feedback_list
+        )
+        recommend_pct = (
+            sum(1 for f in feedback_list if f.get("would_recommend"))
+            / len(feedback_list)
+            * 100
+        )
+    else:
+        avg_overall = avg_clarity = avg_support = recommend_pct = 0
+
+    return jsonify(
+        {
+            "feedback": feedback_list,
+            "stats": {
+                "total": len(feedback_list),
+                "avg_overall": round(avg_overall, 1),
+                "avg_clarity": round(avg_clarity, 1),
+                "avg_support": round(avg_support, 1),
+                "would_recommend_pct": round(recommend_pct, 1),
+            },
+        }
+    ), 200
+
+
+# ============================================
+# HR DASHBOARD (PHASE 3.3)
+# ============================================
+
+
+@bp.route("/hr/employees-progress", methods=["GET"])
+def get_employees_progress():
+    """Get onboarding progress for all employees (HR Dashboard)."""
+    db = get_db()
+
+    try:
+        # Get all employees with onboarding status
+        emp_resp = (
+            db.table("employees")
+            .select("*")
+            .in_(
+                "status",
+                ["onboarding", "offer_pending", "offer_accepted", "onboarding_active"],
+            )
+            .execute()
+        )
+        employees = emp_resp.data or []
+    except:
+        employees = []
+
+    progress_data = []
+
+    for emp in employees:
+        emp_id = emp.get("id")
+
+        # Get onboarding state
+        try:
+            state_resp = (
+                db.table("onboarding_states")
+                .select("*")
+                .eq("employee_id", emp_id)
+                .execute()
+            )
+            state = state_resp.data[0] if state_resp.data else {}
+        except:
+            state = {}
+
+        # Count completed tasks
+        completed = 0
+        total = 19  # Total onboarding tasks
+
+        if state.get("offer_response") == "accepted":
+            completed += 1
+        if state.get("documents_generated_at"):
+            completed += 1
+        if state.get("forms_completed_at"):
+            completed += 4  # Multiple form tasks
+        if state.get("training_assigned_at"):
+            completed += 3  # Training tasks
+        if state.get("onboarding_completed_at"):
+            completed = total
+
+        progress = round(completed / total * 100, 1)
+
+        # Determine status
+        status = emp.get("status", "unknown")
+        if state.get("onboarding_completed_at"):
+            status = "completed"
+
+        progress_data.append(
+            {
+                "employee_id": emp_id,
+                "name": emp.get("full_name", ""),
+                "email": emp.get("email", ""),
+                "department": emp.get("department", ""),
+                "position": emp.get("position", ""),
+                "start_date": emp.get("start_date", ""),
+                "status": status,
+                "completed_tasks": completed,
+                "total_tasks": total,
+                "progress_percentage": progress,
+                "days_onboarding": (
+                    datetime.datetime.now()
+                    - datetime.datetime.fromisoformat(
+                        emp.get("created_at", datetime.datetime.now().isoformat())
+                    )
+                ).days
+                if emp.get("created_at")
+                else 0,
+            }
+        )
+
+    # Sort by progress (lowest first = needs attention)
+    progress_data.sort(key=lambda x: x["progress_percentage"])
+
+    return jsonify(
+        {
+            "employees": progress_data,
+            "summary": {
+                "total": len(progress_data),
+                "completed": len(
+                    [p for p in progress_data if p["status"] == "completed"]
+                ),
+                "in_progress": len(
+                    [
+                        p
+                        for p in progress_data
+                        if p["status"] in ["onboarding_active", "offer_accepted"]
+                    ]
+                ),
+                "not_started": len(
+                    [
+                        p
+                        for p in progress_data
+                        if p["status"] in ["offer_pending", "onboarding"]
+                    ]
+                ),
+                "avg_progress": round(
+                    sum(p["progress_percentage"] for p in progress_data)
+                    / len(progress_data),
+                    1,
+                )
+                if progress_data
+                else 0,
+            },
+        }
+    ), 200
+
+
+# ============================================
+# BADGES (PHASE 3.2)
+# ============================================
+
+
+@bp.route("/employee/<employee_id>/badges", methods=["GET"])
+def get_badges(employee_id):
+    """Get earned badges for an employee."""
+    db = get_db()
+
+    try:
+        resp = (
+            db.table("onboarding_badges")
+            .select("*")
+            .eq("employee_id", employee_id)
+            .execute()
+        )
+        badges = resp.data or []
+    except:
+        badges = []
+
+    return jsonify(
+        {
+            "employee_id": employee_id,
+            "badges": badges,
+        }
+    ), 200
+
+
+@bp.route("/employee/<employee_id>/badges", methods=["POST"])
+def award_badge(employee_id):
+    """Award a badge to an employee."""
+    data = request.get_json()
+    badge_type = data.get("badge_type")
+
+    if not badge_type:
+        return jsonify({"error": "badge_type required"}), 400
+
+    db = get_db()
+    now = datetime.datetime.now().isoformat()
+
+    badge_names = {
+        "first_task": {
+            "name": "First Step",
+            "description": "Completed your first onboarding task",
+        },
+        "half_way": {"name": "Halfway There", "description": "Reached 50% completion"},
+        "completed": {
+            "name": "Onboarding Complete",
+            "description": "Finished all onboarding tasks",
+        },
+        "speed_demon": {
+            "name": "Speed Demon",
+            "description": "Completed onboarding ahead of schedule",
+        },
+        "documentation_master": {
+            "name": "Documentation Master",
+            "description": "Completed all documentation tasks",
+        },
+        "culture_hero": {
+            "name": "Culture Hero",
+            "description": "Fully engaged with culture tasks",
+        },
+    }
+
+    badge_info = badge_names.get(badge_type, {"name": badge_type, "description": ""})
+
+    badge_id = str(uuid.uuid4())
+
+    try:
+        db.table("onboarding_badges").insert(
+            {
+                "id": badge_id,
+                "employee_id": employee_id,
+                "badge_type": badge_type,
+                "badge_name": badge_info["name"],
+                "badge_description": badge_info["description"],
+                "earned_at": now,
+            }
+        ).execute()
+    except:
+        pass
+
+    return jsonify(
+        {
+            "success": True,
+            "badge_id": badge_id,
+            "badge": badge_info,
+        }
+    ), 201

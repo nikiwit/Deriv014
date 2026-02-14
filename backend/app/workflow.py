@@ -2,6 +2,7 @@
 Onboarding Workflow Orchestrator
 Automates document generation during employee onboarding
 """
+
 import os
 import uuid
 from datetime import datetime
@@ -16,6 +17,7 @@ from app.models import EmployeeProfile, ContractParams
 @dataclass
 class GeneratedDocument:
     """Represents a generated document"""
+
     id: str
     document_type: str
     file_path: str
@@ -27,6 +29,7 @@ class GeneratedDocument:
 @dataclass
 class WorkflowResult:
     """Result of workflow execution"""
+
     success: bool
     employee_id: str
     documents: List[GeneratedDocument]
@@ -36,26 +39,26 @@ class WorkflowResult:
 
 class OnboardingWorkflow:
     """Orchestrates the onboarding workflow with automatic document generation"""
-    
+
     def __init__(self, template_dir: str, output_dir: str, db):
         self.template_dir = template_dir
         self.output_dir = output_dir
         self.db = db
-        
+
     def execute(self, profile: EmployeeProfile) -> WorkflowResult:
         """
         Execute the complete onboarding workflow
-        
+
         Args:
             profile: Employee profile data
-            
+
         Returns:
             WorkflowResult with generated documents and status
         """
         employee_id = str(uuid.uuid4())
         documents = []
         errors = []
-        
+
         try:
             # Step 1: Generate Employment Contract
             contract_result = self._generate_contract(profile, employee_id)
@@ -63,35 +66,41 @@ class OnboardingWorkflow:
                 documents.append(contract_result)
             else:
                 errors.append("Failed to generate employment contract")
-            
+
             # Step 2: Generate Policy Documents
             policy_results = self._generate_policies(profile, employee_id)
             documents.extend(policy_results)
-            
+
             # Step 3: Generate Offer Letter
             offer_result = self._generate_offer_letter(profile, employee_id)
             if offer_result:
                 documents.append(offer_result)
-            
+
             # Step 4: Generate Compliance Checklist
-            compliance_result = self._generate_compliance_checklist(profile, employee_id)
+            compliance_result = self._generate_compliance_checklist(
+                profile, employee_id
+            )
             if compliance_result:
                 documents.append(compliance_result)
-            
+
             # Step 5: Store documents in database
             self._store_documents(employee_id, documents)
-            
+
             success = len(errors) == 0
-            message = f"Successfully generated {len(documents)} documents" if success else f"Completed with {len(errors)} errors"
-            
+            message = (
+                f"Successfully generated {len(documents)} documents"
+                if success
+                else f"Completed with {len(errors)} errors"
+            )
+
             return WorkflowResult(
                 success=success,
                 employee_id=employee_id,
                 documents=documents,
                 errors=errors,
-                message=message
+                message=message,
             )
-            
+
         except Exception as e:
             errors.append(f"Workflow execution failed: {str(e)}")
             return WorkflowResult(
@@ -99,10 +108,12 @@ class OnboardingWorkflow:
                 employee_id=employee_id,
                 documents=documents,
                 errors=errors,
-                message=f"Workflow failed: {str(e)}"
+                message=f"Workflow failed: {str(e)}",
             )
-    
-    def _generate_contract(self, profile: EmployeeProfile, employee_id: str) -> Optional[GeneratedDocument]:
+
+    def _generate_contract(
+        self, profile: EmployeeProfile, employee_id: str
+    ) -> Optional[GeneratedDocument]:
         """Generate employment contract"""
         try:
             params = ContractParams(
@@ -111,75 +122,90 @@ class OnboardingWorkflow:
                 department=profile.department or "General",
                 jurisdiction=profile.jurisdiction,
                 start_date=profile.start_date or datetime.now().strftime("%Y-%m-%d"),
-                salary=float(profile.salary) if hasattr(profile, 'salary') and profile.salary else 0.0,
+                salary=float(profile.salary)
+                if hasattr(profile, "salary") and profile.salary
+                else 0.0,
                 nric=profile.nric or "",
-                employee_address=profile.address or ""
+                employee_address=profile.address or "",
             )
-            
-            doc_id, file_path = generate_contract(params, self.template_dir, self.output_dir)
-            
+
+            doc_id, file_path = generate_contract(
+                params, self.template_dir, self.output_dir
+            )
+
             return GeneratedDocument(
                 id=doc_id,
                 document_type="employment_contract",
                 file_path=file_path,
                 employee_id=employee_id,
                 created_at=datetime.now().isoformat(),
-                status="generated"
+                status="generated",
             )
         except Exception as e:
             print(f"Error generating contract: {e}")
             return None
-    
-    def _generate_policies(self, profile: EmployeeProfile, employee_id: str) -> List[GeneratedDocument]:
+
+    def _generate_policies(
+        self, profile: EmployeeProfile, employee_id: str
+    ) -> List[GeneratedDocument]:
         """Generate policy documents based on jurisdiction"""
         documents = []
         jurisdiction = profile.jurisdiction
-        
+
         # Define policies to generate based on jurisdiction
         if jurisdiction == "MY":
             policies = [
                 ("data_it_policy", "Data & IT Policy"),
                 ("employee_handbook", "Employee Handbook"),
                 ("leave_policy", "Leave Policy"),
-                ("job_description", "Job Description")
+                ("job_description", "Job Description"),
             ]
         else:  # SG
             policies = [
                 ("data_it_policy", "Data & IT Policy"),
                 ("employee_handbook", "Employee Handbook"),
                 ("leave_policy", "Leave Policy"),
-                ("job_description", "Job Description")
+                ("job_description", "Job Description"),
             ]
-        
+
         for policy_key, policy_name in policies:
             try:
-                doc = self._generate_policy_document(profile, employee_id, policy_key, policy_name)
+                doc = self._generate_policy_document(
+                    profile, employee_id, policy_key, policy_name
+                )
                 if doc:
                     documents.append(doc)
             except Exception as e:
                 print(f"Error generating {policy_name}: {e}")
-        
+
         return documents
-    
-    def _generate_policy_document(self, profile: EmployeeProfile, employee_id: str, 
-                                  policy_key: str, policy_name: str) -> Optional[GeneratedDocument]:
+
+    def _generate_policy_document(
+        self,
+        profile: EmployeeProfile,
+        employee_id: str,
+        policy_key: str,
+        policy_name: str,
+    ) -> Optional[GeneratedDocument]:
         """Generate a single policy document"""
         try:
             from jinja2 import Environment, FileSystemLoader
             from xhtml2pdf import pisa
-            
+
             env = Environment(loader=FileSystemLoader(self.template_dir))
             template_name = f"policy_{policy_key}_{profile.jurisdiction.lower()}.html"
-            
+
             # Check if template exists, if not create a basic one
             try:
                 template = env.get_template(template_name)
             except:
                 # Create basic policy template if not found
-                template = self._create_basic_policy_template(env, policy_key, profile.jurisdiction)
-            
+                template = self._create_basic_policy_template(
+                    env, policy_key, profile.jurisdiction
+                )
+
             defaults = _get_jurisdiction_defaults(profile.jurisdiction)
-            
+
             html_content = template.render(
                 employee_name=profile.full_name,
                 position=profile.position or "Employee",
@@ -187,33 +213,37 @@ class OnboardingWorkflow:
                 start_date=profile.start_date or datetime.now().strftime("%Y-%m-%d"),
                 generated_date=datetime.now().strftime("%d %B %Y"),
                 policy_name=policy_name,
-                **defaults
+                **defaults,
             )
-            
+
             doc_id = str(uuid.uuid4())
-            filename = f"policy_{policy_key}_{profile.jurisdiction.lower()}_{doc_id[:8]}.pdf"
+            filename = (
+                f"policy_{policy_key}_{profile.jurisdiction.lower()}_{doc_id[:8]}.pdf"
+            )
             os.makedirs(self.output_dir, exist_ok=True)
             file_path = os.path.join(self.output_dir, filename)
-            
+
             with open(file_path, "wb") as f:
                 pisa.CreatePDF(html_content, dest=f)
-            
+
             return GeneratedDocument(
                 id=doc_id,
                 document_type=f"policy_{policy_key}",
                 file_path=file_path,
                 employee_id=employee_id,
                 created_at=datetime.now().isoformat(),
-                status="generated"
+                status="generated",
             )
         except Exception as e:
             print(f"Error generating policy document {policy_key}: {e}")
             return None
-    
-    def _create_basic_policy_template(self, env: Environment, policy_key: str, jurisdiction: str):
+
+    def _create_basic_policy_template(
+        self, env: Environment, policy_key: str, jurisdiction: str
+    ):
         """Create a basic policy template if one doesn't exist"""
         from jinja2 import Template
-        
+
         template_content = f"""
 <!DOCTYPE html>
 <html>
@@ -262,17 +292,19 @@ class OnboardingWorkflow:
 </body>
 </html>
         """
-        
+
         return Template(template_content)
-    
-    def _generate_offer_letter(self, profile: EmployeeProfile, employee_id: str) -> Optional[GeneratedDocument]:
+
+    def _generate_offer_letter(
+        self, profile: EmployeeProfile, employee_id: str
+    ) -> Optional[GeneratedDocument]:
         """Generate offer letter"""
         try:
             from jinja2 import Template
             from xhtml2pdf import pisa
-            
+
             defaults = _get_jurisdiction_defaults(profile.jurisdiction)
-            
+
             template_content = f"""
 <!DOCTYPE html>
 <html>
@@ -339,48 +371,61 @@ class OnboardingWorkflow:
 </body>
 </html>
             """
-            
+
             template = Template(template_content)
-            
+
             html_content = template.render(
                 employee_name=profile.full_name,
                 email=profile.email,
                 position=profile.position or "Employee",
                 department=profile.department or "General",
                 start_date=profile.start_date or datetime.now().strftime("%Y-%m-%d"),
-                salary=f"{float(profile.salary):,.2f}" if hasattr(profile, 'salary') and profile.salary else "0.00",
+                salary=f"{float(profile.salary):,.2f}"
+                if hasattr(profile, "salary") and profile.salary
+                else "0.00",
                 generated_date=datetime.now().strftime("%d %B %Y"),
-                **defaults
+                **defaults,
             )
-            
+
             doc_id = str(uuid.uuid4())
-            filename = f"offer_letter_{profile.jurisdiction.lower()}_{doc_id[:8]}.pdf"
-            os.makedirs(self.output_dir, exist_ok=True)
-            file_path = os.path.join(self.output_dir, filename)
-            
+
+            # Create employee-specific folder
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            employee_docs_dir = os.path.join(
+                base_dir, "instance", "documents", employee_id
+            )
+            os.makedirs(employee_docs_dir, exist_ok=True)
+
+            # Save with employee name in filename
+            employee_name_safe = profile.full_name.replace(" ", "_")
+            filename = f"{employee_name_safe}_offer_letter.pdf"
+            file_path = os.path.join(employee_docs_dir, filename)
+
             with open(file_path, "wb") as f:
                 pisa.CreatePDF(html_content, dest=f)
-            
+
             return GeneratedDocument(
                 id=doc_id,
                 document_type="offer_letter",
                 file_path=file_path,
                 employee_id=employee_id,
                 created_at=datetime.now().isoformat(),
-                status="generated"
+                status="generated",
             )
         except Exception as e:
             print(f"Error generating offer letter: {e}")
             return None
-    
-    def _generate_compliance_checklist(self, profile: EmployeeProfile, employee_id: str) -> Optional[GeneratedDocument]:
+
+    def _generate_compliance_checklist(
+        self, profile: EmployeeProfile, employee_id: str
+    ) -> Optional[GeneratedDocument]:
         """Generate compliance checklist"""
         try:
             from jinja2 import Template
             from xhtml2pdf import pisa
-            
+
             defaults = _get_jurisdiction_defaults(profile.jurisdiction)
-            
+
             # Define compliance items based on jurisdiction
             if profile.jurisdiction == "MY":
                 compliance_items = [
@@ -394,7 +439,7 @@ class OnboardingWorkflow:
                     "SOCSO registration form",
                     "Emergency contact form",
                     "Data protection acknowledgement",
-                    "IT policy acceptance"
+                    "IT policy acceptance",
                 ]
             else:  # SG
                 compliance_items = [
@@ -408,9 +453,9 @@ class OnboardingWorkflow:
                     "Tax declaration form (IR8A)",
                     "Emergency contact form",
                     "Data protection acknowledgement",
-                    "IT policy acceptance"
+                    "IT policy acceptance",
                 ]
-            
+
             template_content = """
 <!DOCTYPE html>
 <html>
@@ -470,9 +515,9 @@ class OnboardingWorkflow:
 </body>
 </html>
             """
-            
+
             template = Template(template_content)
-            
+
             html_content = template.render(
                 employee_name=profile.full_name,
                 position=profile.position or "Employee",
@@ -480,40 +525,44 @@ class OnboardingWorkflow:
                 start_date=profile.start_date or datetime.now().strftime("%Y-%m-%d"),
                 generated_date=datetime.now().strftime("%d %B %Y"),
                 compliance_items=compliance_items,
-                **defaults
+                **defaults,
             )
-            
+
             doc_id = str(uuid.uuid4())
-            filename = f"compliance_checklist_{profile.jurisdiction.lower()}_{doc_id[:8]}.pdf"
+            filename = (
+                f"compliance_checklist_{profile.jurisdiction.lower()}_{doc_id[:8]}.pdf"
+            )
             os.makedirs(self.output_dir, exist_ok=True)
             file_path = os.path.join(self.output_dir, filename)
-            
+
             with open(file_path, "wb") as f:
                 pisa.CreatePDF(html_content, dest=f)
-            
+
             return GeneratedDocument(
                 id=doc_id,
                 document_type="compliance_checklist",
                 file_path=file_path,
                 employee_id=employee_id,
                 created_at=datetime.now().isoformat(),
-                status="generated"
+                status="generated",
             )
         except Exception as e:
             print(f"Error generating compliance checklist: {e}")
             return None
-    
+
     def _store_documents(self, employee_id: str, documents: List[GeneratedDocument]):
         """Store generated documents in database"""
         try:
             for doc in documents:
-                self.db.table("generated_documents").insert({
-                    "id": doc.id,
-                    "employee_id": employee_id,
-                    "document_type": doc.document_type,
-                    "file_path": doc.file_path,
-                    "created_at": doc.created_at,
-                    "status": doc.status
-                }).execute()
+                self.db.table("generated_documents").insert(
+                    {
+                        "id": doc.id,
+                        "employee_id": employee_id,
+                        "document_type": doc.document_type,
+                        "file_path": doc.file_path,
+                        "created_at": doc.created_at,
+                        "status": doc.status,
+                    }
+                ).execute()
         except Exception as e:
             print(f"Error storing documents: {e}")

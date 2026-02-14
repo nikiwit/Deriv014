@@ -1,7 +1,8 @@
 import json
 import uuid
+import os
 from datetime import datetime
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -37,13 +38,20 @@ def check_nric():
         query = query.eq("nric", identifier)
     else:
         query = query.eq("passport_no", identifier)
-    
+
     pending_resp = query.limit(1).execute()
 
     if pending_resp.data:
         employee_data = pending_resp.data[0]
 
-        offer_resp = db.table("offer_letters").select("*").eq("employee_id", employee_data.get("id")).order("created_at", desc=True).limit(1).execute()
+        offer_resp = (
+            db.table("offer_letters")
+            .select("*")
+            .eq("employee_id", employee_data.get("id"))
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
 
         if offer_resp.data:
             employee_data["offer_letter"] = offer_resp.data[0]
@@ -63,9 +71,11 @@ def check_nric():
     if jurisdiction == "MY":
         query = query.eq("nric", identifier)
     else:
-        query = query.eq("passport_no", identifier) # Assuming passport_no exists in employees table or nric field used for ID
+        query = query.eq(
+            "passport_no", identifier
+        )  # Assuming passport_no exists in employees table or nric field used for ID
         # Note: employees table has 'nric' column. If passport is used, it might be in nric column or need a new column.
-        # Based on schema, employees table has nric but not passport_no? 
+        # Based on schema, employees table has nric but not passport_no?
         # Schema: nric TEXT.
         # If passport is stored in nric column for non-MY, then ok.
         # Assuming nric column holds unique ID.
@@ -78,7 +88,7 @@ def check_nric():
     # I'll check my Supabase schema. I added `employees` table. It has `nric`. No `passport_no`.
     # I should add `passport_no` to `employees` table if needed.
     # For now, I'll assume nric column holds the ID.
-    
+
     # Wait, SQLite code was: WHERE nric = ? OR passport_no = ?
     # If passport_no column didn't exist, this query would fail in SQLite too.
     # So it implies `employees` table HAS `passport_no`.
@@ -86,10 +96,16 @@ def check_nric():
     # This means `database.py` schema definition might be outdated compared to what `onboarding_workflow.py` expects?
     # Or `onboarding_workflow.py` assumes a different schema.
     # I should update my Supabase schema to include `passport_no` in `employees`.
-    
-    existing_resp = db.table("employees").select("*").or_(f"nric.eq.{identifier}").limit(1).execute()
+
+    existing_resp = (
+        db.table("employees")
+        .select("*")
+        .or_(f"nric.eq.{identifier}")
+        .limit(1)
+        .execute()
+    )
     # Using .or_ filter is safer if unsure about column. But if passport_no column missing, I can't query it.
-    
+
     if existing_resp.data:
         return jsonify(
             {
@@ -127,19 +143,21 @@ def notify_hr():
     notification_id = str(uuid.uuid4())
     db = get_db()
 
-    db.table("hr_notifications").insert({
-        "id": notification_id,
-        "type": "onboarding_not_found",
-        "nric": nric,
-        "passport_no": passport_no,
-        "name": name,
-        "email": email,
-        "phone": phone,
-        "message": message,
-        "jurisdiction": jurisdiction,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat()
-    }).execute()
+    db.table("hr_notifications").insert(
+        {
+            "id": notification_id,
+            "type": "onboarding_not_found",
+            "nric": nric,
+            "passport_no": passport_no,
+            "name": name,
+            "email": email,
+            "phone": phone,
+            "message": message,
+            "jurisdiction": jurisdiction,
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    ).execute()
 
     return jsonify(
         {
@@ -160,11 +178,23 @@ def get_review_data(employee_id):
         return jsonify({"success": False, "error": "Employee record not found"}), 404
     employee = emp_resp.data[0]
 
-    offer_resp = db.table("offer_letters").select("*").eq("employee_id", employee_id).order("created_at", desc=True).limit(1).execute()
+    offer_resp = (
+        db.table("offer_letters")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
     offer_letter = offer_resp.data[0] if offer_resp.data else None
 
     # Pending documents (if any)
-    docs_resp = db.table("pending_documents").select("*").eq("employee_id", employee_id).execute()
+    docs_resp = (
+        db.table("pending_documents")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
     documents = docs_resp.data
 
     return jsonify(
@@ -173,9 +203,7 @@ def get_review_data(employee_id):
             "employee": employee,
             "offer_letter": offer_letter,
             "documents": documents,
-            "review_items": _build_review_items(
-                employee, offer_letter
-            ),
+            "review_items": _build_review_items(employee, offer_letter),
         }
     ), 200
 
@@ -284,30 +312,32 @@ def accept_offer():
 
     db = get_db()
 
-    emp_resp = db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    emp_resp = (
+        db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    )
     if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
 
     # Update pending employee status
-    db.table("pending_employees").update({
-        "status": "offer_accepted",
-        "offer_accepted_at": accepted_at
-    }).eq("id", employee_id).execute()
+    db.table("pending_employees").update(
+        {"status": "offer_accepted", "offer_accepted_at": accepted_at}
+    ).eq("id", employee_id).execute()
 
     # Update offer letter status
-    db.table("offer_letters").update({
-        "status": "accepted",
-        "accepted_at": accepted_at
-    }).eq("employee_id", employee_id).execute()
+    db.table("offer_letters").update(
+        {"status": "accepted", "accepted_at": accepted_at}
+    ).eq("employee_id", employee_id).execute()
 
     # Log acceptance
-    db.table("offer_acceptance_log").insert({
-        "id": str(uuid.uuid4()),
-        "employee_id": employee_id,
-        "action": "accepted",
-        "ip_address": ip_address,
-        "timestamp": accepted_at
-    }).execute()
+    db.table("offer_acceptance_log").insert(
+        {
+            "id": str(uuid.uuid4()),
+            "employee_id": employee_id,
+            "action": "accepted",
+            "ip_address": ip_address,
+            "timestamp": accepted_at,
+        }
+    ).execute()
 
     return jsonify(
         {
@@ -333,7 +363,9 @@ def dispute_offer():
 
     db = get_db()
 
-    emp_resp = db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    emp_resp = (
+        db.table("pending_employees").select("id").eq("id", employee_id).execute()
+    )
     if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
 
@@ -341,27 +373,31 @@ def dispute_offer():
     timestamp = datetime.utcnow().isoformat()
 
     # Update employee
-    db.table("pending_employees").update({
-        "status": "offer_disputed",
-        "dispute_reason": dispute_reason,
-        "dispute_details": dispute_details,
-        "disputed_at": timestamp
-    }).eq("id", employee_id).execute()
+    db.table("pending_employees").update(
+        {
+            "status": "offer_disputed",
+            "dispute_reason": dispute_reason,
+            "dispute_details": dispute_details,
+            "disputed_at": timestamp,
+        }
+    ).eq("id", employee_id).execute()
 
     # Update offer letter
-    db.table("offer_letters").update({
-        "status": "disputed"
-    }).eq("employee_id", employee_id).execute()
+    db.table("offer_letters").update({"status": "disputed"}).eq(
+        "employee_id", employee_id
+    ).execute()
 
     # Create dispute record
-    db.table("offer_disputes").insert({
-        "id": dispute_id,
-        "employee_id": employee_id,
-        "dispute_reason": dispute_reason,
-        "dispute_details": dispute_details,
-        "status": "open",
-        "created_at": timestamp
-    }).execute()
+    db.table("offer_disputes").insert(
+        {
+            "id": dispute_id,
+            "employee_id": employee_id,
+            "dispute_reason": dispute_reason,
+            "dispute_details": dispute_details,
+            "status": "open",
+            "created_at": timestamp,
+        }
+    ).execute()
 
     return jsonify(
         {
@@ -382,10 +418,10 @@ def generate_documents(employee_id):
 
     db = get_db()
     emp_resp = db.table("pending_employees").select("*").eq("id", employee_id).execute()
-    
+
     if not emp_resp.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
-        
+
     employee_dict = emp_resp.data[0]
     jurisdiction = employee_dict.get("jurisdiction", "MY")
     employment_type = employee_dict.get("employment_type", "full_time")
@@ -413,19 +449,23 @@ def generate_documents(employee_id):
 
         for doc in generated_docs:
             if doc.get("success"):
-                db.table("generated_documents").insert({
-                    "id": doc.get("contract_id"),
-                    "employee_id": employee_id,
-                    "document_type": doc.get("document_type"),
-                    "file_path": doc.get("file_path", ""),
-                    "status": "generated",
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
+                db.table("generated_documents").insert(
+                    {
+                        "id": doc.get("contract_id"),
+                        "employee_id": employee_id,
+                        "document_type": doc.get("document_type"),
+                        "file_path": doc.get("file_path", ""),
+                        "status": "generated",
+                        "created_at": datetime.utcnow().isoformat(),
+                    }
+                ).execute()
 
-        db.table("pending_employees").update({
-            "status": "documents_generated",
-            "documents_generated_at": datetime.utcnow().isoformat()
-        }).eq("id", employee_id).execute()
+        db.table("pending_employees").update(
+            {
+                "status": "documents_generated",
+                "documents_generated_at": datetime.utcnow().isoformat(),
+            }
+        ).eq("id", employee_id).execute()
 
         return jsonify(
             {
@@ -449,14 +489,19 @@ def generate_documents(employee_id):
 @bp.route("/status/<employee_id>", methods=["GET"])
 def get_status(employee_id):
     db = get_db()
-    
-    response = db.table("pending_employees").select(
-        "id, full_name, status, created_at, offer_accepted_at, documents_generated_at, onboarding_completed_at"
-    ).eq("id", employee_id).execute()
-    
+
+    response = (
+        db.table("pending_employees")
+        .select(
+            "id, full_name, status, created_at, offer_accepted_at, documents_generated_at, onboarding_completed_at"
+        )
+        .eq("id", employee_id)
+        .execute()
+    )
+
     if not response.data:
         return jsonify({"success": False, "error": "Employee not found"}), 404
-    
+
     employee = response.data[0]
     status = employee["status"]
 
@@ -551,67 +596,174 @@ def create_employee():
     db = get_db()
 
     # Check if employee already exists
-    query = db.table("pending_employees").select("id").or_(f"email.eq.{email},nric.eq.{nric},passport_no.eq.{passport_no}")
+    query = (
+        db.table("pending_employees")
+        .select("id")
+        .or_(f"email.eq.{email},nric.eq.{nric},passport_no.eq.{passport_no}")
+    )
     # Note: or_ syntax might be tricky if nric is empty string.
     # Safer: check separately or use logical OR properly.
     # Supabase filter: nric.eq.VAL,passport_no.eq.VAL,email.eq.VAL (OR logic)
     # But if nric is empty, nric.eq.empty might match?
     # Let's filter only on provided values.
-    
+
     # Or simpler:
-    existing_resp = db.table("pending_employees").select("id").eq("email", email).execute()
+    existing_resp = (
+        db.table("pending_employees").select("id").eq("email", email).execute()
+    )
     if existing_resp.data:
-         return jsonify({"success": False, "error": "Employee with this email already exists"}), 400
-         
+        return jsonify(
+            {"success": False, "error": "Employee with this email already exists"}
+        ), 400
+
     if nric:
-        existing_nric = db.table("pending_employees").select("id").eq("nric", nric).execute()
+        existing_nric = (
+            db.table("pending_employees").select("id").eq("nric", nric).execute()
+        )
         if existing_nric.data:
-            return jsonify({"success": False, "error": "Employee with this NRIC already exists"}), 400
-            
+            return jsonify(
+                {"success": False, "error": "Employee with this NRIC already exists"}
+            ), 400
+
     if passport_no:
-        existing_ppt = db.table("pending_employees").select("id").eq("passport_no", passport_no).execute()
+        existing_ppt = (
+            db.table("pending_employees")
+            .select("id")
+            .eq("passport_no", passport_no)
+            .execute()
+        )
         if existing_ppt.data:
-             return jsonify({"success": False, "error": "Employee with this Passport No already exists"}), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Employee with this Passport No already exists",
+                }
+            ), 400
 
     # Create employee
     employee_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
 
-    db.table("pending_employees").insert({
-        "id": employee_id,
-        "full_name": full_name,
-        "nric": nric or None,
-        "passport_no": passport_no or None,
-        "email": email,
-        "phone": data.get("phone", ""),
-        "address": data.get("address", ""),
-        "jurisdiction": jurisdiction,
-        "employment_type": employment_type,
-        "position": position,
-        "department": department,
-        "status": "pending_onboarding",
-        "created_at": now
-    }).execute()
+    db.table("pending_employees").insert(
+        {
+            "id": employee_id,
+            "full_name": full_name,
+            "nric": nric or None,
+            "passport_no": passport_no or None,
+            "email": email,
+            "phone": data.get("phone", ""),
+            "address": data.get("address", ""),
+            "jurisdiction": jurisdiction,
+            "employment_type": employment_type,
+            "position": position,
+            "department": department,
+            "status": "pending_onboarding",
+            "created_at": now,
+        }
+    ).execute()
 
     # Create offer letter
     offer_id = str(uuid.uuid4())
-    db.table("offer_letters").insert({
-        "id": offer_id,
-        "employee_id": employee_id,
-        "position": position,
-        "department": department,
-        "start_date": start_date,
-        "salary": salary,
-        "currency": currency,
-        "employment_type": employment_type,
-        "probation_months": probation_months,
-        "reporting_to": reporting_to,
-        "work_location": work_location,
-        "medical_coverage": medical_coverage,
-        "annual_leave_days": annual_leave_days,
-        "bonus_details": bonus_details,
-        "status": "sent"
-    }).execute()
+
+    # Generate offer letter PDF
+    offer_letter_pdf_path = None
+    html_content = None
+    try:
+        from jinja2 import Template
+        from xhtml2pdf import pisa
+
+        # Create employee-specific folder
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        employee_docs_dir = base_dir / "instance" / "documents" / employee_id
+        os.makedirs(employee_docs_dir, exist_ok=True)
+
+        # PDF filename with employee name
+        filename = f"{full_name}_offer_letter.pdf"
+        offer_letter_pdf_path = str(employee_docs_dir / filename)
+
+        # Get jurisdiction defaults
+        if jurisdiction == "MY":
+            company_name = "Deriv Solutions Sdn Bhd"
+            company_reg = "202301234567 (1234567-A)"
+            company_address = "Level 15, Menara PKNS, Jalan Yong Shook Lin, 46050 Petaling Jaya, Selangor"
+            currency = "MYR"
+        else:
+            company_name = "Deriv Solutions Pte Ltd"
+            company_reg = "UEN: 202301234568B"
+            company_address = (
+                "1 Marina Boulevard, #18-01 One Marina Boulevard, Singapore 018989"
+            )
+            currency = "SGD"
+
+        # Generate HTML content
+        template_path = base_dir / "templates" / "offer_letter_simple.html"
+        if template_path.exists():
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_content = f.read()
+        else:
+            template_content = """
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"><title>Offer Letter</title></head>
+            <body>
+                <h1>Offer Letter</h1>
+                <p>Dear {{full_name}},</p>
+                <p>We are pleased to offer you the position of {{position}} at {{company_name}}.</p>
+                <p>Salary: {{currency}} {{salary}}</p>
+                <p>Start Date: {{start_date}}</p>
+            </body>
+            </html>
+            """
+
+        template = Template(template_content)
+        html_content = template.render(
+            full_name=full_name,
+            company_name=company_name,
+            company_reg=company_reg,
+            company_address=company_address,
+            position=position,
+            department=department,
+            start_date=start_date,
+            salary=f"{salary:,.2f}",
+            currency=currency,
+            employment_type=employment_type,
+            probation_months=probation_months,
+            reporting_to=reporting_to,
+            work_location=work_location,
+            medical_coverage=medical_coverage,
+            annual_leave_days=annual_leave_days,
+            bonus_details=bonus_details,
+            generated_date=datetime.now().strftime("%d %B %Y"),
+        )
+
+        # Generate PDF
+        with open(offer_letter_pdf_path, "wb") as f:
+            pisa.CreatePDF(html_content, dest=f)
+    except Exception as e:
+        print(f"Error generating offer letter PDF: {e}")
+        offer_letter_pdf_path = None
+        html_content = None
+
+    db.table("offer_letters").insert(
+        {
+            "id": offer_id,
+            "employee_id": employee_id,
+            "position": position,
+            "department": department,
+            "start_date": start_date,
+            "salary": salary,
+            "currency": currency,
+            "employment_type": employment_type,
+            "probation_months": probation_months,
+            "reporting_to": reporting_to,
+            "work_location": work_location,
+            "medical_coverage": medical_coverage,
+            "annual_leave_days": annual_leave_days,
+            "bonus_details": bonus_details,
+            "status": "sent",
+            "pdf_path": offer_letter_pdf_path,
+        }
+    ).execute()
 
     return jsonify(
         {
@@ -619,6 +771,8 @@ def create_employee():
             "message": "Employee created successfully",
             "employee_id": employee_id,
             "offer_id": offer_id,
+            "offer_letter_html": html_content if html_content else None,
+            "pdf_path": offer_letter_pdf_path,
             "employee": {
                 "id": employee_id,
                 "full_name": full_name,
@@ -640,6 +794,71 @@ def create_employee():
                 "start_date": start_date,
                 "salary": salary,
                 "currency": currency,
+                "pdf_path": offer_letter_pdf_path,
             },
         }
     ), 201
+
+
+@bp.route("/offer-letter/<employee_id>", methods=["GET"])
+def get_offer_letter(employee_id):
+    """Get offer letter HTML for preview"""
+    db = get_db()
+
+    response = (
+        db.table("offer_letters")
+        .select(
+            "id, employee_id, position, department, start_date, salary, currency, pdf_path"
+        )
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    if not response.data:
+        return jsonify({"error": "Offer letter not found"}), 404
+
+    offer = response.data[0]
+    return jsonify(
+        {
+            "success": True,
+            "offer_id": offer["id"],
+            "employee_id": offer["employee_id"],
+            "position": offer["position"],
+            "department": offer["department"],
+            "start_date": offer["start_date"],
+            "salary": offer["salary"],
+            "currency": offer["currency"],
+            "pdf_path": offer["pdf_path"],
+        }
+    )
+
+
+@bp.route("/offer-letter/<employee_id>/download", methods=["GET"])
+def download_offer_letter(employee_id):
+    """Download offer letter PDF"""
+    db = get_db()
+
+    response = (
+        db.table("offer_letters")
+        .select("id, pdf_path")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+
+    if not response.data:
+        return jsonify({"error": "Offer letter not found"}), 404
+
+    offer = response.data[0]
+    pdf_path = offer.get("pdf_path")
+
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({"error": "PDF file not found"}), 404
+
+    from flask import send_file
+
+    return send_file(
+        pdf_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"offer_letter_{employee_id}.pdf",
+    )
