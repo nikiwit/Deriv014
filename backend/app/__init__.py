@@ -5,7 +5,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 # Load .env from backend directory
-env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(env_path)
 
 
@@ -14,6 +14,7 @@ def create_app():
 
     # Load config
     from app.config import Config
+
     app.config.from_object(Config)
 
     # Ensure instance directory exists
@@ -25,18 +26,30 @@ def create_app():
 
     # Database
     from app import database
+
     database.init_app(app)
 
     # RAG engine
     from app import rag
+
     rag.init_app(app)
 
     # HR Agent
     from app import hr_agent
+
     hr_agent.init_hr_agent(app)
 
-    #Blueprints #original
-    from app.routes import chat, documents, onboarding, hr_agent as hr_agent_routes, auth, contract_sign
+    # Blueprints
+    from app.routes import (
+        chat,
+        documents,
+        onboarding,
+        hr_agent as hr_agent_routes,
+        auth,
+        contract_sign,
+    )
+    from app.routes import onboarding_workflow
+
     app.register_blueprint(chat.bp)
     app.register_blueprint(documents.bp)
     app.register_blueprint(documents.onboarding_docs_bp)
@@ -44,6 +57,7 @@ def create_app():
     app.register_blueprint(hr_agent_routes.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(contract_sign.bp)
+    app.register_blueprint(onboarding_workflow.bp)
 
     # # Blueprints
     # from app.routes import chat, documents, onboarding, slack
@@ -52,7 +66,6 @@ def create_app():
     # app.register_blueprint(documents.bp)
     # app.register_blueprint(onboarding.bp)
     # app.register_blueprint(slack.bp)
-
 
     # Health check
     @app.route("/api/health")

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Appointment Letter - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .highlight { color: #c0392b; font-weight: bold; }
+  ul { margin: 10px 0; }
+  li { margin: 5px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Letter of Appointment</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ appointment_ref }} | Date: {{ generated_date }}</p>
+
+<p>Dear {{ employee_name }},</p>
+
+<p>We are pleased to confirm your appointment as <strong>{{ position }}</strong> at {{ company_name }}. This letter formalizes the terms of your employment which commenced on {{ start_date }}.</p>
+
+<h2>1. Appointment Details</h2>
+<div class="field"><strong>Employee Name:</strong> {{ employee_name }}</div>
+<div class="field"><strong>Position:</strong> {{ position }}</div>
+<div class="field"><strong>Department:</strong> {{ department }}</div>
+<div class="field"><strong>Employment Type:</strong> {{ employment_type }}</div>
+<div class="field"><strong>Start Date:</strong> {{ start_date }}</div>
+<div class="field"><strong>Reporting To:</strong> {{ reporting_manager }}</div>
+<div class="field"><strong>Work Location:</strong> {{ work_location }}</div>
+
+<h2>2. Probation Period</h2>
+<div class="field"><strong>Probation Period:</strong> {{ probation_period }}</div>
+<p>Your performance will be reviewed at the end of the probation period. Upon satisfactory completion, you will be confirmed as a permanent employee.</p>
+
+<h2>3. Remuneration</h2>
+<div class="field"><strong>Monthly Salary:</strong> {{ currency }} {{ monthly_salary }}</div>
+<div class="field"><strong>Annual Salary:</strong> {{ currency }} {{ annual_salary }}</div>
+{% if bonus %}
+<div class="field"><strong>Performance Bonus:</strong> {{ bonus }}</div>
+{% endif %}
+{% if allowances %}
+<div class="field"><strong>Allowances:</strong> {{ allowances }}</div>
+{% endif %}
+
+<h2>4. Working Hours</h2>
+<div class="field"><strong>Standard Hours:</strong> {{ work_hours }}</div>
+<div class="field"><strong>Rest Day:</strong> {{ rest_day }}</div>
+
+<h2>5. Leave Entitlements</h2>
+<table>
+  <tr><th>Leave Type</th><th>Entitlement</th></tr>
+  <tr><td>Annual Leave</td><td>{{ leave_annual }}</td></tr>
+  <tr><td>Sick Leave</td><td>{{ leave_sick }}</td></tr>
+  <tr><td>Hospitalization Leave</td><td>{{ leave_hospital }}</td></tr>
+  <tr><td>Public Holidays</td><td>{{ public_holidays }}</td></tr>
+</table>
+
+<h2>6. Statutory Contributions</h2>
+<p>The following statutory contributions will be made in accordance with {{ jurisdiction }} laws:</p>
+<ul>
+  {% if jurisdiction == 'Malaysia' %}
+  <li>Employees' Provident Fund (EPF) - {{ epf_rate }}%</li>
+  <li>Social Security Organization (SOCSO) - {{ socso_rate }}%</li>
+  <li>Employment Insurance System (EIS) - {{ eis_rate }}%</li>
+  {% elif jurisdiction == 'Singapore' %}
+  <li>Central Provident Fund (CPF) - {{ cpf_rate }}%</li>
+  {% endif %}
+</ul>
+
+<h2>7. Company Policies</h2>
+<p>By signing below, you acknowledge that you have read, understood, and agree to comply with the following company policies:</p>
+<ul>
+  <li>Employee Handbook</li>
+  <li>Code of Conduct</li>
+  <li>IT and Data Security Policy</li>
+  <li>Leave Policy</li>
+  <li>Any other policies as may be implemented from time to time</li>
+</ul>
+
+<h2>8. Confidentiality</h2>
+<p>You agree to maintain strict confidentiality regarding all company information, business plans, client data, and any other proprietary information both during and after your employment.</p>
+
+<h2>9. Termination</h2>
+<p>Either party may terminate this appointment by providing {{ notice_period }} written notice. The Company reserves the right to terminate employment with immediate effect for gross misconduct.</p>
+
+<h2>10. Acceptance</h2>
+<p>By signing below, you confirm acceptance of this appointment and agree to the terms and conditions stated herein.</p>
+
+<table style="border: none; margin-top: 40px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>For {{ company_name }}</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Authorized Signatory</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

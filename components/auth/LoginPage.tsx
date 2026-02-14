@@ -9,6 +9,7 @@ import { Badge } from '../design-system/Badge';
 interface LoginPageProps {
   onLoginSuccess: () => void;
   onNewOnboarding?: () => void;
+  onEmployeeOnboarding?: () => void;
 }
 
 interface SupabaseUser {
@@ -41,7 +42,7 @@ function mapSupabaseUser(su: SupabaseUser): User {
   };
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboarding }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboarding, onEmployeeOnboarding }) => {
   const { loginWithUser } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole>('hr_admin');
   const [accounts, setAccounts] = useState<User[]>([]);
@@ -49,7 +50,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
   const [loggingIn, setLoggingIn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch accounts when role changes
   useEffect(() => {
     const fetchAccounts = async () => {
       setLoadingAccounts(true);
@@ -85,7 +85,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Header */}
       <nav className="bg-slate-900 px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md border-b border-slate-800">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-derivhr-500 rounded-lg flex items-center justify-center">
@@ -112,7 +111,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
                 <Text variant="muted" weight="medium">Select your identity to continue</Text>
               </div>
 
-              {/* Role Selection */}
               <div>
                 <Text weight="bold" size="sm" className="uppercase tracking-widest !text-slate-400 mb-4 block">
                   Identity Type
@@ -145,7 +143,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
                 </div>
               </div>
 
-              {/* Account Picker */}
               <div>
                 <Text weight="bold" size="sm" className="uppercase tracking-widest !text-slate-400 mb-3 block">
                   Select Account
@@ -202,7 +199,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
                 )}
               </div>
 
-              {/* New Onboarding Banner */}
               <div className="mt-6">
                 <div
                   onClick={onNewOnboarding}
@@ -213,12 +209,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onNewOnboa
                       <UserPlus size={20} />
                     </div>
                     <div className="text-left">
-                      <Text weight="bold" size="sm" className="!text-slate-900">New Onboarding</Text>
-                      <Text size="sm" className="!text-xs !text-slate-500">Initiate journey for new hire</Text>
+                      <Text weight="bold" size="sm" className="!text-slate-900">HR Admin: New Employee</Text>
+                      <Text size="sm" className="!text-slate-500">Create onboarding for new hire</Text>
                     </div>
                   </div>
                   <ArrowRight size={18} className="text-slate-300 group-hover:text-derivhr-500 group-hover:translate-x-1 transition-all" />
                 </div>
+
+                {onEmployeeOnboarding && (
+                <div 
+                  onClick={onEmployeeOnboarding}
+                  className="w-full p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-white hover:border-blue-400 transition-all cursor-pointer group flex items-center justify-between mt-3"
+                >
+                  <div className="flex items-center space-x-4">
+                      <div className="p-2 bg-white rounded-lg border border-blue-200 text-blue-600 group-hover:text-blue-700 group-hover:border-blue-300 transition-colors">
+                        <Zap size={20} />
+                      </div>
+                      <div className="text-left">
+                        <Text weight="bold" size="sm" className="!text-blue-900">Employee: Verify Identity</Text>
+                        <Text size="sm" className="!text-blue-600">Complete your onboarding</Text>
+                      </div>
+                  </div>
+                  <ArrowRight size={18} className="text-blue-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                </div>
+                )}
               </div>
             </div>
 

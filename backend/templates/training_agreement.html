@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Training Agreement - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .clause { margin: 15px 0; text-align: justify; }
+  ul { margin: 10px 0; }
+  li { margin: 8px 0; }
+  .box { border: 1px solid #333; padding: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Training Agreement</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ agreement_ref }} | Date: {{ generated_date }}</p>
+
+<p>This Training Agreement ("Agreement") is entered into between:</p>
+<p><strong>Company:</strong> {{ company_name }}</p>
+<p><strong>Employee:</strong> {{ employee_name }} (ID: {{ employee_id }})</p>
+
+<h2>1. Training Details</h2>
+<div class="field"><strong>Training Program:</strong> {{ training_program }}</div>
+<div class="field"><strong>Training Provider:</strong> {{ training_provider }}</div>
+<div class="field"><strong>Training Location:</strong> {{ training_location }}</div>
+<div class="field"><strong>Start Date:</strong> {{ start_date }}</div>
+<div class="field"><strong>End Date:</strong> {{ end_date }}</div>
+<div class="field"><strong>Duration:</strong> {{ duration }}</div>
+
+<h2>2. Training Costs</h2>
+<div class="field"><strong>Total Training Cost:</strong> {{ currency }} {{ total_cost }}</div>
+<div class="field"><strong>Registration/Tuition Fees:</strong> {{ currency }} {{ tuition_fees }}</div>
+<div class="field"><strong>Travel & Accommodation:</strong> {{ currency }} {{ travel_cost }}</div>
+<div class="field"><strong>Materials/Books:</strong> {{ currency }} {{ material_cost }}</div>
+
+<h2>3. Bond Period</h2>
+<p>In consideration of the Company sponsoring the training, the Employee agrees to remain in the employment of the Company for a minimum period of {{ bond_period }} after completion of the training.</p>
+
+<div class="box">
+  <strong>Bond Period:</strong> {{ bond_period }} from training completion date
+</div>
+
+<h2>4. Obligations of Employee</h2>
+<ul>
+  <li>Attend and complete the training program in full</li>
+  <li>Achieve the required certification/qualification</li>
+  <li>Remain employed for the bond period</li>
+  <li>Apply the knowledge/skills gained for the benefit of the Company</li>
+  <li>Provide progress reports as required</li>
+</ul>
+
+<h2>5. Repayment Terms</h2>
+<p class="clause">If the Employee leaves employment before completing the bond period, they agree to reimburse the Company for the training costs on a pro-rata basis as follows:</p>
+<ul>
+  <li>Within 6 months of training completion: 100% of costs</li>
+  <li>6-12 months: 75% of costs</li>
+  <li>12-18 months: 50% of costs</li>
+  <li>18-24 months: 25% of costs</li>
+  <li>After 24 months: No repayment required</li>
+</ul>
+
+<h2>6. Termination by Company</h2>
+<p class="clause">If the Company terminates employment without cause during the bond period, the Employee shall not be required to reimburse training costs.</p>
+
+<h2>7. Certificate/Qualification</h2>
+<p>Upon successful completion, the Employee shall provide copies of all certificates/qualifications to HR for their personnel file.</p>
+
+<h2>8. Confidentiality</h2>
+<p class="clause">Any knowledge, skills, or materials gained from the training that are proprietary to the training provider shall be treated as confidential and not disclosed to third parties.</p>
+
+<h2>Acknowledgment</h2>
+<p>I have read, understood, and agree to the terms and conditions of this Training Agreement.</p>
+
+<table style="border: none; margin-top: 40px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>For {{ company_name }}</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Authorized Signatory</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>CC: Personnel File | HR Department | Training Department</p>
+</div>
+
+</body>
+</html>

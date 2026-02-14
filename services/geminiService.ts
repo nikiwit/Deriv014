@@ -250,6 +250,7 @@ export const generateWithRetry = async (
         throw new Error("No user query found in content");
     }
     
+    // Try 1: Backend RAG
     try {
         const ragResult = await queryBackendRAG(userQuery);
         const sourceCitation = ragResult.sources?.length
@@ -260,9 +261,98 @@ export const generateWithRetry = async (
             modelUsed: "RAG-Backend"
         };
     } catch (ragErr) {
-        console.error("Backend RAG failed:", ragErr);
-        throw ragErr;
+        console.warn("Backend RAG failed, falling back to OpenRouter:", ragErr);
     }
+    
+    // Try 2: OpenRouter API
+    // @ts-ignore - Vite injects env vars at build time
+    const openRouterKey = import.meta.env?.VITE_OPENROUTER_API_KEY;
+    
+    if (openRouterKey) {
+        try {
+            const model = openRouterConfig?.preferredModels?.[0] || "deepseek/deepseek-chat";
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${openRouterKey}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
+                    "X-Title": "DerivHR"
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: "You are a helpful HR assistant for DerivHR." },
+                        { role: "user", content: userQuery }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: 2000
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`OpenRouter API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const text = data.choices?.[0]?.message?.content || "No response from OpenRouter";
+            
+            return {
+                text,
+                modelUsed: `OpenRouter-${model}`
+            };
+        } catch (orErr) {
+            console.warn("OpenRouter API failed, falling back to Gemini:", orErr);
+        }
+    }
+    
+    // Try 3: Gemini API
+    // @ts-ignore - Vite injects env vars at build time
+    const geminiKey = import.meta.env?.VITE_GEMINI_API_KEY || 
+                      // @ts-ignore
+                      import.meta.env?.GEMINI_API_KEY ||
+                      // @ts-ignore
+                      import.meta.env?.API_KEY;
+    
+    if (geminiKey) {
+        try {
+            const model = geminiConfig?.model || "gemini-1.5-flash";
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: userQuery }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            maxOutputTokens: 2000
+                        }
+                    })
+                }
+            );
+            
+            if (!response.ok) {
+                throw new Error(`Gemini API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from Gemini";
+            
+            return {
+                text,
+                modelUsed: `Gemini-${model}`
+            };
+        } catch (gemErr) {
+            console.error("Gemini API failed:", gemErr);
+        }
+    }
+    
+    throw new Error("All AI services failed. Please check your API keys and internet connection.");
 }
 
 /**

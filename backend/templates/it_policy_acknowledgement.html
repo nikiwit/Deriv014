@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IT Policy Acknowledgement - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  ul { margin: 10px 0; }
+  li { margin: 8px 0; }
+  .clause { margin: 15px 0; text-align: justify; }
+  .checkbox-list { list-style: none; padding-left: 0; }
+  .checkbox-list li { padding: 5px 0; }
+  .checkbox { display: inline-block; width: 20px; }
+  .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">IT & Data Security Policy - Acknowledgement</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Date: {{ generated_date }}</p>
+
+<p>Dear {{ employee_name }},</p>
+
+<p>This document outlines the IT and Data Security policies that you must follow while employed at {{ company_name }} (the "Company"). Compliance is mandatory for all employees.</p>
+
+<div class="warning">
+  <strong>Warning:</strong> Violation of IT security policies may result in disciplinary action, termination of employment, and legal prosecution.
+</div>
+
+<h2>1. Acceptable Use of IT Resources</h2>
+<ul>
+  <li>Company IT resources (computers, email, internet) must be used primarily for business purposes</li>
+  <li>Personal use should be minimal and not interfere with work responsibilities</li>
+  <li>Downloading or installing unauthorized software is prohibited</li>
+  <li>Accessing inappropriate, illegal, or offensive content is strictly forbidden</li>
+  <li>Physical security: lock your workstation when unattended</li>
+</ul>
+
+<h2>2. Password & Access Control</h2>
+<ul>
+  <li>Create strong passwords (minimum 12 characters with mixed case, numbers, and symbols)</li>
+  <li>Never share passwords or login credentials with anyone</li>
+  <li>Change passwords immediately if compromise is suspected</li>
+  <li>Use multi-factor authentication (MFA) when available</li>
+  <li>Never write passwords on paper or store them in unencrypted files</li>
+</ul>
+
+<h2>3. Data Protection & Classification</h2>
+<ul>
+  <li>All Company data must be classified as Public, Internal, Confidential, or Restricted</li>
+  <li>Handle data according to its classification level</li>
+  <li>Never send confidential data via unencrypted email</li>
+  <li>Use encrypted channels for sharing sensitive information</li>
+  <li>Shred or securely destroy documents containing sensitive data</li>
+</ul>
+
+<h2>4. Email Security</h2>
+<ul>
+  <li>Be vigilant against phishing and social engineering attacks</li>
+  <li>Do not click suspicious links or open unknown attachments</li>
+  <li>Verify sender identity before responding to unusual requests</li>
+  <li>Never send sensitive data via email without encryption</li>
+  <li>Report suspicious emails to IT immediately</li>
+</ul>
+
+<h2>5. Mobile Device Security</h2>
+<ul>
+  <li>Enable device encryption and password protection</li>
+  <li>Install only approved applications</li>
+  <li>Report lost or stolen devices immediately</li>
+  <li>Use Company VPN when accessing Company resources remotely</li>
+  <li>Do not connect to unsecured public Wi-Fi for work purposes</li>
+</ul>
+
+<h2>6. Software & System Security</h2>
+<ul>
+  <li>Keep operating systems and software updated with latest security patches</li>
+  <li>Use only Company-approved antivirus and security software</li>
+  <li>Never disable security controls or firewalls</li>
+  <li>Report any system vulnerabilities to IT immediately</li>
+  <li>Back up important data regularly</li>
+</ul>
+
+<h2>7. Incident Reporting</h2>
+<p class="clause">Any security incident, including but not limited to data breaches, malware infections, lost devices, or unauthorized access, must be reported to IT immediately. Early reporting is critical to minimize damage.</p>
+
+<h2>8. Remote Work Security</h2>
+<ul>
+  <li>Use Company-provided VPN for accessing Company network</li>
+  <li>Work in private locations when handling sensitive information</li>
+  <li>Ensure home Wi-Fi is password protected</li>
+  <li>Lock your device when stepping away, even at home</li>
+  <li>Do not share devices with family members for work tasks</li>
+</ul>
+
+<h2>9. Intellectual Property</h2>
+<p class="clause">All software, code, documents, and other materials created during employment are Company property. Do not copy, distribute, or use Company intellectual property for personal purposes.</p>
+
+<h2>10. Monitoring</h2>
+<p class="clause">The Company reserves the right to monitor, access, and review all IT resources and communications using Company systems. Employees should have no expectation of privacy when using Company IT resources.</p>
+
+<h2>Acknowledgment</h2>
+<p>I, {{ employee_name }}, acknowledge that I have read, understood, and agree to comply with the IT and Data Security policies outlined in this document.</p>
+
+<ul class="checkbox-list">
+  <li><span class="checkbox">[ ]</span> I have read and understood the IT Security Policy</li>
+  <li><span class="checkbox">[ ]</span> I will protect Company data and systems from unauthorized access</li>
+  <li><span class="checkbox">[ ]</span> I will report any security incidents immediately</li>
+  <li><span class="checkbox">[ ]</span> I understand that violations may result in termination and legal action</li>
+</ul>
+
+<table style="border: none; margin-top: 30px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>IT Department</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Signature</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

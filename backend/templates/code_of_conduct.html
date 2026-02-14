@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Code of Conduct Acknowledgement - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  ul { margin: 10px 0; }
+  li { margin: 8px 0; }
+  .clause { margin: 15px 0; text-align: justify; }
+  .checkbox-list { list-style: none; padding-left: 0; }
+  .checkbox-list li { padding: 5px 0; }
+  .checkbox { display: inline-block; width: 20px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Code of Conduct - Acknowledgement Form</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Date: {{ generated_date }}</p>
+
+<p>Dear {{ employee_name }},</p>
+
+<p>As part of your employment with {{ company_name }} (the "Company"), you are required to read, understand, and comply with our Code of Conduct. This document outlines the standards of behavior and professional ethics expected from all employees.</p>
+
+<h2>1. Professional Conduct</h2>
+<ul>
+  <li>Treat all colleagues, clients, and partners with respect and professionalism</li>
+  <li>Maintain high standards of honesty and integrity</li>
+  <li>Act in the best interest of the Company at all times</li>
+  <li>Comply with all applicable laws, regulations, and Company policies</li>
+  <li>Report any suspected violations or misconduct promptly</li>
+</ul>
+
+<h2>2. Workplace Behavior</h2>
+<ul>
+  <li>Maintain a safe, healthy, and harassment-free work environment</li>
+  <li>Respect diversity and promote inclusion</li>
+  <li>Avoid conflicts of interest</li>
+  <li>Use Company resources responsibly and for business purposes only</li>
+  <li>Maintain confidentiality of Company and client information</li>
+</ul>
+
+<h2>3. Anti-Harassment & Discrimination</h2>
+<p class="clause">The Company maintains a zero-tolerance policy toward harassment and discrimination of any kind. This includes harassment or discrimination based on race, gender, religion, age, disability, sexual orientation, nationality, or any other protected characteristic.</p>
+
+<h2>4. Anti-Bribery & Corruption</h2>
+<p class="clause">Employees are prohibited from offering, giving, receiving, or soliciting any form of bribe, kickback, or improper payment. Compliance with anti-corruption laws, including the Malaysian Anti-Corruption Commission Act 2009 or Singapore's Prevention of Corruption Act, is mandatory.</p>
+
+<h2>5. Substance Abuse</h2>
+<p class="clause">The Company prohibits the use, possession, or distribution of illegal drugs or alcohol on Company premises. Employees are expected to report to work in a fit condition capable of performing their duties safely and effectively.</p>
+
+<h2>6. Company Assets & Resources</h2>
+<ul>
+  <li>Protect Company property, equipment, and assets</li>
+  <li>Use IT systems and email responsibly</li>
+  <li>Report any loss or damage immediately</li>
+  <li>Return all Company property upon termination</li>
+</ul>
+
+<h2>7. Social Media & Public Communications</h2>
+<p class="clause">Employees must exercise good judgment when using social media. Do not disclose confidential information, disparage the Company, or represent personal views as Company positions.</p>
+
+<h2>8. Reporting Violations</h2>
+<p class="clause">If you become aware of any conduct that violates this Code of Conduct, you must report it immediately to your supervisor, HR Department, or through the Company's whistleblowing channel.</p>
+
+<h2>9. Consequences of Non-Compliance</h2>
+<p class="clause">Violations of the Code of Conduct may result in disciplinary action, up to and including termination of employment. The Company reserves the right to take legal action for serious breaches.</p>
+
+<h2>Acknowledgment</h2>
+<p>I, {{ employee_name }}, acknowledge that I have received, read, and understood the Company's Code of Conduct. I agree to comply with all the policies and standards outlined in this document.</p>
+
+<ul class="checkbox-list">
+  <li><span class="checkbox">[ ]</span> I have read and understood the Code of Conduct</li>
+  <li><span class="checkbox">[ ]</span> I agree to comply with all policies and guidelines</li>
+  <li><span class="checkbox">[ ]</span> I understand that violations may result in disciplinary action</li>
+  <li><span class="checkbox">[ ]</span> I will report any violations I become aware of</li>
+</ul>
+
+<table style="border: none; margin-top: 30px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>HR Department</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Signature</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

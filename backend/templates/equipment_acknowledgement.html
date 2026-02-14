@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Equipment Acknowledgement - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .equipment-table { margin: 20px 0; }
+  .checkbox-list { list-style: none; padding-left: 0; }
+  .checkbox-list li { padding: 5px 0; }
+  .checkbox { display: inline-block; width: 20px; }
+  .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Company Property & Equipment Acknowledgement</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ equipment_ref }} | Date: {{ generated_date }}</p>
+
+<p>Employee Name: <strong>{{ employee_name }}</strong></p>
+<p>Employee ID: <strong>{{ employee_id }}</strong></p>
+<p>Department: <strong>{{ department }}</strong></p>
+
+<h2>1. Issued Equipment</h2>
+<p>The following equipment has been issued to you:</p>
+
+<table class="equipment-table">
+  <tr>
+    <th>Item No.</th>
+    <th>Description</th>
+    <th>Serial/Asset Number</th>
+    <th>Date Issued</th>
+    <th>Condition</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>Laptop/Desktop Computer</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>Good []</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Mobile Phone</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>Good []</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>Email/Outlook Account</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>N/A</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>Access Card/Key</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>Good []</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>Headset/Webcam</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>Good []</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td>Other</td>
+    <td>________________</td>
+    <td>________________</td>
+    <td>Good []</td>
+  </tr>
+</table>
+
+<h2>2. Responsibilities</h2>
+<p>As the recipient of Company property, I agree to:</p>
+<ul>
+  <li>Use the equipment only for business purposes</li>
+  <li>Take reasonable care of all Company property</li>
+  <li>Keep equipment secure and protected from damage, loss, or theft</li>
+  <li>Report any damage, malfunction, or loss immediately to IT/HR</li>
+  <li>Not install unauthorized software or make modifications</li>
+  <li>Not allow others to use the equipment</li>
+  <li>Follow all IT and security policies</li>
+</ul>
+
+<h2>3. Return of Property</h2>
+<p>Upon termination of employment or upon request, I agree to return all Company property in good working condition (normal wear and tear excepted). I understand that:</p>
+<ul>
+  <li>Failure to return Company property may result in deduction from final salary</li>
+  <li>I may be charged for replacement cost of lost or damaged property</li>
+  <li>Company reserves the right to take legal action for unreturned property</li>
+</ul>
+
+<div class="warning">
+  <strong>Important:</strong> Report any equipment issues immediately to prevent disciplinary action.
+</div>
+
+<h2>4. Exit Clearance</h2>
+<p>To be completed upon termination of employment:</p>
+<table>
+  <tr>
+    <th>Item</th>
+    <th>Returned</th>
+    <th>Not Returned</th>
+    <th>Remarks</th>
+  </tr>
+  <tr>
+    <td>Laptop/Computer</td>
+    <td>[ ]</td>
+    <td>[ ]</td>
+    <td>________________</td>
+  </tr>
+  <tr>
+    <td>Mobile Phone</td>
+    <td>[ ]</td>
+    <td>[ ]</td>
+    <td>________________</td>
+  </tr>
+  <tr>
+    <td>Access Card</td>
+    <td>[ ]</td>
+    <td>[ ]</td>
+    <td>________________</td>
+  </tr>
+  <tr>
+    <td>Other</td>
+    <td>[ ]</td>
+    <td>[ ]</td>
+    <td>________________</td>
+  </tr>
+</table>
+
+<h2>Acknowledgment</h2>
+<p>I, {{ employee_name }}, acknowledge receipt of the equipment listed above and agree to the terms and conditions for the use and return of Company property.</p>
+
+<ul class="checkbox-list">
+  <li><span class="checkbox">[ ]</span> I have received the listed equipment in good condition</li>
+  <li><span class="checkbox">[ ]</span> I will be responsible for the safe keeping of all Company property</li>
+  <li><span class="checkbox">[ ]</span> I will return all property upon termination</li>
+  <li><span class="checkbox">[ ]</span> I understand replacement costs may be deducted from my salary</li>
+</ul>
+
+<table style="border: none; margin-top: 30px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>IT Department</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Signature</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

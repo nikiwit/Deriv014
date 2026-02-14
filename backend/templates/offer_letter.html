@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Offer Letter - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 8px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 8px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .offer-box { border: 2px solid #c0392b; padding: 20px; margin: 20px 0; background: #fafafa; }
+  .accept-section { background: #e8f5e9; padding: 15px; margin-top: 30px; border-radius: 5px; }
+  .highlight { color: #c0392b; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Offer Letter</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ offer_ref }} | Date: {{ generated_date }}</p>
+
+<p>Dear {{ candidate_name }},</p>
+
+<p>We are pleased to offer you the position of <strong>{{ position }}</strong> at {{ company_name }}. We believe your skills and experience will be a valuable addition to our {{ department }} team.</p>
+
+<div class="offer-box">
+  <h3 style="margin-top: 0; color: #c0392b;">Employment Terms</h3>
+  <div class="field"><strong>Position:</strong> {{ position }}</div>
+  <div class="field"><strong>Department:</strong> {{ department }}</div>
+  <div class="field"><strong>Employment Type:</strong> Full-time / Part-time / Contract</div>
+  <div class="field"><strong>Reports To:</strong> {{ reporting_manager }}</div>
+  <div class="field"><strong>Start Date:</strong> {{ start_date }}</div>
+  <div class="field"><strong>Probation Period:</strong> {{ probation_months }} months</div>
+</div>
+
+<h2>1. Remuneration Package</h2>
+<div class="field"><strong>Monthly Salary:</strong> {{ currency }} {{ salary }}</div>
+<div class="field"><strong>Annual Salary:</strong> {{ currency }} {{ annual_salary }}</div>
+{% if bonus %}
+<div class="field"><strong>Performance Bonus:</strong> Up to {{ bonus }}% of annual salary</div>
+{% endif %}
+{% if allowances %}
+<div class="field"><strong>Allowances:</strong> {{ allowances }}</div>
+{% endif %}
+
+<h2>2. Leave Entitlements</h2>
+<table>
+  <tr><th>Leave Type</th><th>Entitlement</th></tr>
+  <tr><td>Annual Leave</td><td>{{ leave_annual }}</td></tr>
+  <tr><td>Sick Leave</td><td>{{ leave_sick }}</td></tr>
+  <tr><td>Medical Leave</td><td>{{ leave_medical }}</td></tr>
+</table>
+
+<h2>3. Benefits</h2>
+<ul>
+  <li>Medical coverage: {{ medical_coverage }}</li>
+  <li>EPF/SOCSO contributions (Malaysia) / CPF contributions (Singapore)</li>
+  {% if overtime_allowance %}<li>Overtime allowance as per company policy</li>{% endif %}
+  {% if parking %}<li>Parking allowance: {{ parking }}</li>{% endif %}
+  {% if phone_allowance %}<li>Phone allowance: {{ phone_allowance }}</li>{% endif %}
+</ul>
+
+<h2>4. Working Hours</h2>
+<div class="field"><strong>Standard Hours:</strong> {{ work_hours }}</div>
+<div class="field"><strong>Work Location:</strong> {{ work_location }}</div>
+
+<h2>5. Background Verification</h2>
+<p>This offer is subject to satisfactory completion of:</p>
+<ul>
+  <li>Background verification checks</li>
+  <li>Reference checks</li>
+  <li>Verification of educational certificates</li>
+  {% if drug_test %}<li>Drug screening test</li>{% endif %}
+</ul>
+
+<h2>6. Acceptance</h2>
+<div class="accept-section">
+  <p>To accept this offer, please sign below and return this letter by <strong>{{ acceptance_deadline }}</strong>.</p>
+  <p>Should you have any questions, please contact HR at {{ hr_contact }}.</p>
+</div>
+
+<table style="border: none; margin-top: 40px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>For {{ company_name }}</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>Authorized Signatory</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Candidate</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ candidate_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>{{ company_name }} | {{ company_address }}</p>
+</div>
+
+</body>
+</html>

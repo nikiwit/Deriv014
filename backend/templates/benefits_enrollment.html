@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Benefits Enrollment Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 8px 0; }
+  .field label { display: inline-block; width: 200px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 200px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 8px; font-size: 9pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .section { margin-bottom: 20px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .signature-line { border-top: 1px solid #333; width: 200px; margin-top: 30px; padding-top: 5px; }
+  .checkbox-group { margin: 5px 0; }
+  .box { border: 1px solid #333; padding: 10px; min-height: 60px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Benefits Enrollment Form</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">Date: {{ generated_date }}</p>
+
+<div class="section">
+  <h2>1. Employee Information</h2>
+  <div class="field"><label>Full Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Position:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Date of Employment:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>2. Medical Insurance</h2>
+  <div class="checkbox-group">[ ] Enroll in Company Medical Plan</div>
+  <div class="checkbox-group">[ ] Opt-out (provide reason below)</div>
+  <div class="field"><label>Plan Type:</label></div>
+  <div class="checkbox-group">[ ] Basic</div>
+  <div class="checkbox-group">[ ] Standard</div>
+  <div class="checkbox-group">[ ] Premium</div>
+  <div class="field"><label>Dependent Coverage:</label></div>
+  <div class="checkbox-group">[ ] Self Only</div>
+  <div class="checkbox-group">[ ] Self + Spouse</div>
+  <div class="checkbox-group">[ ] Self + Children</div>
+  <div class="checkbox-group">[ ] Family (Self + Spouse + Children)</div>
+</div>
+
+<div class="section">
+  <h2>3. Dependent Information (for insurance purposes)</h2>
+  <table>
+    <tr>
+      <th>Name</th>
+      <th>Relationship</th>
+      <th>Date of Birth</th>
+      <th>NRIC/Passport</th>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>4. Group Life Insurance</h2>
+  <div class="checkbox-group">[ ] Enroll in Group Life Insurance</div>
+  <div class="checkbox-group">[ ] Opt-out</div>
+  <div class="field"><label>Coverage Amount:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>5. Employee Provident Fund (EPF/CPF)</h2>
+  <div class="field"><label>Contribution Rate:</label></div>
+  <div class="checkbox-group">[ ] Standard Rate</div>
+  <div class="checkbox-group">[ ] Reduced Rate (for employees above 55)</div>
+  <div class="checkbox-group">[ ] Voluntary Contribution</div>
+  <div class="field"><label>Additional Voluntary Contribution:</label><span class="field-value">___%</span></div>
+</div>
+
+<div class="section">
+  <h2>6. Parking/Transport</h2>
+  <div class="checkbox-group">[ ] Company Parking</div>
+  <div class="checkbox-group">[ ] Parking Allowance</div>
+  <div class="checkbox-group">[ ] Transport Allowance</div>
+  <div class="checkbox-group">[ ] None</div>
+</div>
+
+<div class="section">
+  <h2>7. Flexible Spending Account (FSA)</h2>
+  <div class="checkbox-group">[ ] Enroll in FSA</div>
+  <div class="field"><label>Monthly Contribution:</label><span class="field-value">_____________</span></div>
+  <p>For healthcare/medical expenses</p>
+</div>
+
+<div class="section">
+  <h2>8. Other Benefits</h2>
+  <div class="checkbox-group">[ ] Mobile Phone Allowance</div>
+  <div class="checkbox-group">[ ] Internet Allowance</div>
+  <div class="checkbox-group">[ ] Laptop/Equipment Allowance</div>
+  <div class="checkbox-group">[ ] Education/Training Benefits</div>
+  <div class="checkbox-group">[ ] Gym Membership</div>
+</div>
+
+<div class="section">
+  <h2>9. Nomination for Benefits</h2>
+  <p>For EPF/Insurance Nomination:</p>
+  <table>
+    <tr>
+      <th>Nominee Name</th>
+      <th>Relationship</th>
+      <th>Percentage</th>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>10. Declaration</h2>
+  <p>I confirm that the information provided is true and accurate. I understand that changes to benefits enrollment may be made during the designated enrollment period or upon qualifying life events.</p>
+</div>
+
+<div class="signature-line" style="width: 100%;">
+  <table style="border: none; width: 100%;">
+    <tr style="border: none;">
+      <td style="border: none; width: 50%;">
+        <p><strong>Employee Signature</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Date: _______________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 50%;">
+        <p><strong>HR Department</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Signature: _______________ Date: _______________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>For HR use only: Processed on _______________</p>
+</div>
+
+</body>
+</html>

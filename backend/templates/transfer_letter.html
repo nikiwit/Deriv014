@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Transfer Letter - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .transfer-box { border: 2px solid #3498db; padding: 15px; margin: 20px 0; background: #f0f8ff; }
+  .clause { margin: 15px 0; text-align: justify; }
+  ul { margin: 10px 0; }
+  li { margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Internal Transfer Letter</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ transfer_ref }} | Date: {{ generated_date }}</p>
+
+<p>To: {{ employee_name }}</p>
+<p>Employee ID: {{ employee_id }}</p>
+<p>Current Position: {{ current_position }}</p>
+<p>Current Department: {{ current_department }}</p>
+
+<p>Dear {{ employee_name }},</p>
+
+<h2>Re: Internal Transfer</h2>
+
+<div class="transfer-box">
+  <strong>Transfer Effective Date:</strong> {{ effective_date }}
+</div>
+
+<p class="clause">We are pleased to inform you that your request for an internal transfer has been approved. You will be transferred from your current position to the new position as detailed below.</p>
+
+<h2>1. Transfer Details</h2>
+<table>
+  <tr>
+    <th></th>
+    <th>Current</th>
+    <th>New</th>
+  </tr>
+  <tr>
+    <td>Position</td>
+    <td>{{ current_position }}</td>
+    <td><strong>{{ new_position }}</strong></td>
+  </tr>
+  <tr>
+    <td>Department</td>
+    <td>{{ current_department }}</td>
+    <td><strong>{{ new_department }}</strong></td>
+  </tr>
+  <tr>
+    <td>Location</td>
+    <td>{{ current_location }}</td>
+    <td><strong>{{ new_location }}</strong></td>
+  </tr>
+  <tr>
+    <td>Reports To</td>
+    <td>{{ current_manager }}</td>
+    <td><strong>{{ new_manager }}</strong></td>
+  </tr>
+  <tr>
+    <td>Grade/Level</td>
+    <td>{{ current_grade }}</td>
+    <td><strong>{{ new_grade }}</strong></td>
+  </tr>
+</table>
+
+<h2>2. Effective Date</h2>
+<div class="field"><strong>Transfer Effective From:</strong> {{ effective_date }}</div>
+<div class="field"><strong>Transition Period:</strong> {{ transition_period }}</div>
+
+<h2>3. Salary & Benefits</h2>
+<div class="field"><strong>Current Salary:</strong> {{ currency }} {{ current_salary }}</div>
+<div class="field"><strong>New Salary:</strong> {{ currency }} {{ new_salary }}</div>
+<div class="field"><strong>Change:</strong> {{ salary_change }}</div>
+<p>All other benefits remain unchanged unless otherwise communicated.</p>
+
+<h2>4. Reason for Transfer</h2>
+<p>{{ transfer_reason }}</p>
+
+<h2>5. Handover</h2>
+<p class="clause">Please complete all handover procedures with your current department before the effective date. This includes:</p>
+<ul>
+  <li>Documentation of ongoing projects</li>
+  <li>Knowledge transfer sessions</li>
+  <li>Return of current department equipment</li>
+  <li>Completion of pending tasks</li>
+</ul>
+
+<h2>6. New Department Orientation</h2>
+<p>You will receive orientation from your new manager on the effective date, including:</p>
+<ul>
+  <li>Introduction to new team members</li>
+  <li>Overview of new responsibilities</li>
+  <li>New department policies and procedures</li>
+</ul>
+
+<h2>Acknowledgment</h2>
+<p>We thank you for your contributions to your previous department and wish you success in your new role.</p>
+
+<table style="border: none; margin-top: 40px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>For {{ company_name }}</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>HR Manager</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>CC: Personnel File | Current Department | New Department</p>
+</div>
+
+</body>
+</html>

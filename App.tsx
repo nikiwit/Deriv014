@@ -139,6 +139,7 @@ import { LeaveManagement } from './components/LeaveManagement';
 import { Onboarding } from './components/Onboarding';
 import { CandidatePortal } from './components/CandidatePortal';
 import { NewEmployeePage } from './components/NewEmployeePage';
+import { HRCreateEmployee } from './components/onboarding/HRCreateEmployee';
 import { EmployeeDashboard } from './components/employee/EmployeeDashboard';
 import { MyOnboarding } from './components/employee/MyOnboarding';
 import { MyLeave } from './components/employee/MyLeave';
@@ -213,7 +214,13 @@ function AppContent() {
     return <LoginPage 
       onLoginSuccess={() => setCurrentView('dashboard')} 
       onNewOnboarding={() => setCurrentView('new_employee')}
+      onEmployeeOnboarding={() => setCurrentView('employee_onboarding')}
     />;
+  }
+
+  // Show employee onboarding if selected (HR Create Employee)
+  if (currentView === 'employee_onboarding') {
+    return <HRCreateEmployee />;
   }
 
   // HR Admin Portal

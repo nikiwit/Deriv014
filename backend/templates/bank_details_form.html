@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bank Details Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .field { margin: 10px 0; }
+  .field label { display: inline-block; width: 200px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 250px; display: inline-block; }
+  .section { margin-bottom: 25px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .important { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin: 15px 0; }
+  .signature-line { border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Salary Bank Account Details</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">Date: {{ generated_date }}</p>
+
+<div class="important">
+  <strong>Important:</strong> Please provide complete and accurate bank details. Incorrect details may result in failed transfers or delays in salary processing.
+</div>
+
+<div class="section">
+  <h2>1. Employee Information</h2>
+  <div class="field"><label>Employee Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>NRIC/Passport No:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>2. Bank Account Details</h2>
+  <div class="field"><label>Bank Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Bank Branch:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Bank Address:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Confirm Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Account Holder Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>SWIFT Code:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>3. Account Type</h2>
+  <div class="field">[ ] Savings Account</div>
+  <div class="field">[ ] Current Account</div>
+</div>
+
+<div class="section">
+  <h2>4. Additional Payment Information</h2>
+  <div class="field"><label>Interbank GIRO Bank Code:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>IBAN (for overseas):</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>5. Salary Payment Preference</h2>
+  <div class="field">[ ] Full Salary to above account</div>
+  <div class="field">[ ] Split payment - Primary: _______% to above account</div>
+  <div class="field"><label>Secondary Account:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>6. Supporting Documents</h2>
+  <div class="field">[ ] Bank Statement (recent, showing account details)</div>
+  <div class="field">[ ] Copy of Bank Book / Passbook</div>
+  <div class="field">[ ] Cancelled Cheque</div>
+</div>
+
+<div class="section">
+  <h2>7. Declaration</h2>
+  <p>I confirm that the bank account details provided above are correct and belong to me. I authorize {{ company_name }} to credit my salary to this account. I will notify HR immediately if there are any changes to my bank account details.</p>
+</div>
+
+<div class="signature-line" style="width: 100%;">
+  <table style="border: none; width: 100%;">
+    <tr style="border: none;">
+      <td style="border: none; width: 50%;">
+        <p><strong>Employee Signature</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Name: _________________ Date: _______________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 50%;">
+        <p><strong>Verified by HR</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Signature: _________________ Date: _______________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>For HR use only: Verified with bank statement on _______________</p>
+</div>
+
+</body>
+</html>

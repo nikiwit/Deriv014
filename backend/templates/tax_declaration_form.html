@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tax Declaration Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .field { margin: 8px 0; }
+  .field label { display: inline-block; width: 200px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 220px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 8px; font-size: 9pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .section { margin-bottom: 20px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .signature-line { border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px; }
+  .checkbox { margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Income Tax Declaration Form</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">For Year: {{ tax_year }} | Date: {{ generated_date }}</p>
+
+<div class="section">
+  <h2>1. Employee Information</h2>
+  <div class="field"><label>Full Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>NRIC/Passport No:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Tax File Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Position:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>2. Employment Details</h2>
+  <div class="field"><label>Date of Employment:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employment Status:</label><span class="field-value"> Permanent [ ] Contract [ ]</span></div>
+  <div class="field"><label>Residency Status:</label><span class="field-value"> Resident [ ] Non-Resident [ ]</span></div>
+</div>
+
+<div class="section">
+  <h2>3. Income Details for {{ tax_year }}</h2>
+  <table>
+    <tr>
+      <th>Income Type</th>
+      <th>Amount ({{ currency }})</th>
+    </tr>
+    <tr>
+      <td>Gross Salary</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Bonus</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Allowances (Transport/Housing/Other)</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Commissions</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Director's Fees</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Taxable Benefits-in-Kind</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td><strong>Total Gross Income</strong></td>
+      <td><strong>________________</strong></td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>4. Deductions & Reliefs</h2>
+  <table>
+    <tr>
+      <th>Deduction/Relief Type</th>
+      <th>Amount ({{ currency }})</th>
+    </tr>
+    <tr>
+      <td>EPF/CPF Contribution</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Zakat/Charity</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Insurance (Life/Medical)</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Education Fees</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>Device Purchase</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td>SSPN Contribution</td>
+      <td>________________</td>
+    </tr>
+    <tr>
+      <td><strong>Total Deductions</strong></td>
+      <td><strong>________________</strong></td>
+    </tr>
+  </table>
+</div>
+
+{% if jurisdiction == 'Malaysia' %}
+<div class="section">
+  <h2>5. EPF Information</h2>
+  <div class="field"><label>EPF Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>EPF Contribution Rate:</label><span class="field-value">___%</span></div>
+</div>
+{% elif jurisdiction == 'Singapore' %}
+<div class="section">
+  <h2>5. CPF Information</h2>
+  <div class="field"><label>NRIC/FIN Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>CPF Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>CPF Allocation Rate:</label><span class="field-value">___%</span></div>
+</div>
+{% endif %}
+
+<div class="section">
+  <h2>6. Additional Income (Other Sources)</h2>
+  <div class="field"><label>Other Employment Income:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Business Income:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Investment Income:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Rental Income:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>7. Declaration</h2>
+  <div class="checkbox">[ ] I declare that the information provided is true and correct.</div>
+  <div class="checkbox">[ ] I have disclosed all income received from other sources.</div>
+  <div class="checkbox">[ ] I will notify the company of any changes to my tax status.</div>
+  <p>I understand that providing false information may result in penalties and legal action.</p>
+</div>
+
+<div class="signature-line" style="width: 100%;">
+  <table style="border: none; width: 100%;">
+    <tr style="border: none;">
+      <td style="border: none; width: 50%;">
+        <p><strong>Employee Signature</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Date: _______________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 50%;">
+        <p><strong>HR Department</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Signature: _______________ Date: _______________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>To be submitted to HR by January 31 of each year</p>
+</div>
+
+</body>
+</html>

@@ -6,6 +6,7 @@ import { InitialOnboardingJourney, OnboardingData, OnboardingJourney } from '../
 
 import { NewEmployeeOnboardingForm } from './onboarding/NewEmployeeOnboardingForm';
 import { GeneratedDocumentsPanel } from './onboarding/GeneratedDocumentsPanel';
+import { NewEmployeeModeSelection, AIOnboarding, OfferLetterGenerator } from './onboarding/NewEmployeeModeSelection';
 import { Badge } from './design-system/Badge';
 import {
     Send,
@@ -59,7 +60,7 @@ interface ChatMessage {
 
 // No more mock data — employees are loaded from the backend
 
-type ViewMode = 'list' | 'wizard' | 'form';
+type ViewMode = 'list' | 'wizard' | 'form' | 'ai' | 'offer';
 
 
 
@@ -69,7 +70,10 @@ export const Onboarding: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'in_progress' | 'completed'>('all');
     const [showFormMode, setShowFormMode] = useState(false);
+    const [showModeSelection, setShowModeSelection] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<{ id: string; name: string } | null>(null);
+    const [preliminaryData, setPreliminaryData] = useState<Record<string, any> | null>(null);
+    const [aiMode, setAiMode] = useState(false);
 
     // Onboarding profile from localStorage (employee-submitted data)
     const [onboardingProfile, setOnboardingProfile] = useState<Record<string, any> | null>(null);
@@ -505,7 +509,7 @@ export const Onboarding: React.FC = () => {
                             </button>
                         </div>
                         <button
-                            onClick={showFormMode ? handleStartFormOnboarding : handleStartNewOnboarding}
+                            onClick={() => setShowModeSelection(true)}
                             className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-derivhr-500 to-derivhr-600 text-white rounded-xl font-bold hover:from-derivhr-600 hover:to-derivhr-700 transition-all shadow-lg shadow-derivhr-500/30 transform hover:-translate-y-0.5"
                         >
                             <Plus size={20} />
@@ -720,6 +724,71 @@ export const Onboarding: React.FC = () => {
                         ))}
                     </div>
                 </div>
+            </div>
+        );
+    }
+
+    // MODE SELECTION DIALOG
+    if (showModeSelection) {
+        const handleModeSelect = (mode: 'form' | 'ai') => {
+            setShowModeSelection(false);
+            if (mode === 'form') {
+                setShowFormMode(true);
+            } else {
+                setAiMode(true);
+                setViewMode('ai');
+            }
+        };
+
+        return (
+            <div className="animate-fade-in">
+                <NewEmployeeModeSelection
+                    isOpen={showModeSelection}
+                    onClose={() => setShowModeSelection(false)}
+                    onModeSelect={handleModeSelect}
+                />
+            </div>
+        );
+    }
+
+    // AI MODE
+    if (aiMode) {
+        const handleAIBackToList = () => {
+            setAiMode(false);
+            setViewMode('list');
+            setShowModeSelection(false);
+            handleRestart();
+        };
+
+        const handleAIFinish = (data: OnboardingData, analysisResult: string) => {
+            // Load preliminary data from localStorage if available
+            const prelimData = loadJson('preliminaryEmployeeData');
+            if (prelimData) {
+                setPreliminaryData(prelimData);
+            }
+            
+            // Add to employee list
+            const newEmployee: OnboardingJourney = {
+                id: Date.now().toString(),
+                employeeId: `EMP-2024-${String(employees.length + 19).padStart(3, '0')}`,
+                employeeName: data.fullName,
+                tasks: [],
+                progress: 0,
+                status: 'in_progress',
+                startDate: data.startDate,
+            };
+            setEmployees(prev => [newEmployee, ...prev]);
+            setAiMode(false);
+            setViewMode('list');
+        };
+
+        return (
+            <div className="animate-fade-in">
+                <AIOnboarding
+                    onSubmit={handleAIFinish}
+                    onCancel={handleAIBackToList}
+                    existingEmployees={employees}
+                />
             </div>
         );
     }

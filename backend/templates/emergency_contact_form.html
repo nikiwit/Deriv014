@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Emergency Contact Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .field { margin: 8px 0; }
+  .field label { display: inline-block; width: 180px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 220px; display: inline-block; }
+  .section { margin-bottom: 20px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .signature-line { border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px; }
+  .checkbox-group { margin: 5px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Emergency Contact Information</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">Date: {{ generated_date }}</p>
+
+<div class="section">
+  <h2>Employee Details</h2>
+  <div class="field"><label>Employee Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>Primary Emergency Contact</h2>
+  <div class="field"><label>Full Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Relationship:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>NRIC/Passport No:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Mobile Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Home Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Office Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Email Address:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Address:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>Secondary Emergency Contact</h2>
+  <div class="field"><label>Full Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Relationship:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Mobile Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Home Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Email Address:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>Contact Preference</h2>
+  <div class="checkbox-group">In case of emergency, please contact:</div>
+  <div class="checkbox-group">[ ] Primary Contact First</div>
+  <div class="checkbox-group">[ ] Secondary Contact First</div>
+  <div class="checkbox-group">[ ] Contact Both Simultaneously</div>
+</div>
+
+<div class="section">
+  <h2>Medical Information</h2>
+  <div class="field"><label>Blood Type:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Known Allergies:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Medical Conditions:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Current Medications:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Physician Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Physician Phone:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>Declaration</h2>
+  <p>I authorize {{ company_name }} to contact the above persons in case of emergency. I confirm that all information provided is accurate.</p>
+</div>
+
+<div class="signature-line" style="width: 100%; margin-top: 30px;">
+  <table style="border: none; width: 100%;">
+    <tr style="border: none;">
+      <td style="border: none; width: 50%;">
+        <p><strong>Employee Signature</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Name: _________________ Date: _______________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 50%;">
+        <p><strong>HR Department</strong></p>
+        <div style="border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px;">
+          <p>Signature: _________________ Date: _______________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>This information is confidential and will only be used for emergency purposes.</p>
+</div>
+
+</body>
+</html>

@@ -96,14 +96,17 @@ export interface InitialOnboardingJourney {
 // View State (Extended)
 // ============================================
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type ViewState =
   // HR Admin views
-  | 'dashboard' | 'documents' | 'assistant' | 'planning'
+  'dashboard' | 'documents' | 'assistant' | 'planning'
   | 'training' | 'knowledge' | 'leave' | 'onboarding' | 'candidate' | 'new_employee' | 'hr_agent'
   // Auth views
   | 'login'
   // Employee views
-  | 'employee_dashboard' | 'my_onboarding' | 'my_leave' | 'my_documents' | 'my_profile' | 'employee_chat';
+  | 'employee_dashboard' | 'my_onboarding' | 'my_leave' | 'my_documents' | 'my_profile' | 'employee_chat'
+  // Employee Self-Onboarding (NRIC/Passport verification)
+  | 'employee_onboarding';
 
 export interface ContractParams {
   employeeName: string;

@@ -10,16 +10,14 @@ This agent can:
 import json
 import logging
 import re
-import time  # Import time for delays
-import os  # Import os to get environment variable
+import time
+import os
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
-import requests  # Import requests for OpenRouter API calls
-from llama_index.core import VectorStoreIndex, Settings
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.core.llms import LLM  # Import generic LLM type for Settings.llm
+import requests
+from llama_index.core import VectorStoreIndex
+from llama_index.core.llms import LLM
 
 from app.models import ContractParams
 
@@ -32,7 +30,7 @@ class JDAnalysis:
 
     position: str
     department: str
-    jurisdiction: str  # "MY" or "SG"
+    jurisdiction: str
     salary_range: Tuple[float, float]
     responsibilities: List[str]
     qualifications: List[str]
@@ -51,9 +49,9 @@ class ContractGenerationRequest:
     nric: str
     employee_address: str
     start_date: str
-    jd_source: str  # "linkedin", "web", "rag", "manual"
-    jd_data: Dict  # Raw JD data or URL
-    jurisdiction: Optional[str] = None  # Auto-detected if not provided
+    jd_source: str
+    jd_data: Dict
+    jurisdiction: Optional[str] = None
 
 
 class HRAgent:
@@ -62,36 +60,10 @@ class HRAgent:
     def __init__(self, app_config: Dict):
         """Initialize the HR agent."""
         self.config = app_config
-
-        # Initialize LLM for JD analysis (using OpenRouter/DeepSeek)
-        self.llm = OpenAI(
-            model="deepseek/deepseek-chat",
-            api_key=app_config.get("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            temperature=0.1,
-        )
-
-        # Initialize embedding model
-        self.embed_model = OpenAIEmbedding(
-            model=app_config["EMBEDDING_MODEL"],
-            api_key=app_config["OPENAI_API_KEY"],
-        )
-
-        # Load job description knowledge base
-        self.jd_index = self._load_jd_knowledge_base()
-
-        # OpenRouter config
-        self.openrouter_api_key = os.getenv(
-            "OPENROUTER_API_KEY"
-        )  # Load from environment
-        self.openrouter_model = (
-            "deepseek/deepseek-chat"  # Default to deepseek as requested
-        )
-
-        # Set default LLM for LlamaIndex Settings
-        Settings.llm = self.llm  # type: ignore
-        Settings.embed_model = self.embed_model  # type: ignore
-
+        self.jd_index: Optional[VectorStoreIndex] = None
+        self.llm = None
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        self.openrouter_model = "deepseek/deepseek-chat"
         logger.info("HR Agent initialized successfully")
 
     def _llm_complete_with_retry(
@@ -100,28 +72,33 @@ class HRAgent:
         """
         Call LLM (Gemini then OpenRouter) with retry and exponential backoff.
         """
-        # --- Try Gemini first ---
-        for i in range(max_retries):
-            try:
-                response = self.llm.complete(prompt)
-                logger.info(f"Gemini LLM call successful (attempt {i + 1}).")
-                return str(response).strip()
-            except Exception as e:
-                logger.warning(
-                    f"Gemini LLM call failed (attempt {i + 1}/{max_retries}): {e}"
-                )
-                if (
-                    "429" in str(e)
-                    or "RESOURCE_EXHAUSTED" in str(e)
-                    or "quota" in str(e).lower()
-                ):
-                    delay = initial_delay * (2**i)
-                    logger.info(f"Retrying Gemini in {delay} seconds...")
-                    time.sleep(delay)
-                else:
-                    break  # Break if it's not a rate limit, let it fall to OpenRouter or re-raise later
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_api_key:
+            import google.generativeai as genai
 
-        # --- Fallback to OpenRouter ---
+            genai.configure(api_key=gemini_api_key)
+
+            for i in range(max_retries):
+                try:
+                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    response = model.generate_content(prompt)
+                    logger.info(f"Gemini LLM call successful (attempt {i + 1}).")
+                    return response.text.strip()
+                except Exception as e:
+                    logger.warning(
+                        f"Gemini LLM call failed (attempt {i + 1}/{max_retries}): {e}"
+                    )
+                    if (
+                        "429" in str(e)
+                        or "RESOURCE_EXHAUSTED" in str(e)
+                        or "quota" in str(e).lower()
+                    ):
+                        delay = initial_delay * (2**i)
+                        logger.info(f"Retrying Gemini in {delay} seconds...")
+                        time.sleep(delay)
+                    else:
+                        break
+
         if self.openrouter_api_key:
             logger.warning(
                 "Gemini attempts exhausted or failed. Falling back to OpenRouter..."
@@ -130,14 +107,14 @@ class HRAgent:
                 headers = {
                     "Authorization": f"Bearer {self.openrouter_api_key}",
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://derivhr.com",  # Required by OpenRouter
-                    "X-Title": "DerivHR",  # Required by OpenRouter
+                    "HTTP-Referer": "https://derivhr.com",
+                    "X-Title": "DerivHR",
                 }
                 messages = [{"role": "user", "content": prompt}]
                 payload = {
                     "model": self.openrouter_model,
                     "messages": messages,
-                    "temperature": 0.1,  # Keep it low for HR context
+                    "temperature": 0.1,
                 }
 
                 response = requests.post(
@@ -146,7 +123,7 @@ class HRAgent:
                     json=payload,
                     timeout=30,
                 )
-                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+                response.raise_for_status()
                 result = response.json()
 
                 if (
@@ -168,7 +145,7 @@ class HRAgent:
                 raise Exception(f"Failed to get response from OpenRouter: {e}")
 
         raise Exception(
-            "All LLM attempts (Gemini and OpenRouter) failed or OpenRouter API key is missing."
+            "All LLM attempts (Gemini and OpenRouter) failed or API keys are missing."
         )
 
     def _load_jd_knowledge_base(self) -> Optional[VectorStoreIndex]:
@@ -188,7 +165,6 @@ class HRAgent:
                     with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
-                    # Determine jurisdiction from filename
                     jurisdiction = "MY" if "_my_" in jd_file.lower() else "SG"
 
                     doc = Document(
@@ -205,9 +181,6 @@ class HRAgent:
                     logger.warning(f"JD file not found: {jd_file}")
 
             if documents:
-                # Use class's LLM and embed_model for Settings
-                Settings.llm = self.llm  # type: ignore
-                Settings.embed_model = self.embed_model  # type: ignore
                 index = VectorStoreIndex.from_documents(documents)
                 logger.info(
                     f"Created JD knowledge base with {len(documents)} documents"
@@ -225,7 +198,6 @@ class HRAgent:
         """Analyze job description from raw text."""
         logger.info("Analyzing JD from text")
 
-        # Use LLM to extract structured information
         prompt = f"""
 You are an HR expert analyzing job descriptions. Extract the following information from the job description below:
 
@@ -250,7 +222,6 @@ Return ONLY valid JSON, no other text.
         try:
             response_text = self._llm_complete_with_retry(prompt)
 
-            # Clean up the response to extract JSON
             json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
             if json_match:
                 result_text = json_match.group()
@@ -259,16 +230,14 @@ Return ONLY valid JSON, no other text.
 
             data = json.loads(result_text)
 
-            # Override jurisdiction if provided
             if jurisdiction:
                 data["jurisdiction"] = jurisdiction
 
-            # Validate and set defaults
             if not data.get("jurisdiction") or data["jurisdiction"] not in ["MY", "SG"]:
-                data["jurisdiction"] = "MY"  # Default to Malaysia
+                data["jurisdiction"] = "MY"
 
             if not data.get("salary_range") or len(data["salary_range"]) != 2:
-                data["salary_range"] = [5000, 10000]  # Default range
+                data["salary_range"] = [5000, 10000]
 
             return JDAnalysis(
                 position=data.get("position", "Unknown Position"),
@@ -290,7 +259,6 @@ Return ONLY valid JSON, no other text.
             )
         except Exception as e:
             logger.error(f"Error analyzing JD from text: {e}")
-            # Return default analysis
             return JDAnalysis(
                 position="Unknown Position",
                 department="General",
@@ -316,7 +284,6 @@ Return ONLY valid JSON, no other text.
             return self._get_default_jd_analysis(position, jurisdiction)
 
         try:
-            # Query the knowledge base
             query_engine = self.jd_index.as_query_engine(
                 similarity_top_k=3, response_mode="tree_summarize"
             )
@@ -324,10 +291,8 @@ Return ONLY valid JSON, no other text.
             query = f"Job description for {position} position in {jurisdiction} jurisdiction"
             response = query_engine.query(query)
 
-            # Parse the response
             response_text = str(response)
 
-            # Extract structured information using LLM
             prompt = f"""
 Based on the following job description information, extract structured data:
 
@@ -379,12 +344,6 @@ Return ONLY valid JSON.
         """Analyze job description from LinkedIn URL (mock implementation)."""
         logger.info(f"Analyzing JD from LinkedIn URL: {linkedin_url}")
 
-        # In a real implementation, you would:
-        # 1. Use LinkedIn API or web scraping to get the JD
-        # 2. Parse the HTML/text to extract job details
-        # 3. Call analyze_jd_from_text with the extracted content
-
-        # For now, return a mock response
         return JDAnalysis(
             position="Software Engineer",
             department="Engineering",
@@ -415,12 +374,6 @@ Return ONLY valid JSON.
         """Analyze job description from web search (mock implementation)."""
         logger.info(f"Analyzing JD from web search: {search_query}")
 
-        # In a real implementation, you would:
-        # 1. Use a web search API (Google, Bing, etc.)
-        # 2. Fetch relevant job descriptions
-        # 3. Aggregate and analyze the results
-
-        # For now, return a mock response
         return JDAnalysis(
             position="Full Stack Developer",
             department="Technology",
@@ -451,7 +404,6 @@ Return ONLY valid JSON.
         """Get default JD analysis when other methods fail."""
         logger.warning(f"Using default JD analysis for {position} in {jurisdiction}")
 
-        # Default values based on jurisdiction
         if jurisdiction == "SG":
             salary_range = (5000, 8000)
             benefits = ["CPF contributions", "Medical insurance", "Annual bonus"]
@@ -481,11 +433,9 @@ Return ONLY valid JSON.
         """Generate contract parameters from JD analysis."""
         logger.info(f"Generating contract params for {request.employee_name}")
 
-        # Analyze JD if not provided
         if not jd_analysis:
             jd_analysis = self._analyze_jd_from_request(request)
 
-        # Use midpoint of salary range
         salary = (jd_analysis.salary_range[0] + jd_analysis.salary_range[1]) / 2
 
         return ContractParams(
@@ -517,7 +467,6 @@ Return ONLY valid JSON.
             jd_text = request.jd_data.get("text", "")
             return self.analyze_jd_from_text(jd_text, request.jurisdiction)
         else:
-            # Default to RAG with position from data
             position = request.jd_data.get("position", "Unknown")
             jurisdiction = request.jurisdiction or "MY"
             return self.analyze_jd_from_rag(position, jurisdiction)
@@ -559,7 +508,6 @@ Return ONLY valid JSON.
             }
 
 
-# Global instance
 _hr_agent = None
 
 

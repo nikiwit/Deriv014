@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Termination Letter - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 13pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 20px; }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field strong { display: inline-block; width: 160px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 10px; font-size: 10pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .signatures { margin-top: 60px; display: flex; justify-content: space-between; }
+  .sig-block { width: 45%; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 5px; }
+  .footer { margin-top: 40px; font-size: 8pt; color: #999; text-align: center; }
+  .warning-box { border: 2px solid #c0392b; padding: 15px; margin: 20px 0; background: #fdf2f2; }
+  .clause { margin: 15px 0; text-align: justify; }
+  ul { margin: 10px 0; }
+  li { margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>Registration No: {{ company_reg }}</p>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 16pt; color: #222;">Termination Letter</h1>
+<p style="text-align: center; font-size: 10pt; color: #666;">Ref: {{ termination_ref }} | Date: {{ generated_date }}</p>
+
+<div class="warning-box">
+  <strong>CONFIDENTIAL</strong>
+</div>
+
+<p>To: {{ employee_name }}</p>
+<p>Employee ID: {{ employee_id }}</p>
+<p>Department: {{ department }}</p>
+<p>Position: {{ position }}</p>
+
+<p>Dear {{ employee_name }},</p>
+
+<h2>Re: Termination of Employment</h2>
+
+<p class="clause">Further to our discussions, this letter formally confirms the termination of your employment with {{ company_name }} (the "Company"), effective from {{ termination_date }}.</p>
+
+<h2>1. Reason for Termination</h2>
+<p class="clause">{{ termination_reason }}</p>
+
+<h2>2. Termination Details</h2>
+<div class="field"><strong>Termination Date:</strong> {{ termination_date }}</div>
+<div class="field"><strong>Last Working Day:</strong> {{ last_working_day }}</div>
+<div class="field"><strong>Notice Period:</strong> {{ notice_period }}</div>
+<div class="field"><strong>Termination Type:</strong> {{ termination_type }} (Resignation / Dismissal / Mutual Termination)</div>
+
+<h2>3. Final Remuneration</h2>
+<div class="field"><strong>Salary Until:</strong> {{ final_salary_date }}</div>
+{% if payment_in_lieu %}
+<div class="field"><strong>Notice Period Payment:</strong> {{ currency }} {{ notice_payment }}</div>
+{% endif %}
+{% if unused_leave_payment %}
+<div class="field"><strong>Unused Leave Payment:</strong> {{ currency }} {{ unused_leave }}</div>
+{% endif %}
+<div class="field"><strong>Total Payment:</strong> {{ currency }} {{ total_payment }}</div>
+
+<h2>4. Statutory Deductions</h2>
+<ul>
+  {% if jurisdiction == 'Malaysia' %}
+  <li>EPF and SOCSO will be handled as per statutory requirements</li>
+  <li>EA Form will be issued by January of the following year</li>
+  {% elif jurisdiction == 'Singapore' %}
+  <li>CPF will be handled as per statutory requirements</li>
+  <li>IR8A Form will be issued by March of the following year</li>
+  {% endif %}
+</ul>
+
+<h2>5. Company Property</h2>
+<p class="clause">You are required to return all Company property on or before your last working day:</p>
+<ul>
+  <li>Laptop/Computer</li>
+  <li>Mobile Phone</li>
+  <li>Access Card/Keys</li>
+  <li>All Company documents and files</li>
+  <li>Any other Company assets</li>
+</ul>
+
+<h2>6. Exit Procedures</h2>
+<p>Please complete the following:</p>
+<ul>
+  <li>Exit interview with HR Department</li>
+  <li>IT clearance and account deactivation</li>
+  <li>Return all Company property</li>
+  <li>Submit final expense claims (if any)</li>
+</ul>
+
+<h2>7. Non-Compete & Confidentiality</h2>
+<p class="clause">Your obligations under the Non-Disclosure Agreement and any other agreements signed during your employment remain in effect. Please review your employment contract for details.</p>
+
+<h2>8. Reference</h2>
+<p>The Company will provide a neutral employment reference upon request.</p>
+
+<h2>Acknowledgment</h2>
+
+<table style="border: none; margin-top: 30px;">
+  <tr style="border: none;">
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Employee Acknowledgment</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ employee_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+    <td style="border: none; width: 50%; vertical-align: top;">
+      <p><strong>Authorized Signatory</strong></p>
+      <div style="margin-top: 50px; border-top: 1px solid #333; width: 200px; padding-top: 5px;">
+        <p>{{ hr_name }} / {{ manager_name }}</p>
+        <p>Date: _______________</p>
+      </div>
+    </td>
+  </tr>
+</table>
+
+<div class="footer">
+  <p>This document was generated by Deriv HR Platform.</p>
+  <p>CC: Personnel File | HR Department | Finance</p>
+</div>
+
+</body>
+</html>

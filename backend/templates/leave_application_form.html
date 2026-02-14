@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Leave Application Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 8px 0; }
+  .field label { display: inline-block; width: 160px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 200px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 8px; font-size: 9pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .section { margin-bottom: 20px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .signature-line { border-top: 1px solid #333; width: 150px; margin-top: 30px; padding-top: 5px; }
+  .checkbox-group { margin: 5px 0; }
+  .box { border: 1px solid #333; padding: 10px; min-height: 60px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Leave Application Form</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">Form Ref: {{ form_ref }} | Date: {{ generated_date }}</p>
+
+<div class="section">
+  <h2>1. Employee Details</h2>
+  <div class="field"><label>Employee Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Position:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>2. Leave Details</h2>
+  <div class="field"><label>Type of Leave:</label></div>
+  <div class="checkbox-group">[ ] Annual Leave</div>
+  <div class="checkbox-group">[ ] Sick Leave</div>
+  <div class="checkbox-group">[ ] Medical Leave (with MC)</div>
+  <div class="checkbox-group">[ ] Emergency Leave</div>
+  <div class="checkbox-group">[ ] Unpaid Leave</div>
+  <div class="checkbox-group">[ ] Maternity Leave</div>
+  <div class="checkbox-group">[ ] Paternity Leave</div>
+  <div class="checkbox-group">[ ] Bereavement Leave</div>
+  <div class="checkbox-group">[ ] Study Leave</div>
+  <div class="checkbox-group">[ ] Other: ________________</div>
+</div>
+
+<div class="section">
+  <h2>3. Leave Period</h2>
+  <table>
+    <tr>
+      <td style="width: 50%;">
+        <div class="field"><label>Date From:</label><span class="field-value">________________</span></div>
+      </td>
+      <td style="width: 50%;">
+        <div class="field"><label>Date To:</label><span class="field-value">________________</span></div>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="field"><label>Total Days:</label><span class="field-value">_____</span> days</div>
+      </td>
+      <td>
+        <div class="field"><label>No. of Working Days:</label><span class="field-value">_____</span> days</div>
+      </td>
+    </tr>
+  </table>
+  <div class="field"><label>Reason for Leave:</label></div>
+  <div class="box"></div>
+</div>
+
+<div class="section">
+  <h2>4. Leave Balance</h2>
+  <table>
+    <tr>
+      <th>Leave Type</th>
+      <th>Annual Entitlement</th>
+      <th>Taken</th>
+      <th>Balance</th>
+    </tr>
+    <tr>
+      <td>Annual Leave</td>
+      <td>____ days</td>
+      <td>____ days</td>
+      <td>____ days</td>
+    </tr>
+    <tr>
+      <td>Sick Leave</td>
+      <td>____ days</td>
+      <td>____ days</td>
+      <td>____ days</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>5. Contact During Leave</h2>
+  <div class="field"><label>Contact Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Email:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Alternate Contact:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>6. Handover Details</h2>
+  <div class="field"><label>Handed Over To:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Tasks Covered:</label></div>
+  <div class="box"></div>
+</div>
+
+<div class="section">
+  <h2>7. Supporting Documents</h2>
+  <div class="checkbox-group">[ ] Medical Certificate attached</div>
+  <div class="checkbox-group">[ ] Supporting documents attached</div>
+  <div class="checkbox-group">[ ] No documents required</div>
+</div>
+
+<div class="section">
+  <h2>8. Approval</h2>
+  <table style="border: none;">
+    <tr style="border: none;">
+      <td style="border: none; width: 33%;">
+        <p><strong>Employee</strong></p>
+        <div class="signature-line">
+          <p>Sign: _________ Date: _________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 33%;">
+        <p><strong>Line Manager</strong></p>
+        <div class="signature-line">
+          <p>Sign: _________ Date: _________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 33%;">
+        <p><strong>HR Department</strong></p>
+        <div class="signature-line">
+          <p>Sign: _________ Date: _________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>HR Use Only</h2>
+  <div class="field"><label>Leave Updated:</label>[ ] Yes [ ] No</div>
+  <div class="field"><label>Processed By:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Date:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>Submit to HR at least 3 working days in advance (for planned leave)</p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Personal Data Form - {{ company_name }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #222; }
+  h1 { text-align: center; font-size: 16pt; margin-bottom: 5px; color: #c0392b; }
+  h2 { font-size: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 15px; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+  .field { margin: 6px 0; }
+  .field label { display: inline-block; width: 180px; font-weight: bold; }
+  .field-value { border-bottom: 1px solid #333; min-width: 200px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  td, th { border: 1px solid #ddd; padding: 6px 8px; font-size: 9pt; }
+  th { background: #f5f5f5; text-align: left; }
+  .section { margin-bottom: 20px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+  .signature-block { margin-top: 40px; }
+  .signature-line { border-top: 1px solid #333; width: 200px; margin-top: 40px; padding-top: 5px; }
+  .checkbox { margin: 3px 0; }
+  .required { color: #c0392b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>{{ company_name }}</h1>
+  <p>{{ company_address }}</p>
+</div>
+
+<h1 style="font-size: 14pt; color: #222;">Employee Personal Data Form</h1>
+<p style="text-align: center; font-size: 9pt; color: #666;">Date: {{ generated_date }}</p>
+
+<div class="section">
+  <h2>1. Personal Information</h2>
+  <div class="field"><label>Full Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>NRIC/Passport No:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Date of Birth:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Gender:</label><span class="field-value"> Male [ ]  Female [ ]  Other [ ]</span></div>
+  <div class="field"><label>Nationality:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Race/Ethnicity:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Religion:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Marital Status:</label><span class="field-value"> Single [ ]  Married [ ]  Divorced [ ]  Widowed [ ]</span></div>
+</div>
+
+<div class="section">
+  <h2>2. Contact Information</h2>
+  <div class="field"><label>Residential Address:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label></label><span class="field-value">________________________</span></div>
+  <div class="field"><label>City:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>State:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Postal Code:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Mobile Phone:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Email Address:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>3. Employment Details</h2>
+  <div class="field"><label>Employee ID:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Position:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Department:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Start Date:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Employment Type:</label><span class="field-value"> Permanent [ ]  Contract [ ]  Part-time [ ]</span></div>
+</div>
+
+<div class="section">
+  <h2>4. Education Background</h2>
+  <table>
+    <tr>
+      <th>Qualification</th>
+      <th>Institution</th>
+      <th>Year</th>
+      <th>Grade/Result</th>
+    </tr>
+    <tr>
+      <td> SPM/GCSE</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td> Diploma</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td> Bachelor Degree</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td> Masters/PhD</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>5. Work Experience</h2>
+  <table>
+    <tr>
+      <th>Company</th>
+      <th>Position</th>
+      <th>Duration</th>
+      <th>Reason for Leaving</th>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>6. Language Proficiency</h2>
+  <table>
+    <tr>
+      <th>Language</th>
+      <th>Spoken</th>
+      <th>Written</th>
+    </tr>
+    <tr>
+      <td>English</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+    </tr>
+    <tr>
+      <td>Bahasa Malaysia</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+    </tr>
+    <tr>
+      <td>Mandarin</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+      <td>Excellent [ ] Good [ ] Fair [ ]</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>7. Emergency Contact</h2>
+  <div class="field"><label>Emergency Contact Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Relationship:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Phone Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Address:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>8. Bank Details</h2>
+  <div class="field"><label>Bank Name:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Account Holder Name:</label><span class="field-value">________________________</span></div>
+</div>
+
+<div class="section">
+  <h2>9. Statutory Information</h2>
+  {% if jurisdiction == 'Malaysia' %}
+  <div class="field"><label>EPF Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>SOCSO Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Tax File Number (LHDN):</label><span class="field-value">________________________</span></div>
+  {% elif jurisdiction == 'Singapore' %}
+  <div class="field"><label>NRIC/FIN Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>CPF Account Number:</label><span class="field-value">________________________</span></div>
+  <div class="field"><label>Tax Reference Number:</label><span class="field-value">________________________</span></div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h2>10. Declaration</h2>
+  <p>I declare that the information provided in this form is true, complete, and accurate. I understand that any false information may lead to termination of employment.</p>
+  <div class="checkbox">[ ] I have no criminal record</div>
+  <div class="checkbox">[ ] I am not under any bonded contract with any previous employer</div>
+  <div class="checkbox">[ ] I have disclosed all relevant medical conditions</div>
+</div>
+
+<div class="signature-block">
+  <table style="border: none;">
+    <tr style="border: none;">
+      <td style="border: none; width: 50%;">
+        <p><strong>Employee Signature</strong></p>
+        <div class="signature-line">
+          <p>Date: _______________</p>
+        </div>
+      </td>
+      <td style="border: none; width: 50%;">
+        <p><strong>HR Department</strong></p>
+        <div class="signature-line">
+          <p>Date: _______________</p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p>{{ company_name }} | {{ company_address }}</p>
+  <p>Personal data will be kept confidential and used only for employment purposes.</p>
+</div>
+
+</body>
+</html>
