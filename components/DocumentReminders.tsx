@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileWarning,
   AlertTriangle,
@@ -22,6 +22,48 @@ import {
 } from '../constants';
 import { Card } from './design-system/Card';
 import { Heading, Text } from './design-system/Typography';
+
+/** Group flat backend documents into EmployeeDocumentGroup[] */
+function groupBackendDocuments(docs: any[]): EmployeeDocumentGroup[] {
+  const grouped: Record<string, EmployeeDocumentGroup> = {};
+
+  for (const doc of docs) {
+    const empId = doc.employee_id;
+    if (!grouped[empId]) {
+      grouped[empId] = {
+        employee_id: empId,
+        employee_name: doc.employee_name || '',
+        employee_email: doc.employee_email || '',
+        employee_department: doc.employee_department || '',
+        employee_position: doc.employee_position || '',
+        jurisdiction: doc.jurisdiction || 'MY',
+        contract: undefined as any,
+      };
+    }
+
+    const docInfo: DocumentInfo = {
+      id: doc.id,
+      document_type: doc.document_type,
+      document_number: doc.document_number || '',
+      issue_date: doc.issue_date || '',
+      expiry_date: doc.expiry_date || '',
+      computed_status: doc.computed_status || 'valid',
+      days_until_expiry: doc.days_until_expiry ?? 999,
+      issuing_authority: doc.issuing_authority || '',
+      notes: doc.notes || '',
+    };
+
+    if (doc.document_type === 'contract') {
+      grouped[empId].contract = docInfo;
+    } else {
+      // visa, employment_pass, work_permit, passport → immigration
+      grouped[empId].immigration = docInfo;
+    }
+  }
+
+  // Only include employees that have at least a contract document
+  return Object.values(grouped).filter(g => g.contract);
+}
 
 type FilterTab = 'all' | 'expiring_soon' | 'expired' | 'valid';
 
@@ -65,8 +107,32 @@ export const DocumentReminders: React.FC = () => {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [backendEmployees, setBackendEmployees] = useState<EmployeeDocumentGroup[]>([]);
 
-  const employees: EmployeeDocumentGroup[] = MOCK_EMPLOYEE_DOCUMENTS;
+  // Fetch documents from backend on mount
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        const response = await fetch('http://localhost:5001/api/document-reminders');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.documents?.length > 0) {
+            const grouped = groupBackendDocuments(data.documents);
+            setBackendEmployees(grouped);
+            console.log(`✓ Document reminders: loaded ${grouped.length} employees from backend`);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load documents from backend, using mock data:', error);
+      }
+    };
+    fetchDocuments();
+  }, []);
+
+  // Merge backend employees with mock data (backend takes precedence by employee_id)
+  const backendIds = new Set(backendEmployees.map(e => e.employee_id));
+  const mockOnly = MOCK_EMPLOYEE_DOCUMENTS.filter(e => !backendIds.has(e.employee_id));
+  const employees: EmployeeDocumentGroup[] = [...backendEmployees, ...mockOnly];
   const allDocs = getAllDocs(employees);
 
   const totalTracked = allDocs.length;

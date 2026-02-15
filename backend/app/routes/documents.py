@@ -694,6 +694,55 @@ def save_contract():
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+    # Auto-assign training if not already assigned
+    try:
+        from app.routes.training import _assign_training_to_employee
+        department = data.get("department", "")
+        training_result = _assign_training_to_employee(employee_id, department)
+        current_app.logger.info(
+            f"[save-contract] Auto-assigned {training_result['template']} training "
+            f"({training_result['training_count']} items) to {employee_id}"
+        )
+    except Exception as e:
+        current_app.logger.error(f"[save-contract] Failed to auto-assign training to {employee_id}: {e}")
+
+    # Auto-create document tracking record
+    try:
+        import uuid as _uuid
+        import datetime as _dt
+        db = get_db()
+
+        # Check if contract tracking already exists for this employee
+        existing = db.table("employee_documents") \
+            .select("id") \
+            .eq("employee_id", employee_id) \
+            .eq("document_type", "contract") \
+            .execute()
+
+        if not existing.data:
+            start_date_str = data.get("startDate", "")
+            if start_date_str:
+                start_dt = _dt.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                contract_expiry = (start_dt + _dt.timedelta(days=730)).isoformat()
+            else:
+                contract_expiry = (_dt.date.today() + _dt.timedelta(days=730)).isoformat()
+
+            db.table("employee_documents").insert({
+                "id": str(_uuid.uuid4()),
+                "employee_id": employee_id,
+                "document_type": "contract",
+                "document_number": f"CTR-{employee_id[:8].upper()}",
+                "issue_date": _dt.date.today().isoformat(),
+                "expiry_date": contract_expiry,
+                "status": "valid",
+                "jurisdiction": data.get("jurisdiction", "MY"),
+                "issuing_authority": "Deriv",
+                "notes": f"Auto-created on contract signing for {data.get('fullName', employee_id)}",
+            }).execute()
+            current_app.logger.info(f"[save-contract] Document tracking created for {employee_id}")
+    except Exception as e:
+        current_app.logger.error(f"[save-contract] Failed to create document tracking for {employee_id}: {e}")
+
     return jsonify({"status": "saved", "id": employee_id}), 200
 
 def _generate_contract_pdf(data, out_path: Path):

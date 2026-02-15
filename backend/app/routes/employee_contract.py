@@ -1898,6 +1898,31 @@ def sign_and_store_contract(employee_id: str, contract_data: dict, session_id: O
         except Exception as te:
             logger.error(f"Failed to auto-assign training to {employee_id}: {te}")
 
+        # Auto-create document tracking record for the contract
+        try:
+            import uuid as _uuid
+            if start_date_val:
+                start_dt = datetime.datetime.strptime(start_date_val, "%Y-%m-%d").date()
+                contract_expiry = (start_dt + datetime.timedelta(days=730)).isoformat()
+            else:
+                contract_expiry = (datetime.date.today() + datetime.timedelta(days=730)).isoformat()
+
+            db.table("employee_documents").insert({
+                "id": str(_uuid.uuid4()),
+                "employee_id": employee_id,
+                "document_type": "contract",
+                "document_number": f"CTR-{employee_id[:8].upper()}",
+                "issue_date": datetime.date.today().isoformat(),
+                "expiry_date": contract_expiry,
+                "status": "valid",
+                "jurisdiction": jurisdiction,
+                "issuing_authority": company_sec.get("name") or "Deriv",
+                "notes": f"Auto-created on contract signing for {full_name}",
+            }).execute()
+            logger.info(f"Document tracking created for contract of {employee_id}")
+        except Exception as de:
+            logger.error(f"Failed to create document tracking for {employee_id}: {de}")
+
     except Exception as e:
         logger.error(f"DB insert failed for contract {employee_id}: {e}")
         # PDF is already generated, so partial success

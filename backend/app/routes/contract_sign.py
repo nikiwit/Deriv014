@@ -317,6 +317,35 @@ def sign_contract_pipeline():
                 # Don't fail contract signing if training assignment fails
                 current_app.logger.error(f"Failed to auto-assign training to {employee_id}: {e}")
 
+            # ─────────────────────────────────────────────────────────────
+            # Auto-create document tracking record for the contract
+            # ─────────────────────────────────────────────────────────────
+            try:
+                import uuid as _uuid
+                import datetime as _dt
+                start_date_str = profile.get("start_date", "")
+                if start_date_str:
+                    start_dt = _dt.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                    contract_expiry = (start_dt + _dt.timedelta(days=730)).isoformat()
+                else:
+                    contract_expiry = (_dt.date.today() + _dt.timedelta(days=730)).isoformat()
+
+                get_db().table("employee_documents").insert({
+                    "id": str(_uuid.uuid4()),
+                    "employee_id": employee_id,
+                    "document_type": "contract",
+                    "document_number": f"CTR-{employee_id[:8].upper()}",
+                    "issue_date": _dt.date.today().isoformat(),
+                    "expiry_date": contract_expiry,
+                    "status": "valid",
+                    "jurisdiction": profile.get("jurisdiction", "MY"),
+                    "issuing_authority": "Deriv",
+                    "notes": f"Auto-created on contract signing for {profile.get('full_name', employee_id)}",
+                }).execute()
+                current_app.logger.info(f"Document tracking created for contract of {employee_id}")
+            except Exception as e:
+                current_app.logger.error(f"Failed to create document tracking for {employee_id}: {e}")
+
         return jsonify({
             "status": "ok",
             "allowed": recommended_action == "allow_sign",
