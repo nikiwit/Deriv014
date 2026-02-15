@@ -250,7 +250,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 )}
               </div>
 
-              <div className="mt-6">
+              {/* <div className="mt-6">
                 {onEmployeeOnboarding && (
                   <div
                     onClick={() => {
@@ -284,7 +284,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     />
                   </div>
                 )}
-              </div>
+              </div> */}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-center space-x-2">

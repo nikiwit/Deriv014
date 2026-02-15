@@ -450,21 +450,21 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
     setAnalysis(result);
     setLoading(false);
 
-    // Create employee in backend
+    // NOTE: Employee record creation removed from here
+    // Will be created in generate_offer_approval endpoint with matching IDs
+    // This prevents duplicate records with mismatched IDs
+
+    // Store data in localStorage for offer letter generation
     try {
-      await createEmployee({
-        email: data.email,
-        full_name: data.fullName,
-        jurisdiction: data.nationality === "Malaysian" ? "MY" : "SG",
-        position: data.positionTitle || data.role,
-        department: data.department,
-        start_date: data.startDate,
-        nric: data.nric || "",
-        bank_name: data.bankName || "",
-        bank_account: data.bankAccountNumber || "",
-      });
-    } catch (err) {
-      console.error("Backend employee creation failed:", err);
+      localStorage.setItem(
+        "preliminaryEmployeeData",
+        JSON.stringify({
+          ...data,
+          createdAt: new Date().toISOString(),
+        }),
+      );
+    } catch (e) {
+      console.warn("Failed to save preliminary data:", e);
     }
 
     // Add completion message
@@ -474,7 +474,7 @@ export const AIOnboarding: React.FC<AIOnboardingProps> = ({
         {
           id: Date.now().toString(),
           sender: "ai",
-          text: `Profile created successfully! You can now generate the **Offer Letter**.`,
+          text: `Perfect! All data collected. You can now generate the **Offer Letter**.`,
           step: FINAL_STEP + 1,
         },
       ]);

@@ -869,37 +869,107 @@ def generate_offer_approval():
             "error": f"Failed to create JSON file: {str(e)}"
         }), 500
     
-    # Create or update user in users table with pending_employee role
+    # Create records in BOTH users and employees tables with SAME ID
     db = get_db()
     offer_url = f"/offer/{employee_id}"
     
     try:
-        # Prepare user data (email included for inserts; we'll avoid changing it on update)
-        user_data = {
-            "email": email,
-            "first_name": first_name,
-            "last_name": last_name,
-            "role": "pending_employee",
-            "department": department,
-            "employee_id": employee_id,
-            "nationality": data.get("nationality", "Malaysian"),
-            "start_date": start_date or None,
-            "onboarding_complete": False,
-            "nric": data.get("nric", ""),
-        }
-
         # Check if user already exists by email
-        existing = db.table("users").select("id, role, employee_id").eq("email", email).execute()
-        if existing.data:
-            existing_user = existing.data[0]
-            # Update all fields except email
-            update_data = {k: v for k, v in user_data.items() if k != "email"}
-            db.table("users").update(update_data).eq("id", existing_user["id"]).execute()
-            user_id = existing_user["id"]
+        existing_user = db.table("users").select("id, role, employee_id").eq("email", email).execute()
+        existing_employee = db.table("employees").select("id").eq("email", email).execute()
+        
+        if existing_user.data:
+            # User exists - update it
+            user_id = existing_user.data[0]["id"]
+            db.table("users").update({
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": "pending_employee",
+                "department": department,
+                "employee_id": employee_id,
+                "position_title": position_title,
+                "nationality": data.get("nationality", "Malaysian"),
+                "start_date": start_date or None,
+                "onboarding_complete": False,
+                "nric": data.get("nric", ""),
+                "offer_url": offer_url,
+                "work_location": data.get("work_location", ""),
+                "work_hours": data.get("work_hours", ""),
+                "leave_annual_days": data.get("leave_annual_days", 14),
+                "leave_sick_days": data.get("leave_sick_days", 14),
+                "public_holidays_policy": data.get("public_holidays_policy", ""),
+                "date_of_birth": data.get("date_of_birth") or None,
+                "bank_name": data.get("bank_name", ""),
+                "bank_account_holder": data.get("bank_account_holder", ""),
+                "bank_account_number": data.get("bank_account_number", "")
+            }).eq("id", user_id).execute()
         else:
-            # Create new user
-            result = db.table("users").insert(user_data).execute()
-            user_id = result.data[0]["id"]
+            # Create new user with employee_id as the ID (ensures match)
+            user_id = employee_id
+            db.table("users").insert({
+                "id": user_id,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": "pending_employee",
+                "department": department,
+                "employee_id": employee_id,
+                "position_title": position_title,
+                "nationality": data.get("nationality", "Malaysian"),
+                "start_date": start_date or None,
+                "onboarding_complete": False,
+                "nric": data.get("nric", ""),
+                # "offer_url": offer_url,
+                "work_location": data.get("work_location", ""),
+                "work_hours": data.get("work_hours", ""),
+                "leave_annual_days": data.get("leave_annual_days", 14),
+                "leave_sick_days": data.get("leave_sick_days", 14),
+                "public_holidays_policy": data.get("public_holidays_policy", ""),
+                "date_of_birth": data.get("date_of_birth") or None,
+                "bank_name": data.get("bank_name", ""),
+                "bank_account_holder": data.get("bank_account_holder", ""),
+                "bank_account_number": data.get("bank_account_number", "")
+            }).execute()
+
+        # Create or update employees table record with SAME ID
+        if existing_employee.data:
+            # Update existing employee
+            db.table("employees").update({
+                "full_name": full_name,
+                "nric": data.get("nric", ""),
+                "jurisdiction": data.get("jurisdiction", "MY"),
+                "position": position_title,
+                "department": department,
+                "start_date": start_date or None,
+                "phone": data.get("phone", ""),
+                "address": data.get("address", ""),
+                "bank_name": data.get("bank_name", ""),
+                "bank_account": data.get("bank_account_number", ""),
+                "status": "pending_offer",
+                "updated_at": now
+            }).eq("email", email).execute()
+        else:
+            # Create employee with SAME ID as users table
+            db.table("employees").insert({
+                "id": employee_id,  # CRITICAL: Same ID as users table
+                "email": email,
+                "full_name": full_name,
+                "nric": data.get("nric", ""),
+                "jurisdiction": data.get("jurisdiction", "MY"),
+                "position": position_title,
+                "department": department,
+                "start_date": start_date or None,
+                "phone": data.get("phone", ""),
+                "address": data.get("address", ""),
+                "bank_name": data.get("bank_name", ""),
+                "bank_account": data.get("bank_account_number", ""),
+                "emergency_contact_name": data.get("emergency_contact_name", ""),
+                "emergency_contact_phone": data.get("emergency_contact_phone", ""),
+                "emergency_contact_relation": data.get("emergency_contact_relation", ""),
+                "status": "pending_offer",
+                "created_at": now,
+                "updated_at": now
+            }).execute()
 
         # Update offer_data JSON with the user_id for reference
         offer_data["user_id"] = user_id
@@ -912,16 +982,18 @@ def generate_offer_approval():
             "user_id": user_id,
             "offer_url": offer_url,
             "json_path": str(json_filepath),
-            "message": "Offer approval generated and user created/updated with pending_employee role"
+            "message": "Offer approval generated. User and employee records created with matching IDs."
         }), 201
 
     except Exception as e:
-        # Clean up JSON file if user creation/update fails
+        # Clean up JSON file if creation/update fails
         if json_filepath.exists():
             json_filepath.unlink()
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "success": False,
-            "error": f"Failed to create or update user: {str(e)}"
+            "error": f"Failed to create records: {str(e)}"
         }), 500
 
 # ── OFFER LETTER DISPLAY & ACTIONS ──────────────────────────────────

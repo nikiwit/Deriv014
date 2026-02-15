@@ -488,94 +488,41 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
     # ── Stage 1: RAG policy document lookup ──────────────────────
     rag_issues = []
     rag_recommendations = []
-    rag_found_info = False
-    
     try:
-        # Enhanced RAG query with multiple search strategies
-        
-        # 1. Field-specific keyword search queries
-        field_keywords = {
-            "salary": ["minimum wage", "salary band", "compensation policy", "pay scale", "remuneration"],
-            "annual_leave": ["annual leave", "vacation days", "leave entitlement", "holiday allowance"],
-            "sick_leave": ["sick leave", "medical leave", "illness absence", "MC days"],
-            "start_date": ["notice period", "onboarding timeline", "employment start", "probation start"],
-            "probation_months": ["probation period", "probationary term", "trial period"],
-            "work_hours": ["working hours", "work schedule", "office hours", "overtime policy"],
-            "work_location": ["work location", "office location", "remote work", "workplace policy"],
-        }
-        
-        keywords = field_keywords.get(field, [field.replace("_", " ")])
-        keywords_str = ", ".join(keywords)
-        
-        # 2. Enhanced RAG prompt with specific instructions
         rag_query = (
-            f"COMPLIANCE CHECK for {jurisdiction} employment contract:\n\n"
-            f"Field being modified: {field}\n"
-            f"Proposed new value: {new_value}\n"
-            f"Keywords to search: {keywords_str}\n\n"
-            f"Please search your policy documents and employment law knowledge for:\n"
-            f"1. Is modifying '{field}' to '{new_value}' compliant with {jurisdiction} employment laws?\n"
-            f"2. What are the statutory minimum/maximum limits for this field?\n"
-            f"3. Are there any company policy restrictions or approval requirements?\n"
-            f"4. Cite specific policy sections, Employment Act clauses, or statutory references.\n\n"
-            f"If you cannot find relevant information, explicitly state 'NO INFORMATION FOUND' at the start of your response."
+            f"Check company policy and employment law compliance for modifying "
+            f"the '{field}' field to '{new_value}' in a {jurisdiction} employment contract. "
+            f"Is this change allowed? Are there any restrictions, limits, or approval "
+            f"requirements? Cite relevant policy sections or statutory references."
         )
-        
         rag_response, rag_sources = rag.query(
             f"compliance_check_{field}", rag_query
         )
 
         if rag_response:
-            # Check if RAG explicitly states no information found
-            import re as _re
-            
-            no_info_patterns = [
-                r'\bno\s+information\s+found\b',
-                r'\bcannot\s+find\s+(?:any\s+)?(?:relevant\s+)?information\b',
-                r'\bno\s+(?:relevant\s+)?(?:policy|document|reference)\s+found\b',
-                r'\bunable\s+to\s+locate\b',
-                r'\bno\s+data\s+available\b',
-            ]
-            
-            for pattern in no_info_patterns:
-                if _re.search(pattern, rag_response, _re.IGNORECASE):
-                    rag_issues.append(f"No policy information found for '{field}' modification. Manual HR review required.")
-                    rag_found_info = False
-                    break
-            else:
-                rag_found_info = True
-            
             # Check for denial / restriction language in RAG response
-            if rag_found_info:
-                denial_patterns = [
-                    r'\bnot\s+(?:allowed|permitted|compliant|acceptable)\b',
-                    r'\bprohibited\b',
-                    r'\bviolat(?:es?|ion)\b',
-                    r'\bexceeds?\s+(?:the\s+)?(?:maximum|limit|cap)\b',
-                    r'\bbelow\s+(?:the\s+)?minimum\b',
-                    r'\brequires?\s+(?:HR|management|director)\s+approval\b',
-                    r'\bnon-compliant\b',
-                    r'\binvalid\b',
-                ]
-                for pattern in denial_patterns:
-                    if _re.search(pattern, rag_response, _re.IGNORECASE):
-                        rag_issues.append(f"Policy check: {rag_response[:300]}")
-                        break
+            import re as _re
+            denial_patterns = [
+                r'\bnot\s+(?:allowed|permitted|compliant|acceptable)\b',
+                r'\bprohibited\b',
+                r'\bviolat(?:es?|ion)\b',
+                r'\bexceeds?\s+(?:the\s+)?(?:maximum|limit|cap)\b',
+                r'\bbelow\s+(?:the\s+)?minimum\b',
+                r'\brequires?\s+(?:HR|management|director)\s+approval\b',
+            ]
+            for pattern in denial_patterns:
+                if _re.search(pattern, rag_response, _re.IGNORECASE):
+                    rag_issues.append(f"Policy check: {rag_response[:300]}")
+                    break
 
-                # Extract recommendations from RAG
-                if "recommend" in rag_response.lower() or "suggest" in rag_response.lower():
-                    rag_recommendations.append(rag_response[:300])
-        else:
-            # Empty RAG response means no information found
-            rag_found_info = False
-            rag_issues.append(f"No policy documentation found for '{field}'. Manual verification required.")
+            # Extract recommendations from RAG
+            if "recommend" in rag_response.lower() or "suggest" in rag_response.lower():
+                rag_recommendations.append(rag_response[:300])
 
     except Exception as e:
-        # RAG failure - treat as no information found
+        # RAG failure is non-blocking — fall through to policy agent
         import logging
         logging.getLogger(__name__).warning(f"RAG compliance check failed: {e}")
-        rag_found_info = False
-        rag_issues.append(f"Policy check unavailable for '{field}'. Manual HR review required.")
 
     # ── Stage 2: Policy agent structural validation ──────────────
     try:
@@ -595,13 +542,10 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
         existing_recs = compliance_data.get("recommendations", [])
         compliance_data["recommendations"] = existing_recs + rag_recommendations
 
-        # If RAG found issues OR no information was found, mark as non-compliant
-        if rag_issues or not rag_found_info:
+        # If RAG found issues, mark as non-compliant
+        if rag_issues:
             compliance_data["compliant"] = False
-            if not rag_found_info:
-                compliance_data["risk_level"] = "medium"  # Medium risk when no info (requires manual review)
-            else:
-                compliance_data["risk_level"] = "high"  # High risk when policy violation found
+            compliance_data["risk_level"] = "high"
 
         # Add field-specific validation
         if field == "salary":
@@ -656,13 +600,8 @@ def _check_compliance(proposed_contract: dict, employee_context: dict, modificat
     except Exception as e:
         # Fallback if policy agent fails
         all_issues = rag_issues + [f"Compliance check failed: {str(e)}"]
-        
-        # If no RAG info was found, add that to issues
-        if not rag_found_info and not any("No policy" in issue for issue in all_issues):
-            all_issues.append("No policy information available for this field. Manual HR approval required.")
-        
         return {
-            "compliant": False,  # Always non-compliant when check fails or no info found
+            "compliant": False,
             "issues": all_issues,
             "risk_level": "high",
             "recommendations": rag_recommendations + ["Please contact HR for manual review"]

@@ -258,3 +258,23 @@ emergencyContact: N/A
 emergencyContactPhone: N/A
 emergencyContactRelationship: N/A
 complianceStatus: Onboarding
+
+---
+
+## Employee 646233ca
+id: 646233ca-a7d1-48d1-8977-34ae06924771
+firstName: DEriva
+lastName: 
+email: deriva@gmail.com
+phone: N/A
+nationality: MY
+nric: N/A
+position: Cloud Solutions Engineer
+department: Engineering
+startDate: 2026-03-17
+bankName: Maybank
+bankAccount: 00000000000
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding
