@@ -1885,6 +1885,19 @@ def sign_and_store_contract(employee_id: str, contract_data: dict, session_id: O
         insert_result = db.table("contracts").insert(contract_row).execute()
         contract_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"Contract stored in DB for {employee_id}, id={contract_id}")
+
+        # Auto-assign training based on department
+        try:
+            from app.routes.training import _assign_training_to_employee
+
+            training_result = _assign_training_to_employee(employee_id, department_val)
+            logger.info(
+                f"Auto-assigned {training_result['template']} training "
+                f"({training_result['training_count']} items) to {employee_id}"
+            )
+        except Exception as te:
+            logger.error(f"Failed to auto-assign training to {employee_id}: {te}")
+
     except Exception as e:
         logger.error(f"DB insert failed for contract {employee_id}: {e}")
         # PDF is already generated, so partial success

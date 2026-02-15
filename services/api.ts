@@ -304,6 +304,17 @@ export interface AcceptOfferResponse {
   message: string;
   employee_id: string;
   updated_role: string;
+  user?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    department: string;
+    startDate?: string;
+    onboardingComplete: boolean;
+    nationality?: string;
+  };
 }
 
 export async function acceptOfferLetter(employeeId: string): Promise<AcceptOfferResponse> {

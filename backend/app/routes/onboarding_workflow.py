@@ -1020,29 +1020,46 @@ def accept_offer_letter(employee_id):
     now = datetime.utcnow().isoformat()
 
     try:
-        # CRITICAL FIX: Employee record should already exist from generate_offer_approval
-        # We just need to UPDATE it, not create a new one with a different ID
+        # Resolve the actual DB employee ID.
+        # The URL employee_id may differ from the DB id when the user/employee
+        # already existed (generate_offer_approval reuses existing rows).
+        actual_employee_id = employee_id
+        email = offer_data.get("email", "")
 
-        # 1) Verify employee exists in employees table
         existing_emp = db.table("employees").select("id").eq("id", employee_id).execute()
+        if not existing_emp.data and email:
+            # Fallback: look up by email (covers the reused-record case)
+            existing_emp = db.table("employees").select("id").eq("email", email).execute()
+
         if not existing_emp.data:
             return jsonify({
                 "success": False,
                 "error": "Employee record not found. Please regenerate the offer letter."
             }), 404
 
-        # 2) Update employee status from pending_offer → active
+        actual_employee_id = existing_emp.data[0]["id"]
+
+        # Update employee status from pending_offer → active
         db.table("employees").update({
             "status": "active",
             "updated_at": now
-        }).eq("id", employee_id).execute()
+        }).eq("id", actual_employee_id).execute()
 
-        # 3) Update user role from pending_employee → employee
-        db.table("users").update({
-            "role": "employee",
-            "onboarding_complete": False,
-            "updated_at": now
-        }).eq("id", employee_id).execute()
+        # Update user role from pending_employee → employee
+        # Try by id first, then by email as fallback
+        user_result = db.table("users").select("id").eq("id", actual_employee_id).execute()
+        if user_result.data:
+            db.table("users").update({
+                "role": "employee",
+                "onboarding_complete": False,
+                "updated_at": now
+            }).eq("id", actual_employee_id).execute()
+        elif email:
+            db.table("users").update({
+                "role": "employee",
+                "onboarding_complete": False,
+                "updated_at": now
+            }).eq("email", email).execute()
 
         # 4) Update JSON file status
         offer_data["status"] = "accepted"
@@ -1050,11 +1067,28 @@ def accept_offer_letter(employee_id):
         with open(json_filepath, "w") as f:
             json.dump(offer_data, f, indent=2)
 
+        # 5) Build user data for frontend session creation
+        # offer_data is flat (not nested), so read directly
+        full_name = offer_data.get("full_name", "")
+        name_parts = full_name.split(" ", 1)
+
         return jsonify({
             "success": True,
             "message": "Offer accepted! Employee record activated.",
-            "employee_id": employee_id,  # Same ID - no new ID created!
-            "updated_role": "employee"
+            "employee_id": actual_employee_id,
+            "updated_role": "employee",
+            "user": {
+                "id": actual_employee_id,
+                "employeeId": actual_employee_id,
+                "email": offer_data.get("email", ""),
+                "firstName": name_parts[0] if name_parts else "",
+                "lastName": name_parts[1] if len(name_parts) > 1 else "",
+                "role": "employee",
+                "department": offer_data.get("department", ""),
+                "startDate": offer_data.get("start_date", ""),
+                "onboardingComplete": False,
+                "nationality": offer_data.get("nationality", ""),
+            }
         }), 200
 
     except Exception as e:

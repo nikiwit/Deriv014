@@ -21,7 +21,7 @@ export const MyTraining: React.FC = () => {
   const { getItems, completeItem } = useTraining();
   const [selectedItem, setSelectedItem] = useState<TrainingItem | null>(null);
 
-  const employeeId = user?.employeeId || 'EMP-2024-001';
+  const employeeId = user?.employeeId || user?.id || 'EMP-2024-001';
   const items = getItems(employeeId);
 
   const completedCount = items.filter(t => t.status === 'completed').length;

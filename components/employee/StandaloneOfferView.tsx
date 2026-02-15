@@ -6,9 +6,13 @@ import {
   FileText,
   XCircle,
   Copy,
-  Check
+  Check,
+  ArrowRight
 } from 'lucide-react';
 import { getOfferLetter, acceptOfferLetter, rejectOfferLetter } from '../../services/api';
+
+const AUTH_STORAGE_KEY = 'derivhr_session';
+const SESSION_EXPIRY_HOURS = 8;
 
 export const StandaloneOfferView: React.FC = () => {
   // Extract employeeId from URL path: /offer/{employeeId}
@@ -49,10 +53,20 @@ export const StandaloneOfferView: React.FC = () => {
 
   const handleAccept = async () => {
     if (!employeeId) return;
-    
+
     setActionLoading(true);
     try {
-      await acceptOfferLetter(employeeId);
+      const result = await acceptOfferLetter(employeeId);
+
+      // Create auth session so the employee is logged in when redirected
+      if (result.user) {
+        const session = {
+          user: result.user,
+          expiresAt: Date.now() + SESSION_EXPIRY_HOURS * 60 * 60 * 1000,
+        };
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+      }
+
       setActionComplete('accepted');
     } catch (err: any) {
       console.error('Error accepting offer:', err);
@@ -60,6 +74,10 @@ export const StandaloneOfferView: React.FC = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleGoToDashboard = () => {
+    window.location.href = '/';
   };
 
   const handleReject = async () => {
@@ -125,14 +143,18 @@ export const StandaloneOfferView: React.FC = () => {
               <strong>Next Steps:</strong>
             </p>
             <ul className="text-sm text-jade-700 mt-2 space-y-1 text-left">
-              <li>• HR will contact you with onboarding details</li>
-              <li>• You will receive login credentials via email</li>
-              <li>• Complete your onboarding checklist before your start date</li>
+              <li>• Complete your onboarding checklist</li>
+              <li>• Review and sign your employment contract</li>
+              <li>• Complete your assigned training modules</li>
             </ul>
           </div>
-          <p className="text-xs text-slate-500">
-            You can close this page now.
-          </p>
+          <button
+            onClick={handleGoToDashboard}
+            className="w-full px-6 py-3 bg-gradient-to-r from-jade-500 to-jade-600 text-white rounded-xl font-bold shadow-lg shadow-jade-500/25 hover:shadow-xl transition-all flex items-center justify-center space-x-2"
+          >
+            <span>Go to Employee Dashboard</span>
+            <ArrowRight size={18} />
+          </button>
         </div>
       </div>
     );
