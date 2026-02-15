@@ -283,18 +283,32 @@ def list_all_training():
                 "assignments": []
             })
 
+        # Also fetch employee records for position/role info
+        emp_map = {}
+        try:
+            employees = db.table("employees").select("id, position, start_date, status").execute()
+            for emp in (employees.data or []):
+                emp_map[emp['id']] = emp
+        except Exception:
+            pass  # Non-critical, proceed without position info
+
         # Format the response
         formatted = []
         for assignment in assignments.data:
-            user_info = assignment.get('users', {})
+            user_info = assignment.get('users', {}) or {}
+            emp_info = emp_map.get(assignment['employee_id'], {})
             formatted.append({
                 "user_id": assignment['employee_id'],
                 "email": user_info.get('email', 'N/A'),
                 "name": f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip(),
                 "department": user_info.get('department', 'N/A'),
+                "role": emp_info.get('position', ''),
+                "start_date": emp_info.get('start_date', ''),
                 "template": assignment['training_template'],
                 "item_count": len(assignment['training_data']),
-                "assigned_at": assignment['assigned_at']
+                "training_data": assignment['training_data'],
+                "assigned_at": assignment['assigned_at'],
+                "last_synced_at": assignment.get('last_synced_at'),
             })
 
         return jsonify({

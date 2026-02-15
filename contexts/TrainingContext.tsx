@@ -167,10 +167,47 @@ export const TrainingProvider: React.FC<TrainingProviderProps> = ({ children }) 
 
         const session = JSON.parse(authSession);
         const userId = session?.user?.id;
+        const userRole = session?.user?.role;
 
         if (!userId) return;
 
-        // Fetch training from backend
+        // If HR admin, fetch ALL training assignments from backend
+        if (userRole === 'hr_admin') {
+          const listResponse = await fetch('http://localhost:5001/api/training/list');
+          if (listResponse.ok) {
+            const listData = await listResponse.json();
+            if (listData.status === 'ok' && listData.assignments?.length > 0) {
+              const backendEntries: Record<string, EmployeeTrainingProgress> = {};
+
+              for (const assignment of listData.assignments) {
+                const empId = assignment.user_id;
+                const items = assignment.training_data || [];
+                backendEntries[empId] = {
+                  employeeId: empId,
+                  employeeName: assignment.name || 'Unknown',
+                  department: assignment.department || '',
+                  role: assignment.role || '',
+                  startDate: assignment.start_date || '',
+                  items: items,
+                  overallProgress: calculateProgress(items),
+                  status: determineStatus(items),
+                  lastActivityDate: assignment.last_synced_at || assignment.assigned_at,
+                };
+              }
+
+              setProgressMap(prev => ({
+                ...prev,
+                ...backendEntries,
+              }));
+
+              setLoadedFromBackend(true);
+              console.log(`✓ HR view: loaded ${listData.assignments.length} employee training records from backend`);
+            }
+          }
+          return;
+        }
+
+        // For employees, fetch their own training
         const response = await fetch(`http://localhost:5001/api/training/progress/${userId}`);
 
         if (response.ok) {
