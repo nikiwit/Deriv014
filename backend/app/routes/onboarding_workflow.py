@@ -874,32 +874,60 @@ def generate_offer_approval():
     offer_url = f"/offer/{employee_id}"
     
     try:
-        # Prepare user data (email included for inserts; we'll avoid changing it on update)
+        # CRITICAL: Use the SAME employee_id for both tables to ensure ID consistency
+        # This ensures users.id == users.employee_id == employees.id
+
+        # Prepare user data (with id = employee_id for consistency)
         user_data = {
+            "id": employee_id,  # CRITICAL: Set id to employee_id
             "email": email,
             "first_name": first_name,
             "last_name": last_name,
             "role": "pending_employee",
             "department": department,
-            "employee_id": employee_id,
+            "employee_id": employee_id,  # Self-reference
             "nationality": data.get("nationality", "Malaysian"),
             "start_date": start_date or None,
             "onboarding_complete": False,
             "nric": data.get("nric", ""),
         }
 
+        # Prepare employee data (with same id)
+        employee_data = {
+            "id": employee_id,  # CRITICAL: Same ID as users table
+            "email": email,
+            "full_name": full_name,
+            "nric": data.get("nric") or None,
+            "jurisdiction": data.get("jurisdiction", "MY"),
+            "position": position_title,
+            "department": department,
+            "start_date": start_date or None,
+            "bank_name": data.get("bank_name", ""),
+            "bank_account": data.get("bank_account_number", ""),
+            "status": "pending_offer",  # Will be updated to 'active' when offer accepted
+        }
+
         # Check if user already exists by email
-        existing = db.table("users").select("id, role, employee_id").eq("email", email).execute()
-        if existing.data:
-            existing_user = existing.data[0]
-            # Update all fields except email
-            update_data = {k: v for k, v in user_data.items() if k != "email"}
-            db.table("users").update(update_data).eq("id", existing_user["id"]).execute()
-            user_id = existing_user["id"]
+        existing_user = db.table("users").select("id, role, employee_id").eq("email", email).execute()
+        existing_emp = db.table("employees").select("id").eq("email", email).execute()
+
+        if existing_user.data:
+            # Update existing user (except id and email)
+            update_data = {k: v for k, v in user_data.items() if k not in ("id", "email")}
+            db.table("users").update(update_data).eq("id", existing_user.data[0]["id"]).execute()
+            user_id = existing_user.data[0]["id"]
         else:
-            # Create new user
+            # Create new user with employee_id as id
             result = db.table("users").insert(user_data).execute()
             user_id = result.data[0]["id"]
+
+        if existing_emp.data:
+            # Update existing employee (except id and email)
+            update_data = {k: v for k, v in employee_data.items() if k not in ("id", "email")}
+            db.table("employees").update(update_data).eq("id", existing_emp.data[0]["id"]).execute()
+        else:
+            # Create new employee with same id as user
+            db.table("employees").insert(employee_data).execute()
 
         # Update offer_data JSON with the user_id for reference
         offer_data["user_id"] = user_id
@@ -912,16 +940,16 @@ def generate_offer_approval():
             "user_id": user_id,
             "offer_url": offer_url,
             "json_path": str(json_filepath),
-            "message": "Offer approval generated and user created/updated with pending_employee role"
+            "message": "Offer approval generated - records created in both users and employees tables with matching IDs"
         }), 201
 
     except Exception as e:
-        # Clean up JSON file if user creation/update fails
+        # Clean up JSON file if creation/update fails
         if json_filepath.exists():
             json_filepath.unlink()
         return jsonify({
             "success": False,
-            "error": f"Failed to create or update user: {str(e)}"
+            "error": f"Failed to create or update records: {str(e)}"
         }), 500
 
 # ── OFFER LETTER DISPLAY & ACTIONS ──────────────────────────────────
@@ -992,45 +1020,40 @@ def accept_offer_letter(employee_id):
     now = datetime.utcnow().isoformat()
 
     try:
-        # 1) Check if employee already exists in employees table
-        existing_emp = db.table("employees").select("id").eq("email", offer_data.get("email", "")).execute()
-        if existing_emp.data:
-            new_employee_id = existing_emp.data[0]["id"]
-        else:
-            # Create record in employees table from offer JSON data
-            new_employee_id = str(uuid.uuid4())
-            db.table("employees").insert({
-                "id": new_employee_id,
-                "email": offer_data.get("email", ""),
-                "full_name": offer_data.get("full_name", ""),
-                "nric": offer_data.get("nric") or None,
-                "jurisdiction": offer_data.get("jurisdiction", "MY"),
-                "position": offer_data.get("position_title") or offer_data.get("position", ""),
-                "department": offer_data.get("department", ""),
-                "start_date": offer_data.get("start_date") or None,
-                "bank_name": offer_data.get("bank_name", ""),
-                "bank_account": offer_data.get("bank_account_number", ""),
-            }).execute()
+        # CRITICAL FIX: Employee record should already exist from generate_offer_approval
+        # We just need to UPDATE it, not create a new one with a different ID
 
-        # 2) Update user role from pending_employee → employee
-        user_id = offer_data.get("user_id", employee_id)
+        # 1) Verify employee exists in employees table
+        existing_emp = db.table("employees").select("id").eq("id", employee_id).execute()
+        if not existing_emp.data:
+            return jsonify({
+                "success": False,
+                "error": "Employee record not found. Please regenerate the offer letter."
+            }), 404
+
+        # 2) Update employee status from pending_offer → active
+        db.table("employees").update({
+            "status": "active",
+            "updated_at": now
+        }).eq("id", employee_id).execute()
+
+        # 3) Update user role from pending_employee → employee
         db.table("users").update({
             "role": "employee",
-            "employee_id": new_employee_id,
             "onboarding_complete": False,
-        }).eq("employee_id", employee_id).execute()
+            "updated_at": now
+        }).eq("id", employee_id).execute()
 
-        # 3) Update JSON file status
+        # 4) Update JSON file status
         offer_data["status"] = "accepted"
         offer_data["accepted_at"] = now
-        offer_data["employees_table_id"] = new_employee_id
         with open(json_filepath, "w") as f:
             json.dump(offer_data, f, indent=2)
 
         return jsonify({
             "success": True,
-            "message": "Offer accepted! Employee record created.",
-            "employee_id": new_employee_id,
+            "message": "Offer accepted! Employee record activated.",
+            "employee_id": employee_id,  # Same ID - no new ID created!
             "updated_role": "employee"
         }), 200
 
