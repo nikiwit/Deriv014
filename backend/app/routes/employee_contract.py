@@ -56,7 +56,7 @@ def _fetch_user_from_supabase_employees(user_id: Optional[str] = None, email: Op
     db = get_db()
     if user_id:
         result = db.table("employees").select("*").eq("id", user_id).execute()
-    elif email:
+    if email:
         result = db.table("employees").select("*").eq("email", email).execute()
     else:
         return None
@@ -655,280 +655,280 @@ def _build_render_args(merged: dict, jurisdiction: str) -> tuple[dict, dict, dic
     return user_data, job_data, company_data
 
 
-# def _render_contract(user_data: dict, job_data: dict, company_data: dict) -> tuple[str, dict]:
-#     """
-#     Render jurisdiction-compliant employment contract using job-specific details.
+def _render_contract(user_data: dict, job_data: dict, company_data: dict) -> tuple[str, dict]:
+    """
+    Render jurisdiction-compliant employment contract using job-specific details.
     
-#     Args:
-#         user_data: Candidate information (name, offered_salary, start_date, etc.)
-#         job_data: Normalized job description (from your unified schema)
-#         company_data: Company registry details (name, registration, address)
+    Args:
+        user_data: Candidate information (name, offered_salary, start_date, etc.)
+        job_data: Normalized job description (from your unified schema)
+        company_data: Company registry details (name, registration, address)
     
-#     Returns:
-#         Tuple of (markdown_contract, structured_contract_data)
-#     """
-#     # Extract jurisdiction from job data (more reliable than nationality inference)
-#     jurisdiction = job_data.get("jurisdiction", company_data.get("jurisdiction", "MY"))
-#     currency = job_data.get("currency", company_data.get("currency", "MYR"))
+    Returns:
+        Tuple of (markdown_contract, structured_contract_data)
+    """
+    # Extract jurisdiction from job data (more reliable than nationality inference)
+    jurisdiction = job_data.get("jurisdiction", company_data.get("jurisdiction", "MY"))
+    currency = job_data.get("currency", company_data.get("currency", "MYR"))
     
-#     # Employee details — use empty string for missing values
-#     full_name = user_data.get("fullName") or user_data.get("full_name", "")
-#     nric = user_data.get("nric", "")
-#     nationality = user_data.get("nationality", "")
-#     _offered_salary_raw = user_data.get("salary") or user_data.get("offered_salary", "")
-#     # Convert to numeric for formatting, keep raw for fallback
-#     try:
-#         offered_salary = float(str(_offered_salary_raw).replace(",", "").replace("RM", "").replace("SGD", "").strip()) if _offered_salary_raw else 0
-#     except (ValueError, TypeError):
-#         offered_salary = _offered_salary_raw  # keep original if conversion fails
-#     start_date = user_data.get("start_date", "")
+    # Employee details — use empty string for missing values
+    full_name = user_data.get("fullName") or user_data.get("full_name", "")
+    nric = user_data.get("nric", "")
+    nationality = user_data.get("nationality", "")
+    _offered_salary_raw = user_data.get("salary") or user_data.get("offered_salary", "")
+    # Convert to numeric for formatting, keep raw for fallback
+    try:
+        offered_salary = float(str(_offered_salary_raw).replace(",", "").replace("RM", "").replace("SGD", "").strip()) if _offered_salary_raw else 0
+    except (ValueError, TypeError):
+        offered_salary = _offered_salary_raw  # keep original if conversion fails
+    start_date = user_data.get("start_date", "")
     
-#     # Job-specific details
-#     position = job_data.get("job_name", "")
-#     job_code = job_data.get("job_code", "")
-#     department = job_data.get("department", "")
-#     employment_type = job_data.get("employment_type", "Full-time")
-#     reporting_to = job_data.get("reporting_to", "")
-#     role_summary = job_data.get("role_summary", "")
+    # Job-specific details
+    position = job_data.get("job_name", "")
+    job_code = job_data.get("job_code", "")
+    department = job_data.get("department", "")
+    employment_type = job_data.get("employment_type", "Full-time")
+    reporting_to = job_data.get("reporting_to", "")
+    role_summary = job_data.get("role_summary", "")
     
-#     # Work model details
-#     work_model = job_data.get("work_model", {})
-#     work_type = work_model.get("type", "Office").title()
-#     office_days = work_model.get("office_days_per_week", 5)
-#     remote_days = work_model.get("remote_days_per_week", 0)
-#     work_schedule = f"{work_type} ({office_days} office / {remote_days} remote days per week)"
+    # Work model details
+    work_model = job_data.get("work_model", {})
+    work_type = work_model.get("type", "Office").title()
+    office_days = work_model.get("office_days_per_week", 5)
+    remote_days = work_model.get("remote_days_per_week", 0)
+    work_schedule = f"{work_type} ({office_days} office / {remote_days} remote days per week)"
     
-#     # Compensation details
-#     comp = job_data.get("compensation", {})
-#     offered_salary = float(comp.get('salary_band_max', 1)) + float(comp.get('salary_band_max', 1)) / 2
+    # Compensation details
+    comp = job_data.get("compensation", {})
+    offered_salary = float(comp.get('salary_band_max', 1)) + float(comp.get('salary_band_max', 1)) / 2
 
-#     salary_band = f"{currency} {comp.get('salary_band_min', 0):,} – {currency} {comp.get('salary_band_max', 0):,}"
-#     aws_months = comp.get("annual_wage_supplement_months") or 0
-#     bonus = comp.get("bonus_policy", {})
-#     bonus_months = bonus.get("max_months", 0)
+    salary_band = f"{currency} {comp.get('salary_band_min', 0):,} – {currency} {comp.get('salary_band_max', 0):,}"
+    aws_months = comp.get("annual_wage_supplement_months") or 0
+    bonus = comp.get("bonus_policy", {})
+    bonus_months = bonus.get("max_months", 0)
     
-#     # Benefits extraction with jurisdiction awareness
-#     benefits = job_data.get("benefits", {})
-#     retirement = benefits.get("retirement", {})
-#     epf = retirement.get("epf")
-#     cpf = retirement.get("cpf")
+    # Benefits extraction with jurisdiction awareness
+    benefits = job_data.get("benefits", {})
+    retirement = benefits.get("retirement", {})
+    epf = retirement.get("epf")
+    cpf = retirement.get("cpf")
     
-#     # Leave policy
-#     leave = job_data.get("leave_policy", {})
-#     annual_leave = leave.get("annual_leave_days", 12)
-#     sick_leave = leave.get("sick_leave_days", 14)
+    # Leave policy
+    leave = job_data.get("leave_policy", {})
+    annual_leave = leave.get("annual_leave_days", 12)
+    sick_leave = leave.get("sick_leave_days", 14)
     
-#     # Build jurisdiction-specific statutory section
-#     if jurisdiction == "MY":
-#         statutory_section = f""", ### Statutory Contributions (Malaysia)
+    # Build jurisdiction-specific statutory section
+    if jurisdiction == "MY":
+        statutory_section = f""", ### Statutory Contributions (Malaysia)
 
-# | Contribution | Employer | Employee | Notes |
-# |--------------|----------|----------|-------|
-# | **EPF** | {epf['employer_percent'] if epf else 13}% | {epf['employee_percent'] if epf else 11}% | Mandatory retirement savings |
-# | **SOCSO** | Yes | Yes | Employment injury & invalidity scheme |
-# | **EIS** | Yes | Yes | Employment insurance system |"""
-#     else:  # SG
-#         statutory_section = f"""### Statutory Contributions (Singapore)
+| Contribution | Employer | Employee | Notes |
+|--------------|----------|----------|-------|
+| **EPF** | {epf['employer_percent'] if epf else 13}% | {epf['employee_percent'] if epf else 11}% | Mandatory retirement savings |
+| **SOCSO** | Yes | Yes | Employment injury & invalidity scheme |
+| **EIS** | Yes | Yes | Employment insurance system |"""
+    else:  # SG
+        statutory_section = f"""### Statutory Contributions (Singapore)
 
-# | Contribution | Employer | Employee | Notes |
-# |--------------|----------|----------|-------|
-# | **CPF** | {cpf['employer_percent'] if cpf else 17}% | {cpf['employee_percent'] if cpf else 20}% | Applies to Ordinary Wages |
-# | **SDL** | 0.25% | — | Skills Development Levy (employer-paid) |"""
+| Contribution | Employer | Employee | Notes |
+|--------------|----------|----------|-------|
+| **CPF** | {cpf['employer_percent'] if cpf else 17}% | {cpf['employee_percent'] if cpf else 20}% | Applies to Ordinary Wages |
+| **SDL** | 0.25% | — | Skills Development Levy (employer-paid) |"""
 
-#     # Build contract markdown with job-specific details
-#     md = f"""## EMPLOYMENT CONTRACT 
+    # Build contract markdown with job-specific details
+    md = f"""## EMPLOYMENT CONTRACT 
 
-# **{company_data.get('name', '')}**  
-# {company_data.get('registration_number', '')}  
-# {company_data.get('address', '')}  
+**{company_data.get('name', '')}**  
+{company_data.get('registration_number', '')}  
+{company_data.get('address', '')}  
 
-# ---
+---
 
-# ### 1. EMPLOYEE DETAILS 
+### 1. EMPLOYEE DETAILS 
 
-# | Field | Details |
-# |-------|---------|
-# | **Full Name** | {full_name} |
-# | **NRIC/Passport** | {nric} |
-# | **Nationality** | {nationality} |
-# | **Position** | {position} ({job_code}) |
-# | **Department** | {department} |
-# | **Employment Type** | {employment_type} |
-# | **Reporting To** | {reporting_to} |
-# | **Start Date** | {start_date} |
-# | **Work Model** | {work_schedule} |
+| Field | Details |
+|-------|---------|
+| **Full Name** | {full_name} |
+| **NRIC/Passport** | {nric} |
+| **Nationality** | {nationality} |
+| **Position** | {position} ({job_code}) |
+| **Department** | {department} |
+| **Employment Type** | {employment_type} |
+| **Reporting To** | {reporting_to} |
+| **Start Date** | {start_date} |
+| **Work Model** | {work_schedule} |
 
-# ---
+---
 
-# ### 2. ROLE & RESPONSIBILITIES
+### 2. ROLE & RESPONSIBILITIES
 
-# **Role Summary**  
-# {role_summary}
+**Role Summary**  
+{role_summary}
 
-# **Key Responsibilities**  
-# {chr(10).join([f"- {resp}" for resp in job_data.get('responsibilities', [])])}
+**Key Responsibilities**  
+{chr(10).join([f"- {resp}" for resp in job_data.get('responsibilities', [])])}
 
-# ---
+---
 
-# ### 3. COMPENSATION PACKAGE
+### 3. COMPENSATION PACKAGE
 
-# | Component | Details |
-# |-----------|---------|
-# | **Monthly Salary** | {currency} {offered_salary:,} |
-# | **Salary Band** | {salary_band} |
-# | **Payment Frequency** | Monthly (by 7th of following month) |
-# | **Annual Wage Supplement** | {f"{aws_months} months" if aws_months else "Not applicable"} |
-# | **Performance Bonus** | Up to {bonus_months} months' salary (discretionary) |
+| Component | Details |
+|-----------|---------|
+| **Monthly Salary** | {currency} {offered_salary:,} |
+| **Salary Band** | {salary_band} |
+| **Payment Frequency** | Monthly (by 7th of following month) |
+| **Annual Wage Supplement** | {f"{aws_months} months" if aws_months else "Not applicable"} |
+| **Performance Bonus** | Up to {bonus_months} months' salary (discretionary) |
 
-# ---
+---
 
-# ### 4. BENEFITS & ALLOWANCES
+### 4. BENEFITS & ALLOWANCES
 
-# | Benefit | Details |
-# |---------|---------|
-# | **Medical Insurance** | {benefits.get('medical_insurance', {}).get('annual_limit', 0):,} {currency} annual limit{', includes dependents' if benefits.get('medical_insurance', {}).get('includes_dependents') else ''}{', outpatient covered' if benefits.get('medical_insurance', {}).get('outpatient_included') else ''} |
-# | **Learning Allowance** | {benefits.get('learning_allowance_per_year', 0):,} {currency}/year |
-# | **Professional Development** | {benefits.get('professional_development_budget_per_year', 0):,} {currency}/year |
-# | **Dental Coverage** | {f"{benefits.get('dental_coverage_per_year', 0):,} {currency}/year" if benefits.get('dental_coverage_per_year') else "Not applicable"} |
-# | **Wellness Allowance** | {f"{benefits.get('wellness_allowance_per_year', 0):,} {currency}/year" if benefits.get('wellness_allowance_per_year') else "Not applicable"} |
-# | **Flexible Hours** | {"Yes" if benefits.get('flexible_hours') else "No"} |
+| Benefit | Details |
+|---------|---------|
+| **Medical Insurance** | {benefits.get('medical_insurance', {}).get('annual_limit', 0):,} {currency} annual limit{', includes dependents' if benefits.get('medical_insurance', {}).get('includes_dependents') else ''}{', outpatient covered' if benefits.get('medical_insurance', {}).get('outpatient_included') else ''} |
+| **Learning Allowance** | {benefits.get('learning_allowance_per_year', 0):,} {currency}/year |
+| **Professional Development** | {benefits.get('professional_development_budget_per_year', 0):,} {currency}/year |
+| **Dental Coverage** | {f"{benefits.get('dental_coverage_per_year', 0):,} {currency}/year" if benefits.get('dental_coverage_per_year') else "Not applicable"} |
+| **Wellness Allowance** | {f"{benefits.get('wellness_allowance_per_year', 0):,} {currency}/year" if benefits.get('wellness_allowance_per_year') else "Not applicable"} |
+| **Flexible Hours** | {"Yes" if benefits.get('flexible_hours') else "No"} |
 
-# {statutory_section}
+{statutory_section}
 
-# ---
+---
 
-# ### 5. LEAVE ENTITLEMENT
+### 5. LEAVE ENTITLEMENT
 
-# | Leave Type | Entitlement | Conditions |
-# |------------|-------------|------------|
-# | **Annual Leave** | {annual_leave} days/year | Accrued pro-rata during first year |
-# | **Sick Leave** | {sick_leave} days/year | MC required for >2 consecutive days |
-# | **Hospitalization Leave** | 60 days/year | As per Employment Act |
-# | **Maternity Leave** | 98 days | For eligible female employees |
-# | **Paternity Leave** | 7 days | For eligible fathers |
+| Leave Type | Entitlement | Conditions |
+|------------|-------------|------------|
+| **Annual Leave** | {annual_leave} days/year | Accrued pro-rata during first year |
+| **Sick Leave** | {sick_leave} days/year | MC required for >2 consecutive days |
+| **Hospitalization Leave** | 60 days/year | As per Employment Act |
+| **Maternity Leave** | 98 days | For eligible female employees |
+| **Paternity Leave** | 7 days | For eligible fathers |
 
-# ---
+---
 
-# ### 6. PROBATION & NOTICE PERIOD
+### 6. PROBATION & NOTICE PERIOD
 
-# | Period | Duration | Notice Required |
-# |--------|----------|-----------------|
-# | **Probation** | {job_data.get('probation_period_months', 3)} months | 1 week by either party |
-# | **Post-Probation** | — | {job_data.get('notice_period_months', 1)} month(s) or salary in lieu |
+| Period | Duration | Notice Required |
+|--------|----------|-----------------|
+| **Probation** | {job_data.get('probation_period_months', 3)} months | 1 week by either party |
+| **Post-Probation** | — | {job_data.get('notice_period_months', 1)} month(s) or salary in lieu |
 
-# ---
+---
 
-# ### 7. CAREER DEVELOPMENT PATH
+### 7. CAREER DEVELOPMENT PATH
 
-# {chr(10).join([f"- **{level}**" for level in job_data.get('career_path', [])])}
+{chr(10).join([f"- **{level}**" for level in job_data.get('career_path', [])])}
 
-# ---
+---
 
-# ### 8. GOVERNING TERMS
+### 8. GOVERNING TERMS
 
-# - **Governing Law**: Laws of {jurisdiction}
-# - **Confidentiality**: As per Company Confidentiality Agreement
-# - **IP Assignment**: All work product assigned to Company per IP Agreement
-# - **Policy Compliance**: Employee Handbook (provided separately)
+- **Governing Law**: Laws of {jurisdiction}
+- **Confidentiality**: As per Company Confidentiality Agreement
+- **IP Assignment**: All work product assigned to Company per IP Agreement
+- **Policy Compliance**: Employee Handbook (provided separately)
 
-# ---
+---
 
-# ### ACKNOWLEDGEMENTS
+### ACKNOWLEDGEMENTS
 
-# I, **{full_name}**, acknowledge that I have:
+I, **{full_name}**, acknowledge that I have:
 
-# - [ ] Read and understood all terms of this employment contract
-# - [ ] Received and reviewed the Employee Handbook
-# - [ ] Disclosed all material facts in my employment application
-# - [ ] Understand that employment is contingent on satisfactory background checks
+- [ ] Read and understood all terms of this employment contract
+- [ ] Received and reviewed the Employee Handbook
+- [ ] Disclosed all material facts in my employment application
+- [ ] Understand that employment is contingent on satisfactory background checks
 
-# ---
+---
 
-# **Signature**: _________________________  
-# **Date**: _________________________  
+**Signature**: _________________________  
+**Date**: _________________________  
 
-# **For and on behalf of {company_data['name']}**  
-# _________________________  
-# **Date**: _________________________  
+**For and on behalf of {company_data['name']}**  
+_________________________  
+**Date**: _________________________  
 
-# ---
-# *This contract is generated electronically and is legally binding upon digital signature.*
-# """
+---
+*This contract is generated electronically and is legally binding upon digital signature.*
+"""
 
-#     # Structured data aligned with new_contract.schema.json data_model
-#     contract_data = {
-#         "employee": {
-#             "fullName": full_name or "",
-#             "nric": nric or "",
-#             "nationality": nationality or "",
-#             "startDate": start_date or "",
-#             "offered_salary": str(_offered_salary_raw) if _offered_salary_raw else "",
-#             "email": user_data.get("email", ""),
-#             "employee_id": user_data.get("id", ""),
-#         },
-#         "job": {
-#             "job_code": job_code or "",
-#             "job_name": position or "",
-#             "department": department or "",
-#             "employment_type": employment_type or "",
-#             "role_summary": role_summary or "",
-#             "reporting_to": reporting_to or "",
-#             "work_model": {
-#                 "type": work_model.get("type", ""),
-#                 "office_days_per_week": work_model.get("office_days_per_week", 0),
-#                 "remote_days_per_week": work_model.get("remote_days_per_week", 0),
-#             },
-#             "responsibilities": job_data.get("responsibilities", []),
-#             "compensation": {
-#                 "salary_band_min": comp.get("salary_band_min", 0),
-#                 "salary_band_max": comp.get("salary_band_max", 0),
-#                 "annual_wage_supplement_months": aws_months,
-#                 "bonus_policy": {
-#                     "max_months": bonus_months,
-#                 },
-#             },
-#             "benefits": {
-#                 "retirement": {
-#                     "epf": {
-#                         "employer_percent": epf["employer_percent"] if epf else 13,
-#                         "employee_percent": epf["employee_percent"] if epf else 11,
-#                     },
-#                     "cpf": {
-#                         "employer_percent": cpf["employer_percent"] if cpf else 17,
-#                         "employee_percent": cpf["employee_percent"] if cpf else 20,
-#                     },
-#                 },
-#                 "medical_insurance": {
-#                     "annual_limit": benefits.get("medical_insurance", {}).get("annual_limit", 0),
-#                 },
-#                 "learning_allowance_per_year": benefits.get("learning_allowance_per_year", 0),
-#                 "professional_development_budget_per_year": benefits.get("professional_development_budget_per_year", 0),
-#                 "dental_coverage_per_year": benefits.get("dental_coverage_per_year", 0),
-#                 "wellness_allowance_per_year": benefits.get("wellness_allowance_per_year", 0),
-#                 "flexible_hours": benefits.get("flexible_hours", False),
-#             },
-#             "leave_policy": {
-#                 "annual_leave_days": annual_leave,
-#                 "sick_leave_days": sick_leave,
-#             },
-#             "probation_period_months": job_data.get("probation_period_months", 3),
-#             "career_path": job_data.get("career_path", []),
-#         },
-#         "company": {
-#             "name": company_data.get("name", ""),
-#             "jurisdiction": jurisdiction,
-#             "currency": currency,
-#             "registration_number": company_data.get("registration_number", ""),
-#             "address": company_data.get("address", ""),
-#         },
-#         "metadata": {
-#             "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-#             "contract_version": "2.1",
-#             "job_data_version": job_data.get("metadata", {}).get("version", "1.0"),
-#         },
-#     }
+    # Structured data aligned with new_contract.schema.json data_model
+    contract_data = {
+        "employee": {
+            "fullName": full_name or "",
+            "nric": nric or "",
+            "nationality": nationality or "",
+            "startDate": start_date or "",
+            "offered_salary": str(_offered_salary_raw) if _offered_salary_raw else "",
+            "email": user_data.get("email", ""),
+            "employee_id": user_data.get("id", ""),
+        },
+        "job": {
+            "job_code": job_code or "",
+            "job_name": position or "",
+            "department": department or "",
+            "employment_type": employment_type or "",
+            "role_summary": role_summary or "",
+            "reporting_to": reporting_to or "",
+            "work_model": {
+                "type": work_model.get("type", ""),
+                "office_days_per_week": work_model.get("office_days_per_week", 0),
+                "remote_days_per_week": work_model.get("remote_days_per_week", 0),
+            },
+            "responsibilities": job_data.get("responsibilities", []),
+            "compensation": {
+                "salary_band_min": comp.get("salary_band_min", 0),
+                "salary_band_max": comp.get("salary_band_max", 0),
+                "annual_wage_supplement_months": aws_months,
+                "bonus_policy": {
+                    "max_months": bonus_months,
+                },
+            },
+            "benefits": {
+                "retirement": {
+                    "epf": {
+                        "employer_percent": epf["employer_percent"] if epf else 13,
+                        "employee_percent": epf["employee_percent"] if epf else 11,
+                    },
+                    "cpf": {
+                        "employer_percent": cpf["employer_percent"] if cpf else 17,
+                        "employee_percent": cpf["employee_percent"] if cpf else 20,
+                    },
+                },
+                "medical_insurance": {
+                    "annual_limit": benefits.get("medical_insurance", {}).get("annual_limit", 0),
+                },
+                "learning_allowance_per_year": benefits.get("learning_allowance_per_year", 0),
+                "professional_development_budget_per_year": benefits.get("professional_development_budget_per_year", 0),
+                "dental_coverage_per_year": benefits.get("dental_coverage_per_year", 0),
+                "wellness_allowance_per_year": benefits.get("wellness_allowance_per_year", 0),
+                "flexible_hours": benefits.get("flexible_hours", False),
+            },
+            "leave_policy": {
+                "annual_leave_days": annual_leave,
+                "sick_leave_days": sick_leave,
+            },
+            "probation_period_months": job_data.get("probation_period_months", 3),
+            "career_path": job_data.get("career_path", []),
+        },
+        "company": {
+            "name": company_data.get("name", ""),
+            "jurisdiction": jurisdiction,
+            "currency": currency,
+            "registration_number": company_data.get("registration_number", ""),
+            "address": company_data.get("address", ""),
+        },
+        "metadata": {
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "contract_version": "2.1",
+            "job_data_version": job_data.get("metadata", {}).get("version", "1.0"),
+        },
+    }
 
-#     return md, contract_data
+    return md, contract_data
 
 
 from pathlib import Path

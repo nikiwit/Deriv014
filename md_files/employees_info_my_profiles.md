@@ -258,3 +258,43 @@ emergencyContact: N/A
 emergencyContactPhone: N/A
 emergencyContactRelationship: N/A
 complianceStatus: Onboarding
+
+---
+
+## Employee 8f3b6910
+id: 8f3b6910-9ff4-4d55-971d-28c5dcd01430
+firstName: hi1234
+lastName: 
+email: hi1234@gmail.com
+phone: N/A
+nationality: MY
+nric: N/A
+position: Full Stack Developer
+department: Engineering
+startDate: 2026-03-17
+bankName: CIMB
+bankAccount: 00000000000000
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding
+
+---
+
+## Employee 148ff1eb
+id: 148ff1eb-9426-4186-b95a-fd369b730721
+firstName: hi12345
+lastName: 
+email: hi12345@gmail.com
+phone: N/A
+nationality: MY
+nric: N/A
+position: Full Stack Developer
+department: Engineering
+startDate: 2026-03-17
+bankName: CIMB
+bankAccount: 00000000
+emergencyContact: N/A
+emergencyContactPhone: N/A
+emergencyContactRelationship: N/A
+complianceStatus: Onboarding
