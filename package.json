@@ -12,8 +12,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
     "@tailwindcss/typography": "^0.5.19",
+    "axios": "^1.13.5",
     "lucide-react": "^0.563.0",
-    "openai": "^4.73.0",
+    "node-telegram-bot-api": "^0.67.0",
+    "openai": "^4.104.0",
     "pdfkit": "^0.17.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

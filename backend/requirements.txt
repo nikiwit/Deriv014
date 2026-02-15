@@ -9,5 +9,6 @@ llama-index-readers-file>=0.4.0
 xhtml2pdf==0.2.16
 fpdf2==2.8.3
 python-dotenv==1.1.0
-supabase>=2.0.0
+supabase>=2.10.0
 openai>=1.0.0
+python-telegram-bot==21.0
