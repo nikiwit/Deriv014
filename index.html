@@ -14,231 +14,63 @@
               derivhr: {
                 50: '#fff5f5',
                 100: '#ffeaea',
-                500: '#FF444F', // Deriv Coral Red
+                200: '#ffdada',
+                300: '#ffbaba',
+                400: '#ff8a8f',
+                500: '#FF444F', // Deriv Coral Red (Primary)
                 600: '#E63E46',
+                700: '#cc2f36',
                 800: '#C03239',
                 900: '#992127',
-                dark: '#0e0e0e', // Deriv Dark Background
-                card: '#ffffff',
+                950: '#4d0a0d',
+                dark: '#0e0e0e',
               },
               jade: {
-                500: '#00B67B', // Deriv Jade
+                500: '#00B67B',
+                600: '#009d6a',
+              },
+              slate: {
+                850: '#151e32',
               }
             },
-            animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'fade-in': 'fadeIn 0.5s ease-out forwards',
-              'slide-in-right': 'slideInRight 0.5s ease-out forwards',
-              'slide-in-up': 'slideInUp 0.5s ease-out forwards',
-              'slide-in-left': 'slideInLeft 0.5s ease-out forwards',
-              'scale-in': 'scaleIn 0.3s ease-out forwards',
-              'bounce-in': 'bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards',
-              'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
-              'float': 'float 3s ease-in-out infinite',
-              'glow': 'glow 2s ease-in-out infinite alternate',
-              'slide-down': 'slideDown 0.4s ease-out forwards',
-              'zoom-in': 'zoomIn 0.4s ease-out forwards',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              slideInRight: {
-                '0%': { opacity: '0', transform: 'translateX(20px)' },
-                '100%': { opacity: '1', transform: 'translateX(0)' },
-              },
-              slideInUp: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              slideInLeft: {
-                '0%': { opacity: '0', transform: 'translateX(-20px)' },
-                '100%': { opacity: '1', transform: 'translateX(0)' },
-              },
-              scaleIn: {
-                '0%': { opacity: '0', transform: 'scale(0.9)' },
-                '100%': { opacity: '1', transform: 'scale(1)' },
-              },
-              bounceIn: {
-                '0%': { opacity: '0', transform: 'scale(0.3)' },
-                '50%': { opacity: '1', transform: 'scale(1.05)' },
-                '70%': { transform: 'scale(0.9)' },
-                '100%': { transform: 'scale(1)' },
-              },
-              shake: {
-                '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
-                '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
-                '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
-                '40%, 60%': { transform: 'translate3d(4px, 0, 0)' },
-              },
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              },
-              glow: {
-                '0%': { boxShadow: '0 0 5px rgba(255, 68, 79, 0.3)' },
-                '100%': { boxShadow: '0 0 20px rgba(255, 68, 79, 0.6)' },
-              },
-              slideDown: {
-                '0%': { opacity: '0', transform: 'translateY(-10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              zoomIn: {
-                '0%': { opacity: '0', transform: 'scale(0.8)' },
-                '100%': { opacity: '1', transform: 'scale(1)' },
-              }
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
             }
           }
         }
       }
     </script>
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
       body {
         background-color: #f8fafc; /* Slate 50 */
         color: #0f172a; /* Slate 900 */
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
-      /* Custom Scrollbar */
+
+      /* Custom Scrollbar - Professional & Minimal */
       ::-webkit-scrollbar {
-        width: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1; 
-        border-radius: 4px;
+        border-radius: 3px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8; 
       }
       
-      /* Enhanced Transitions */
-      * {
-        transition-property: color, background-color, border-color, transform, box-shadow, opacity;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-        transition-duration: 200ms;
-      }
-      
-      /* Smooth Scroll */
-      html {
-        scroll-behavior: smooth;
-      }
-      
-      /* Button Hover Effects */
-      button {
-        position: relative;
-        overflow: hidden;
-      }
-      
-      button::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 0;
-        height: 0;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        transition: width 0.6s, height 0.6s;
-      }
-      
-      button:active::after {
-        width: 300px;
-        height: 300px;
-      }
-      
-      /* Card Hover Effect */
-      .card-hover {
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      
-      .card-hover:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-      }
-      
-      /* Input Focus Animation */
-      input:focus, select:focus, textarea:focus {
-        animation: inputFocus 0.3s ease-out;
-      }
-      
-      @keyframes inputFocus {
-        0% {
-          box-shadow: 0 0 0 0 rgba(255, 68, 79, 0.4);
-        }
-        100% {
-          box-shadow: 0 0 0 4px rgba(255, 68, 79, 0.1);
-        }
-      }
-      
-      /* Gradient Text Animation */
-      .gradient-text {
-        background: linear-gradient(135deg, #FF444F 0%, #E63E46 50%, #C03239 100%);
-        background-size: 200% 200%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        animation: gradientShift 3s ease infinite;
-      }
-      
-      @keyframes gradientShift {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-      }
-      
-      /* Loading Skeleton */
-      .skeleton {
-        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-        background-size: 200% 100%;
-        animation: skeletonLoading 1.5s infinite;
-      }
-      
-      @keyframes skeletonLoading {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-      }
-      
-      /* Progress Bar Animation */
-      .progress-bar {
-        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      
-      /* Tooltip Animation */
-      .tooltip {
-        opacity: 0;
-        visibility: hidden;
-        transition: all 0.2s ease;
-      }
-      
-      .tooltip-trigger:hover .tooltip {
-        opacity: 1;
-        visibility: visible;
-      }
-      
-      /* Modal Backdrop */
-      .modal-backdrop {
-        backdrop-filter: blur(4px);
-        transition: backdrop-filter 0.3s ease;
-      }
-      
-      /* Stagger Animation for Lists */
-      .stagger-item {
-        opacity: 0;
-        animation: staggerIn 0.4s ease-out forwards;
-      }
-      
-      @keyframes staggerIn {
-        from {
-          opacity: 0;
-          transform: translateY(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      /* Subtle Focus Styles for Accessibility */
+      :focus-visible {
+        outline: 2px solid #FF444F;
+        outline-offset: 2px;
       }
     </style>
 </head>

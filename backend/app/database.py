@@ -23,12 +23,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE TABLE IF NOT EXISTS generated_documents (
     id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
     document_type TEXT NOT NULL,
     jurisdiction TEXT NOT NULL,
     employee_name TEXT NOT NULL,
-    parameters TEXT NOT NULL,
+    parameters TEXT,
     file_path TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    status TEXT DEFAULT 'generated',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 
 CREATE TABLE IF NOT EXISTS employees (

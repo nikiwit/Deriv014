@@ -114,3 +114,6 @@ cython_debug/
 .txt
 temp_data/
 md_files/future_use/
+application_*.pdf
+onboarding_application_*.pdf
+contract_my_test.pdf

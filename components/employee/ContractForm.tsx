@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FileSignature } from 'lucide-react';
+import { SignaturePad } from '../design-system/SignaturePad';
 
 /**
  * ContractForm
@@ -44,6 +45,7 @@ export type FieldType =
   | 'textarea'
   | 'bank'
   | 'nric'
+  | 'signature'
   | 'custom';
 
 export interface FieldSchema {
@@ -193,6 +195,16 @@ const DefaultField: React.FC<{
   const { type = 'text', placeholder, options } = schema;
 
   switch (type) {
+    case 'signature':
+      return (
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+          <SignaturePad 
+            onSave={onChange} 
+            onClear={() => onChange(null)} 
+          />
+          {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
+        </div>
+      );
     case 'textarea':
       return (
         <>
@@ -461,7 +473,15 @@ export const ContractForm: React.FC<ContractFormProps> = ({
             <div className="text-xs text-slate-500">Changes recorded locally. HR will only be notified for flagged changes.</div>
             <div className="flex items-center space-x-3">
               <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-              <button type="submit" className="px-6 py-3 text-base font-bold text-white rounded-xl bg-gradient-to-r from-emerald-600 to-jade-600 shadow-lg">Submit & Complete</button>
+<button
+  type="submit"
+  className="px-6 py-3 text-base font-bold text-black rounded-xl 
+             bg-white border border-slate-300 shadow-sm 
+             hover:bg-slate-50 hover:shadow-md transition"
+>
+  Submit & Complete
+</button>
+
             </div>
           </div>
         </form>

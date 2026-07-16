@@ -6,7 +6,9 @@ import { Message, IntegrationConfig } from '../types';
 import { calculateOvertime, calculateContributions } from '../utils/payroll';
 import { PUBLIC_HOLIDAYS_MY, MALAYSIAN_STATES, MOCK_LEAVE_BALANCES } from '../constants';
 import { Send, Paperclip, Bot, User, Cpu, ThumbsUp, ThumbsDown, Calculator, BriefcaseBusiness, Truck, Wallet, MessageCircle, Smartphone, Check, Briefcase, RefreshCw, AlertCircle, Slack } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
+import { sendChatMessage, ChatResponse } from '../services/api';
 type ToolType = 'none' | 'ot_calc' | 'epf_calc' | 'leave_status';
 
 const STORAGE_KEY_MESSAGES = "derivhr_chat_messages";
@@ -227,7 +229,7 @@ export const ChatAssistant: React.FC = () => {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001.',
+        content: 'Sorry, I encountered an error connecting to the backend. Please ensure the server is running on port 5001. Error: ' + (err.message || 'Unknown error'),
         modelUsed: 'System',
         timestamp: new Date(),
       };
@@ -634,11 +636,15 @@ export const ChatAssistant: React.FC = () => {
               {/* Bubble */}
               <div className="group relative">
                 <div className={`p-4 rounded-2xl shadow-sm border ${
-                    msg.role === 'user' 
-                    ? 'bg-derivhr-500 text-white rounded-tr-none border-derivhr-500' 
+                    msg.role === 'user'
+                    ? 'bg-derivhr-500 text-white rounded-tr-none border-derivhr-500'
                     : 'bg-white border-slate-200 text-slate-800 rounded-tl-none'
                 }`}>
-                    <p className="leading-relaxed whitespace-pre-wrap text-sm font-medium">{msg.content}</p>
+                    {msg.role === 'user' ? (
+                      <p className="leading-relaxed whitespace-pre-wrap text-sm font-medium">{msg.content}</p>
+                    ) : (
+                      <MarkdownRenderer content={msg.content} className="text-sm" />
+                    )}
                 </div>
               </div>
             </div>

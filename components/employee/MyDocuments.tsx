@@ -210,17 +210,26 @@ export const MyDocuments: React.FC = () => {
   const downloadApplicationPdf = async () => {
     if (!profile) { alert('No onboarding profile found.'); return; }
     const prof = ensureProfileHasId({ ...profile });
+    
+    // Auto-save any profile updates
     localStorage.setItem('onboardingProfile', JSON.stringify(prof));
     setProfile(prof);
+
     try {
       setPdfLoading('application');
-      const saveRes = await fetch(`${API_BASE}/api/save-application`, {
+      
+      // Save comprehensive data payload
+      const payload = { ...prof, id: prof.id }; // ensure ID is top-level
+      const saveRes = await fetch(`${API_BASE}/api/save-application-comprehensive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(prof),
+        body: JSON.stringify(payload),
       });
+      
       if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`);
-      window.open(`${API_BASE}/api/generate-pdf/${encodeURIComponent(prof.id)}`, '_blank');
+      
+      // Open generation link
+      window.open(`${API_BASE}/api/generate-app-comprehensive-pdf/${encodeURIComponent(prof.id)}`, '_blank');
     } catch (err: any) {
       console.error('Failed to generate PDF', err);
       alert('Failed to generate PDF: ' + (err?.message || err));

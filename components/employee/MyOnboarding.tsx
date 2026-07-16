@@ -19,6 +19,7 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+import { SignaturePad } from '../design-system/SignaturePad';
 
 const categoryConfig: Record<TaskCategory, { label: string; icon: React.ReactNode; color: string }> = {
   documentation: { label: 'Documentation', icon: <FileText size={18} />, color: 'bg-blue-500' },
@@ -45,9 +46,15 @@ export const MyOnboarding: React.FC = () => {
   const [templateContent, setTemplateContent] = useState<string | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [signature, setSignature] = useState<string | null>(null);
 
   // Determine jurisdiction from user nationality (default MY)
   const jurisdiction = user?.department?.toLowerCase().includes('singapore') ? 'sg' : 'my';
+
+  // Reset signature when task changes
+  useEffect(() => {
+    setSignature(null);
+  }, [selectedTask?.id]);
 
   // Fetch template when a task with templateId is selected
   useEffect(() => {
@@ -95,6 +102,11 @@ export const MyOnboarding: React.FC = () => {
   const totalMinutes = tasks.filter(t => t.status !== 'completed').reduce((sum, t) => sum + t.estimatedMinutes, 0);
 
   const handleCompleteTask = (taskId: string) => {
+    if (selectedTask?.requiresSignature && !signature) {
+      alert('Please provide your digital signature to proceed.');
+      return;
+    }
+
     setTasks(prev => {
       const updated = prev.map(t => {
         if (t.id === taskId) {
@@ -363,11 +375,15 @@ export const MyOnboarding: React.FC = () => {
 
                   {/* Signature area for template tasks */}
                   {selectedTask.requiresSignature && templateContent && (
-                    <div className="bg-slate-50 rounded-xl p-4 mb-4 flex-shrink-0">
-                      <p className="text-sm font-bold text-slate-600 mb-2">Digital Signature</p>
-                      <div className="border-2 border-slate-200 bg-white rounded-xl h-24 flex items-center justify-center cursor-pointer hover:border-jade-400 transition-colors">
-                        <p className="text-slate-400 italic">Click to sign here</p>
-                      </div>
+                    <div className="bg-slate-50 rounded-xl p-6 mb-4 flex-shrink-0 border border-slate-100">
+                      <p className="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                        <FileSignature className="mr-2 text-jade-500" size={18} />
+                        Digital Signature Required
+                      </p>
+                      <SignaturePad 
+                        onSave={setSignature} 
+                        onClear={() => setSignature(null)} 
+                      />
                     </div>
                   )}
                 </>
@@ -387,19 +403,23 @@ export const MyOnboarding: React.FC = () => {
                   </div>
 
                   {selectedTask.requiresUpload && (
-                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center mb-6 hover:border-jade-500 transition-colors cursor-pointer">
-                      <Upload className="mx-auto text-slate-400 mb-2" size={32} />
-                      <p className="font-bold text-slate-600">Click to upload or drag and drop</p>
+                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center mb-6 hover:border-jade-500 transition-colors cursor-pointer group">
+                      <Upload className="mx-auto text-slate-400 mb-2 group-hover:text-jade-500 transition-colors" size={32} />
+                      <p className="font-bold text-slate-600 group-hover:text-slate-900 transition-colors">Click to upload or drag and drop</p>
                       <p className="text-sm text-slate-400">PDF, PNG, JPG up to 10MB</p>
                     </div>
                   )}
 
                   {selectedTask.requiresSignature && (
-                    <div className="bg-slate-50 rounded-xl p-6 mb-6">
-                      <p className="text-sm font-bold text-slate-600 mb-3">Digital Signature Required</p>
-                      <div className="border-2 border-slate-200 bg-white rounded-xl h-32 flex items-center justify-center">
-                        <p className="text-slate-400 italic">Click to sign here</p>
-                      </div>
+                    <div className="bg-slate-50 rounded-xl p-6 mb-6 border border-slate-100">
+                      <p className="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                        <FileSignature className="mr-2 text-jade-500" size={18} />
+                        Digital Signature Required
+                      </p>
+                      <SignaturePad 
+                        onSave={setSignature} 
+                        onClear={() => setSignature(null)} 
+                      />
                     </div>
                   )}
                 </>
@@ -414,7 +434,7 @@ export const MyOnboarding: React.FC = () => {
                 </button>
                 <button
                   onClick={() => handleCompleteTask(selectedTask.id)}
-                  disabled={selectedTask.templateId ? templateLoading || !!templateError : false}
+                  disabled={selectedTask.templateId ? templateLoading || !!templateError : (selectedTask.requiresSignature && !signature)}
                   className="flex-1 py-3 px-4 bg-jade-500 text-white rounded-xl font-bold hover:bg-jade-600 transition-all shadow-lg shadow-jade-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {selectedTask.status === 'completed' ? 'Already Complete' :

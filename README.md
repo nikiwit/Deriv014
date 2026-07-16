@@ -1,205 +1,260 @@
 # DerivHR AI Platform
 
-An AI-powered HR management platform for modern workforce operations with RAG-based Q&A and smart contract generation.
+An AI-powered HR management platform built for Deriv's multi-jurisdiction workforce. Features RAG-based policy Q&A, automated contract generation, and end-to-end employee onboarding — covering both Malaysia and Singapore offices.
 
-**Deriv014 AI Hackathon Virtual Round - 07-08 Feb 2026**
+**Deriv014 AI Hackathon Virtual Round — 07-08 Feb 2026**
 
-## 🚀 Features
+The hackathon pitch presentation is available in the [Deriv014 Pitch Deck](Deriv014%20Pitch%20Deck.pdf).
 
-### Core Functionality
-- **New Employee Onboarding**: AI-powered onboarding with dual mode interface (Form Mode / AI Chat Mode)
-- **RAG-based Q&A**: Ask questions about company policies, handbooks, leave policies, etc.
-- **Smart Contract Generation**: Automated employment contract generation for Malaysia & Singapore
-- **Document Generation**: AI-powered compliance documents
-- **Leave Management**: Global E-Leave system with approval workflows
-- **Workforce Analytics**: AI-driven insights into workforce health
-- **Knowledge Base**: Centralized document and policy management with RAG
+## Features
 
-### Technical Features
-- Dual Mode Interface: Form Mode (structured) or AI Chat Mode (conversational)
-- 4-Step Wizard: Personal Info → Employment → Compliance → Review
-- Real-time Validation & AI-Generated Plans
-- RAG (Retrieval Augmented Generation) for policy Q&A
-- Contract templates for Malaysia (MY) and Singapore (SG)
+### Core
+- **AI HR Assistant** — RAG-powered chatbot that answers employee questions using indexed company policies, with source citations and jurisdiction awareness (MY/SG)
+- **Smart Contract Generation** — Auto-generates jurisdiction-specific employment contracts (PDF) with statutory defaults (EPF/SOCSO for MY, CPF for SG)
+- **Employee Onboarding** — 4-step wizard with dual mode: structured form or conversational AI chat
+- **Document Checklist** — Tracks required compliance documents per jurisdiction with auto-promotion to active status
+- **E-Leave Management** — Leave request and approval workflows
+- **Workforce Analytics** — AI-driven workforce insights and metrics dashboard
 
-## 📁 Project Structure
+### Platform
+- **HR Admin Portal** — Dashboard, onboarding management, contract generation, knowledge base, analytics
+- **Employee Portal** — Personal dashboard, onboarding progress, leave requests, documents, profile
+- **Slack Integration** — Employees can query HR policies directly from Slack via Socket Mode bot
+- **Streaming Responses** — Real-time token streaming via Server-Sent Events (SSE)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Recharts |
+| Backend | Flask 3.1, Python 3.x, SQLite |
+| RAG Engine | LlamaIndex 0.12.5 (VectorStoreIndex) |
+| LLM | Google Gemini 2.5 Flash |
+| Embeddings | OpenAI text-embedding-3-small |
+| PDF Generation | xhtml2pdf with Jinja2 templates |
+
+## Project Structure
 
 ```
-DerivHR/
-├── backend/                  # Python Flask API
-│   ├── app/
-│   │   ├── rag.py           # RAG implementation
-│   │   ├── document_generator.py  # Contract generation
-│   │   ├── models.py        # Database models
-│   │   ├── routes/          # API endpoints
-│   │   │   ├── chat.py      # RAG chat endpoint
-│   │   │   ├── documents.py # Document generation
-│   │   │   └── onboarding.py # Onboarding API
-│   │   └── config.py        # Configuration
-│   ├── templates/           # HTML contract templates
-│   └── requirements.txt     # Python dependencies
-├── md_files/                # Company policies & handbooks
-│   ├── deriv_my_*.md       # Malaysia documents
-│   └── deriv_sg_*.md       # Singapore documents
-├── components/              # React components
-│   ├── auth/               # Authentication
-│   ├── employee/           # Employee portal
-│   ├── onboarding/         # Onboarding components
-│   └── ...                 # Other features
+Deriv014/
+├── App.tsx                        # Main app with role-based routing
+├── components/
+│   ├── Layout.tsx                 # HR admin layout + sidebar
+│   ├── Dashboard.tsx              # Workforce overview & metrics
+│   ├── ChatAssistant.tsx          # HR RAG chatbot
+│   ├── DocumentGen.tsx            # Contract generation UI
+│   ├── Onboarding.tsx             # HR onboarding management
+│   ├── LeaveManagement.tsx        # E-Leave system
+│   ├── WorkforceAnalytics.tsx     # AI workforce insights
+│   ├── KnowledgeBase.tsx          # Policy document browser
+│   ├── auth/LoginPage.tsx         # Login with role selection
+│   ├── employee/                  # Employee portal views
+│   └── onboarding/                # Onboarding wizard (4-step)
 ├── services/
-│   └── geminiService.ts    # AI service integration
-└── types.ts                # TypeScript definitions
+│   └── api.ts                     # Backend API wrapper
+├── contexts/
+│   └── AuthContext.tsx            # Auth state (localStorage)
+│
+├── backend/
+│   ├── run.py                     # Flask entry point (port 5001)
+│   ├── requirements.txt           # Python dependencies
+│   ├── app/
+│   │   ├── __init__.py            # App factory (create_app)
+│   │   ├── config.py              # Configuration & env vars
+│   │   ├── database.py            # SQLite schema (7 tables)
+│   │   ├── rag.py                 # RAG engine (LlamaIndex + Gemini + OpenAI)
+│   │   └── routes/
+│   │       ├── chat.py            # Chat endpoints (standard + SSE streaming)
+│   │       ├── documents.py       # Contract generation & management
+│   │       └── onboarding.py      # Employee registration & checklist
+│   ├── templates/                 # Jinja2 contract templates (MY/SG)
+│   └── instance/                  # SQLite DB, vector index, generated PDFs
+│
+├── md_files/                      # RAG knowledge base (10+ policy docs)
+│   ├── deriv_my_*.md              # Malaysia policies
+│   └── deriv_sg_*.md              # Singapore policies
+│
+└── docs/                          # Architecture & workflow documentation
 ```
 
-## 🛠️ Installation
+## Prerequisites
 
-### Backend Setup (Python/Flask)
+- **Node.js** >= 18
+- **Python** >= 3.10
+- **API Keys:**
+  - Google Gemini API key — [Get one here](https://aistudio.google.com/apikey)
+  - OpenAI API key — [Get one here](https://platform.openai.com/api-keys)
 
-1. Navigate to backend directory:
+## Getting Started
+
+### 1. Install frontend dependencies
+
 ```bash
-cd backend
-```
-
-2. Create virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Create `.env` file:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-DATABASE_URL=sqlite:///deriv_hr.db
-```
-
-5. Run the backend:
-```bash
-python run.py
-```
-
-Backend will run on `http://localhost:5000`
-
-### Frontend Setup (React/TypeScript)
-
-1. Install dependencies:
-```bash
+cd Deriv014
 npm install
 ```
 
-2. Create `.env.local` file:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
+### 2. Set up the backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-3. Run development server:
+### 3. Configure environment variables
+
+Create **`backend/.env`**:
+
+```env
+GOOGLE_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+Create **`.env`** in the project root (for frontend Gemini features):
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+### 4. Start the application
+
+You need **two terminals** running simultaneously:
+
+**Terminal 1 — Backend (Flask)**
+
+```bash
+cd backend
+source .venv/bin/activate
+python run.py
+```
+
+The backend starts on **http://localhost:5001**. On first run it builds the vector index from the policy documents in `md_files/` — this takes around 30 seconds.
+
+**Terminal 2 — Frontend (Vite)**
+
 ```bash
 npm run dev
 ```
 
-Frontend will run on `http://localhost:3002`
+The frontend starts on **http://localhost:3001**. Vite proxies all `/api` requests to the Flask backend automatically.
 
-## 🔧 Usage
+### 5. Open the app
 
-### RAG-based Q&A System
-The platform includes a comprehensive RAG system that can answer questions about:
-- Company policies (Malaysia & Singapore)
-- Employee handbooks
-- Leave policies
-- IT & Data policies
-- Job descriptions
+Navigate to **http://localhost:3001** in your browser.
 
-Example queries:
-- "What is the annual leave policy in Malaysia?"
-- "How do I request sick leave?"
-- "What are the working hours in Singapore office?"
+## Usage
 
-### Contract Generation
-Generate employment contracts automatically:
-1. Navigate to Smart Contracts section
-2. Enter employee details
-3. Select country (Malaysia/Singapore)
-4. System generates compliant contract using templates
+### Login
+
+The app includes demo users for testing. Select a role on the login page:
+
+- **HR Admin** — Full access to dashboard, onboarding management, contract generation, HR chatbot, knowledge base, and analytics
+- **Employee** — Access to personal dashboard, onboarding progress, leave management, documents, and employee chatbot
+
+### AI HR Chatbot
+
+1. Navigate to **Assistant** in the HR sidebar (or **AI Assistant** in the employee portal)
+2. Ask any HR policy question, for example:
+   - *"What is the annual leave entitlement for Malaysian employees?"*
+   - *"What are the CPF contribution rates in Singapore?"*
+   - *"What is the dress code policy?"*
+   - *"How do I request sick leave?"*
+3. The bot retrieves relevant policy chunks via RAG, responds with citations including the source document and jurisdiction
+4. Conversations persist per session with full chat history
+
+### Generating Contracts
+
+1. Navigate to **Documents** in the HR sidebar
+2. Fill in employee details: name, position, department, jurisdiction (MY/SG), start date, salary
+3. Click **Generate** — the system renders a jurisdiction-specific contract and outputs a downloadable PDF
+4. Malaysia contracts include Employment Act 1955 provisions, EPF/SOCSO rates
+5. Singapore contracts include Employment Act (Cap. 91) provisions, CPF rates
 
 ### Employee Onboarding
-1. Click **"New Employee Onboarding"** on login page
-2. Choose Form Mode or AI Chat Mode
-3. Complete 4-step wizard
-4. Get AI-generated onboarding plan
 
-## 🔌 API Reference
+1. Click **New Employee Onboarding** from the login page, or navigate to **Onboarding** in the HR admin sidebar
+2. Choose **Form Mode** (structured) or **AI Chat Mode** (conversational)
+3. Complete the 4-step wizard: Personal Info → Employment Details → Compliance & Documents → Review
+4. Required documents are tracked per jurisdiction; employee auto-promotes to active status when all docs are submitted
 
-### Backend API Endpoints
+## Slack Integration (Optional)
 
-**Chat/RAG:**
-- `POST /api/chat` - Ask questions about policies
+1. Create a Slack app with **Socket Mode** enabled and appropriate bot scopes
+2. Add to **`backend/.env`**:
 
-**Documents:**
-- `POST /api/documents/generate` - Generate contracts
-- `GET /api/documents/:id` - Get document by ID
+```env
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-token
+```
 
-**Onboarding:**
-- `POST /api/onboarding/employee` - Create new employee
-- `GET /api/onboarding/employees` - List all employees
+3. Install the dependency and run the bot:
 
-See [backend/API_REFERENCE.md](backend/API_REFERENCE.md) for detailed API documentation.
-
-## 🧠 Technologies
-
-### Backend
-- **Python 3.x** - Core language
-- **Flask** - Web framework
-- **LangChain** - RAG framework
-- **OpenAI API** - LLM for RAG
-- **SQLite** - Database
-
-### Frontend
-- **React 19** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **Google Gemini AI** - AI features
-- **Recharts** - Data visualization
-
-## 📊 Data Files
-
-The `md_files/` directory contains company documentation:
-- Company information (MY/SG)
-- Employee handbooks (MY/SG)
-- Leave policies (MY/SG)
-- IT & Data policies (MY/SG)
-- Job descriptions (MY/SG)
-
-These files are used by the RAG system to answer employee questions.
-
-## 🚀 Deployment
-
-### Backend
-1. Set production environment variables
-2. Use production WSGI server (gunicorn):
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5000 run:app
+pip install slack-bolt
+cd backend
+source .venv/bin/activate
+python slack_socket.py
+```
+
+Employees can then message the bot in Slack to ask HR policy questions — it uses the same RAG engine as the web chatbot.
+
+## API Reference
+
+See [backend/API_REFERENCE.md](backend/API_REFERENCE.md) for full endpoint documentation.
+
+Key endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/chat` | Send a message to the HR chatbot |
+| `POST` | `/api/chat/stream` | Streaming chat via SSE |
+| `GET` | `/api/chat/history/<session_id>` | Get conversation history |
+| `POST` | `/api/documents/generate` | Generate employment contract PDF |
+| `GET` | `/api/documents` | List generated documents |
+| `GET` | `/api/documents/<id>/download` | Download a contract PDF |
+| `POST` | `/api/onboarding/employees` | Register a new employee |
+| `GET` | `/api/onboarding/employees` | List all employees |
+| `GET` | `/api/onboarding/employees/<id>/checklist` | Get onboarding document checklist |
+| `GET` | `/api/health` | Health check |
+
+## RAG Knowledge Base
+
+The `md_files/` directory contains company documentation indexed by the RAG engine:
+
+| Document | Jurisdictions |
+|----------|--------------|
+| Company Information | MY, SG |
+| Employee Handbook | MY, SG |
+| Leave Policy | MY, SG |
+| IT & Data Policy | MY, SG |
+| Job Descriptions | MY, SG |
+
+These files are loaded into a LlamaIndex VectorStoreIndex using OpenAI embeddings. The vector index is persisted in `backend/instance/index_store/` and only rebuilt when missing.
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Vector index errors after changing embedding model | Delete `backend/instance/index_store/` and restart the backend to rebuild |
+| Gemini rate limit errors | Free tier has limited requests/minute. The app uses Gemini for LLM only (not embeddings) to minimize this |
+| Port conflicts | Frontend uses port 3001, backend uses port 5001. Change in `vite.config.ts` and `backend/run.py` |
+| Backend not connecting | Ensure both terminals are running. Check that `backend/.env` has valid API keys |
+| Empty chatbot responses | Verify `GOOGLE_API_KEY` is set correctly and Gemini 2.5 Flash quota is not exhausted |
+
+## Deployment
+
+### Backend
+
+```bash
+pip install gunicorn
+gunicorn -w 4 -b 0.0.0.0:5001 "app:create_app()"
 ```
 
 ### Frontend
-1. Build the application:
+
 ```bash
 npm run build
+# Deploy the dist/ folder to your hosting provider
 ```
-2. Deploy the `dist` folder to your hosting provider
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 💬 Support
-
-For issues and questions, please open an issue on GitHub.

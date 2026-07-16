@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FileText, Bot, TrendingUp, TestTube2, Database, CalendarDays, UserPlus, UserCircle, Home, ClipboardCheck, User, FolderOpen, MessageSquare, Sparkles } from 'lucide-react';
 import { Sandbox, FeedbackLog, KnowledgeDoc, LeaveRequest, LeaveBalance, User as UserType, OnboardingTask } from './types';
 
 export const NAVIGATION_ITEMS = [
@@ -9,6 +9,7 @@ export const NAVIGATION_ITEMS = [
   { id: 'leave', label: 'E-Leave (Global)', icon: <CalendarDays size={20} /> },
   { id: 'documents', label: 'Smart Contracts', icon: <FileText size={20} /> },
   { id: 'assistant', label: 'DerivHR Agents', icon: <Bot size={20} /> },
+  // { id: 'hr_agent', label: 'JD Analyzer', icon: <Sparkles size={20} /> },
   { id: 'knowledge', label: 'Knowledge Base', icon: <Database size={20} /> },
   { id: 'planning', label: 'Workforce AI', icon: <TrendingUp size={20} /> },
   { id: 'training', label: 'Model Lab', icon: <TestTube2 size={20} /> },

@@ -3,7 +3,7 @@ import { generateComplexContract } from '../services/geminiService';
 import { ContractParams } from '../types';
 import { GLOBAL_JURISDICTIONS } from '../constants';
 import { Bot, FileDown, Loader2, Scale, ThumbsUp, ThumbsDown, MessageSquare, Handshake, TrendingUp, Download, CheckCircle2, User, Upload } from 'lucide-react';
-
+import { generateContractAPI, GenerateContractRequest, GenerateContractResponse, downloadDocument } from '../services/api';
 const API_BASE = 'http://localhost:5001';
 
 function loadJson(key: string): Record<string, any> | null {
